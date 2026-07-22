@@ -166,6 +166,7 @@ export default function App() {
   // Sync data automatically every 10 seconds if logged in
   useEffect(() => {
     if (!currentUser) return;
+    fetchDashboardData();
     const interval = setInterval(() => {
       fetchDashboardData();
     }, 10000);
@@ -472,6 +473,8 @@ export default function App() {
         setRegConfirmPassword('');
         setRegSponsor('');
         setRegUpline('');
+        fetchDashboardData();
+        fetchProducts();
       } else {
         alert(data.message || "Pendaftaran gagal");
       }

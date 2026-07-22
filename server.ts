@@ -25,10 +25,17 @@ try {
   console.warn("⚠️ Firebase Firestore initialization warning:", e);
 }
 
+function cleanForFirestore(obj: any) {
+  if (!obj) return obj;
+  return JSON.parse(JSON.stringify(obj, (key, value) => (value === undefined ? null : value)));
+}
+
 export async function syncUserToFirestore(user: MLMUser) {
   if (!firestoreDb) return;
   try {
-    await setDoc(doc(firestoreDb, "users", String(user.id)), { ...user }, { merge: true });
+    const cleaned = cleanForFirestore(user);
+    await setDoc(doc(firestoreDb, "users", String(user.id)), cleaned, { merge: true });
+    console.log(`🔥 [FIRESTORE] User @${user.username} (ID: ${user.id}) successfully synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync user error:", err);
   }
@@ -37,7 +44,9 @@ export async function syncUserToFirestore(user: MLMUser) {
 export async function syncDepositToFirestore(deposit: DepositRequest) {
   if (!firestoreDb) return;
   try {
-    await setDoc(doc(firestoreDb, "deposits", String(deposit.id)), { ...deposit }, { merge: true });
+    const cleaned = cleanForFirestore(deposit);
+    await setDoc(doc(firestoreDb, "deposits", String(deposit.id)), cleaned, { merge: true });
+    console.log(`🔥 [FIRESTORE] Deposit #${deposit.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync deposit error:", err);
   }
@@ -46,7 +55,9 @@ export async function syncDepositToFirestore(deposit: DepositRequest) {
 export async function syncWithdrawalToFirestore(wd: WDRequest) {
   if (!firestoreDb) return;
   try {
-    await setDoc(doc(firestoreDb, "withdrawals", String(wd.id)), { ...wd }, { merge: true });
+    const cleaned = cleanForFirestore(wd);
+    await setDoc(doc(firestoreDb, "withdrawals", String(wd.id)), cleaned, { merge: true });
+    console.log(`🔥 [FIRESTORE] Withdrawal #${wd.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync withdrawal error:", err);
   }
@@ -55,7 +66,9 @@ export async function syncWithdrawalToFirestore(wd: WDRequest) {
 export async function syncTransactionToFirestore(tx: Transaction) {
   if (!firestoreDb) return;
   try {
-    await setDoc(doc(firestoreDb, "transactions", String(tx.id)), { ...tx }, { merge: true });
+    const cleaned = cleanForFirestore(tx);
+    await setDoc(doc(firestoreDb, "transactions", String(tx.id)), cleaned, { merge: true });
+    console.log(`🔥 [FIRESTORE] Transaction #${tx.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync transaction error:", err);
   }
@@ -64,7 +77,9 @@ export async function syncTransactionToFirestore(tx: Transaction) {
 export async function syncProductToFirestore(p: Product) {
   if (!firestoreDb) return;
   try {
-    await setDoc(doc(firestoreDb, "products", String(p.id)), { ...p }, { merge: true });
+    const cleaned = cleanForFirestore(p);
+    await setDoc(doc(firestoreDb, "products", String(p.id)), cleaned, { merge: true });
+    console.log(`🔥 [FIRESTORE] Product "${p.name}" (ID: ${p.id}) successfully synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync product error:", err);
   }
@@ -73,7 +88,9 @@ export async function syncProductToFirestore(p: Product) {
 export async function syncSettingsToFirestore(s: any) {
   if (!firestoreDb) return;
   try {
-    await setDoc(doc(firestoreDb, "settings", "system"), { ...s }, { merge: true });
+    const cleaned = cleanForFirestore(s);
+    await setDoc(doc(firestoreDb, "settings", "system"), cleaned, { merge: true });
+    console.log(`🔥 [FIRESTORE] System settings synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync settings error:", err);
   }
@@ -82,7 +99,9 @@ export async function syncSettingsToFirestore(s: any) {
 export async function syncNotificationToFirestore(n: MLMNotification) {
   if (!firestoreDb) return;
   try {
-    await setDoc(doc(firestoreDb, "notifications", String(n.id)), { ...n }, { merge: true });
+    const cleaned = cleanForFirestore(n);
+    await setDoc(doc(firestoreDb, "notifications", String(n.id)), cleaned, { merge: true });
+    console.log(`🔥 [FIRESTORE] Notification #${n.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync notification error:", err);
   }
@@ -548,7 +567,7 @@ function getUplineChain(userId: number, limit: number = 10): MLMUser[] {
 }
 
 // Function to calculate and distribute MLM Bonuses when a user is activated
-function activateUserMLM(userId: number) {
+async function activateUserMLM(userId: number) {
   const user = users.find(u => u.id === userId);
   if (!user || user.is_active) return false;
 
@@ -556,15 +575,17 @@ function activateUserMLM(userId: number) {
   user.is_active = true;
 
   // Add activation charge transaction
-  transactions.push({
-    id: transactions.length + 1,
+  const actTx: Transaction = {
+    id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
     user_id: user.id,
     username: user.username,
     type: "activation",
     amount: -100000,
     description: `Aktifasi Akun Premium Hak Usaha ${user.fullname}`,
     created_at: new Date().toISOString()
-  });
+  };
+  transactions.push(actTx);
+  await syncTransactionToFirestore(actTx);
 
   // 2. Distribute Sponsor Bonus
   if (user.sponsor_id) {
@@ -574,24 +595,28 @@ function activateUserMLM(userId: number) {
       sponsor.balance += bonusAmt;
       sponsor.sponsor_bonus += bonusAmt;
       
-      transactions.push({
-        id: transactions.length + 1,
+      const spTx: Transaction = {
+        id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
         user_id: sponsor.id,
         username: sponsor.username,
         type: "sponsor_bonus",
         amount: bonusAmt,
         description: `Bonus Sponsor dari aktifasi ${user.username}`,
         created_at: new Date().toISOString()
-      });
+      };
+      transactions.push(spTx);
+      await syncTransactionToFirestore(spTx);
 
-      notifications.push({
-        id: notifications.length + 1,
+      const spNotif: MLMNotification = {
+        id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
         user_id: sponsor.id,
         title: "Bonus Sponsor!",
         message: `Selamat! Anda menerima Bonus Sponsor Rp ${bonusAmt.toLocaleString()} dari aktifasi ${user.fullname}.`,
         type: "success",
         created_at: new Date().toISOString()
-      });
+      };
+      notifications.push(spNotif);
+      await syncNotificationToFirestore(spNotif);
     }
   }
 
@@ -610,32 +635,37 @@ function activateUserMLM(userId: number) {
   ];
   const uplines = getUplineChain(user.id, 10);
 
-  uplines.forEach((upline, idx) => {
+  for (let idx = 0; idx < uplines.length; idx++) {
+    const upline = uplines[idx];
     if (upline.is_active) {
       const reward = levelRewards[idx] !== undefined ? levelRewards[idx] : 0;
       upline.balance += reward;
       upline.level_bonus += reward;
 
-      transactions.push({
-        id: transactions.length + 1,
+      const lvlTx: Transaction = {
+        id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
         user_id: upline.id,
         username: upline.username,
         type: "level_bonus",
         amount: reward,
         description: `Bonus Level ${idx + 1} dari pertumbuhan jaringan (${user.username})`,
         created_at: new Date().toISOString()
-      });
+      };
+      transactions.push(lvlTx);
+      await syncTransactionToFirestore(lvlTx);
 
-      notifications.push({
-        id: notifications.length + 1,
+      const lvlNotif: MLMNotification = {
+        id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
         user_id: upline.id,
         title: `Bonus Level ${idx + 1}!`,
         message: `Mendapatkan Rp ${reward.toLocaleString()} dari aktifasi level ${idx + 1} (${user.username}).`,
         type: "info",
         created_at: new Date().toISOString()
-      });
+      };
+      notifications.push(lvlNotif);
+      await syncNotificationToFirestore(lvlNotif);
     }
-  });
+  }
 
   // 4. Update Binary Sales Metrics & Calculate Pairing Bonuses
   let currentNodeId = user.id;
@@ -669,24 +699,28 @@ function activateUserMLM(userId: number) {
         parent.balance += pairingBonusAmount;
         parent.pairing_bonus += pairingBonusAmount;
 
-        transactions.push({
-          id: transactions.length + 1,
+        const prTx: Transaction = {
+          id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
           user_id: parent.id,
           username: parent.username,
           type: "pairing_bonus",
           amount: pairingBonusAmount,
           description: `Bonus Pairing Kiri-Kanan (${allowedPairs} Pasang Baru)`,
           created_at: new Date().toISOString()
-        });
+        };
+        transactions.push(prTx);
+        await syncTransactionToFirestore(prTx);
 
-        notifications.push({
-          id: notifications.length + 1,
+        const prNotif: MLMNotification = {
+          id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
           user_id: parent.id,
           title: "Bonus Pairing Terbentuk!",
           message: `Selamat! Terjadi pairing ${allowedPairs} pasang di grup Anda. Bonus Rp ${pairingBonusAmount.toLocaleString()} masuk ke saldo.`,
           type: "success",
           created_at: new Date().toISOString()
-        });
+        };
+        notifications.push(prNotif);
+        await syncNotificationToFirestore(prNotif);
       }
     }
 
@@ -696,9 +730,9 @@ function activateUserMLM(userId: number) {
     currentParentId = parent.upline_id;
   }
 
-  // Sync all updated users and transactions to Firestore
+  // Sync all updated users to Firestore
   for (const u of users) {
-    syncUserToFirestore(u);
+    await syncUserToFirestore(u);
   }
 
   return true;
@@ -793,17 +827,17 @@ app.get("/api/firestore-info", (req, res) => {
 });
 
 // Update product stock (Admin operation)
-app.post("/api/admin/products/stock", (req, res) => {
+app.post("/api/admin/products/stock", async (req, res) => {
   const { productId, stock, price, memberPrice } = req.body;
-  const product = products.find(p => p.id === productId);
+  const product = products.find(p => p.id === Number(productId) || String(p.id) === String(productId));
   if (!product) return res.status(404).json({ message: "Produk tidak ditemukan" });
 
   if (stock !== undefined) product.stock = Number(stock);
   if (price !== undefined) product.price = Number(price);
   if (memberPrice !== undefined) product.member_price = Number(memberPrice);
 
-  syncProductToFirestore(product);
-  res.json({ message: "Data produk dan stok berhasil diupdate di Firestore", product });
+  await syncProductToFirestore(product);
+  res.json({ message: "Data produk dan stok berhasil diupdate di Firestore", product, products });
 });
 
 // Authentication: Login
@@ -881,7 +915,7 @@ app.post("/api/auth/reset-password", (req, res) => {
 });
 
 // Authentication: Register Member
-app.post("/api/auth/register", (req, res) => {
+app.post("/api/auth/register", async (req, res) => {
   const { username, fullname, email, phone, password, sponsor_username, upline_username, position } = req.body;
 
   if (!username || !fullname || !email || !phone) {
@@ -933,8 +967,9 @@ app.post("/api/auth/register", (req, res) => {
   }
 
   // 3. Create new user (inactive)
+  const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
   const newUser: MLMUser = {
-    id: users.length + 1,
+    id: newUserId,
     username: username.toLowerCase().replace(/\s+/g, ""),
     fullname,
     email,
@@ -958,17 +993,19 @@ app.post("/api/auth/register", (req, res) => {
   };
 
   users.push(newUser);
-  syncUserToFirestore(newUser);
+  await syncUserToFirestore(newUser);
 
   // Notify parent & sponsor
-  notifications.push({
-    id: notifications.length + 1,
+  const notif: MLMNotification = {
+    id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
     user_id: uplineId,
     title: "Member Baru!",
     message: `${fullname} (${username}) bergabung di kaki ${finalPos === 'L' ? 'Kiri' : 'Kanan'} Anda. Silakan bantu untuk aktifasi Rp 100,000 agar bonus Anda mengalir!`,
     type: "info",
     created_at: new Date().toISOString()
-  });
+  };
+  notifications.push(notif);
+  await syncNotificationToFirestore(notif);
 
   res.status(201).json({
     message: "Pendaftaran berhasil! Akun Anda berstatus TIDAK AKTIF. Lakukan pembayaran aktifasi Rp 100,000 untuk menikmati seluruh fitur dan berbelanja produk Zalora Denim.",
@@ -977,19 +1014,18 @@ app.post("/api/auth/register", (req, res) => {
 });
 
 // Member Activation Simulation
-app.post("/api/user/activate", (req, res) => {
+app.post("/api/user/activate", async (req, res) => {
   const { userId } = req.body;
   const user = users.find(u => u.id === userId);
   if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
   if (user.is_active) return res.status(400).json({ message: "User sudah aktif" });
 
   // Simulate payment
-  // Verify user has sufficient balance or deduct Rp 100,000 directly for simulation
-  user.balance -= 100000; // Deduct balance or let deposit handle it
-  const success = activateUserMLM(userId);
+  user.balance -= 100000;
+  const success = await activateUserMLM(userId);
 
   if (success) {
-    syncUserToFirestore(user);
+    await syncUserToFirestore(user);
     res.json({ message: "Akun berhasil diaktifkan! Anda kini adalah Member Premium aktif.", user });
   } else {
     res.status(500).json({ message: "Gagal mengaktifkan member" });
@@ -1538,7 +1574,7 @@ app.post("/api/admin/deposit/process", (req, res) => {
 });
 
 // Add New Product
-app.post("/api/admin/products", (req, res) => {
+app.post("/api/admin/products", async (req, res) => {
   const { name, description, price, member_price, stock, image, ro_bonus_custom } = req.body;
 
   if (!name || !price || !member_price || stock === undefined) {
@@ -1546,8 +1582,9 @@ app.post("/api/admin/products", (req, res) => {
   }
 
   const defaultImage = "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&q=80&w=600";
+  const newProdId = Math.max(...products.map(p => Number(p.id) || 0), 0) + 1;
   const newProduct: Product = {
-    id: products.length + 1,
+    id: newProdId,
     name: String(name),
     description: description ? String(description) : "Celana jeans premium berkualitas ekspor.",
     price: Number(price),
@@ -1561,11 +1598,12 @@ app.post("/api/admin/products", (req, res) => {
   }
 
   products.push(newProduct);
-  res.status(201).json({ message: "Produk jeans baru berhasil ditambahkan ke gudang!", product: newProduct });
+  await syncProductToFirestore(newProduct);
+  res.status(201).json({ message: "Produk jeans baru berhasil ditambahkan ke gudang & tersimpan di Firestore!", product: newProduct, products });
 });
 
 // Member Product Purchase (Repeat Order)
-app.post("/api/user/purchase", (req, res) => {
+app.post("/api/user/purchase", async (req, res) => {
   const { userId, productId } = req.body;
   const user = users.find(u => u.id === userId);
   const prod = products.find(p => p.id === productId);
@@ -1590,12 +1628,12 @@ app.post("/api/user/purchase", (req, res) => {
   // Deduct Balance and Stock
   user.balance -= purchasePrice;
   prod.stock -= 1;
-  syncUserToFirestore(user);
-  syncProductToFirestore(prod);
+  await syncUserToFirestore(user);
+  await syncProductToFirestore(prod);
 
   // Log Transaction
   const purchaseTx: Transaction = {
-    id: transactions.length + 1,
+    id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
     user_id: user.id,
     username: user.username,
     type: "purchase",
@@ -1604,16 +1642,18 @@ app.post("/api/user/purchase", (req, res) => {
     created_at: new Date().toISOString()
   };
   transactions.push(purchaseTx);
-  syncTransactionToFirestore(purchaseTx);
+  await syncTransactionToFirestore(purchaseTx);
 
-  notifications.push({
-    id: notifications.length + 1,
+  const purchaseNotif: MLMNotification = {
+    id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
     user_id: user.id,
     title: "Pembelian Berhasil!",
     message: `Terima kasih! Pembelian ${prod.name} berhasil. Kurir kami sedang menyiapkan pengiriman.`,
     type: "success",
     created_at: new Date().toISOString()
-  });
+  };
+  notifications.push(purchaseNotif);
+  await syncNotificationToFirestore(purchaseNotif);
 
   // Distribute Repeat Order (RO) Bonus: Rp 5,000 to direct sponsor
   if (user.sponsor_id) {
@@ -1621,29 +1661,34 @@ app.post("/api/user/purchase", (req, res) => {
     if (sponsor && sponsor.is_active) {
       sponsor.balance += 5000;
       sponsor.ro_bonus += 5000;
+      await syncUserToFirestore(sponsor);
 
-      transactions.push({
-        id: transactions.length + 1,
+      const roTx: Transaction = {
+        id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
         user_id: sponsor.id,
         username: sponsor.username,
         type: "ro_bonus",
         amount: 5000,
         description: `Bonus Repeat Order (RO) dari pembelian ${user.username}`,
         created_at: new Date().toISOString()
-      });
+      };
+      transactions.push(roTx);
+      await syncTransactionToFirestore(roTx);
 
-      notifications.push({
-        id: notifications.length + 1,
+      const roNotif: MLMNotification = {
+        id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
         user_id: sponsor.id,
         title: "Bonus Repeat Order!",
         message: `Menerima Bonus RO sebesar Rp 5,000 atas pembelian produk oleh ${user.fullname}.`,
         type: "success",
         created_at: new Date().toISOString()
-      });
+      };
+      notifications.push(roNotif);
+      await syncNotificationToFirestore(roNotif);
     }
   }
 
-  res.json({ message: `Sukses membeli ${prod.name}! Saldo terpotong Rp ${purchasePrice.toLocaleString()}`, user, product: prod });
+  res.json({ message: `Sukses membeli ${prod.name}! Saldo terpotong Rp ${purchasePrice.toLocaleString()}`, user, product: prod, products });
 });
 
 // Retrieve User Specific Data

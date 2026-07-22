@@ -1124,6 +1124,98 @@ export default function AdminDashboard({
                   );
                 })}
               </div>
+
+              {/* PRODUCT ADDITION SECTION */}
+              <form onSubmit={handleAddProductSubmit} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6 mt-6">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <PlusCircle className="text-green-600 w-5 h-5" /> Tambah Produk Celana Jeans Baru
+                  </h3>
+                  <p className="text-xs text-slate-500">Mendaftarkan tipe produk celana jeans baru ke dalam katalog e-commerce dan tersimpan di database Firestore.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Nama Model Produk Jeans</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: Jeans Slim Fit Vintage Blue"
+                      value={newProdName}
+                      onChange={(e) => setNewProdName(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">URL Gambar Produk</label>
+                    <input
+                      type="text"
+                      required
+                      value={newProdImage}
+                      onChange={(e) => setNewProdImage(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 md:col-span-2">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Harga Umum Retail (IDR)</label>
+                      <input
+                        type="number"
+                        required
+                        value={newProdPrice}
+                        onChange={(e) => setNewProdPrice(Number(e.target.value))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Harga Member Premium (IDR)</label>
+                      <input
+                        type="number"
+                        required
+                        value={newProdMemberPrice}
+                        onChange={(e) => setNewProdMemberPrice(Number(e.target.value))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none text-blue-600 font-extrabold"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Stok Awal Gudang (Pcs)</label>
+                      <input
+                        type="number"
+                        required
+                        value={newProdStock}
+                        onChange={(e) => setNewProdStock(Number(e.target.value))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Deskripsi Produk Celana Jeans</label>
+                    <textarea
+                      rows={2}
+                      required
+                      value={newProdDescription}
+                      onChange={(e) => setNewProdDescription(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    id="btn-submit-add-product-main"
+                    disabled={loading}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition text-xs shadow-md cursor-pointer"
+                  >
+                    ➕ Tambah Produk & Publikasikan
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 
