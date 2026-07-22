@@ -1,12 +1,74 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore, collection, getDocs, doc, setDoc } from "firebase/firestore";
+import firebaseConfig from "./firebase-applet-config.json";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode } from "./src/types";
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// ==========================================
+// FIRESTORE DATABASE INTEGRATION
+// ==========================================
+let firestoreDb: any = null;
+try {
+  const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig as any);
+  firestoreDb = firebaseConfig.firestoreDatabaseId
+    ? getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId)
+    : getFirestore(firebaseApp);
+  console.log("🔥 Firebase Firestore connected! Project ID:", firebaseConfig.projectId, "Database ID:", firebaseConfig.firestoreDatabaseId);
+} catch (e) {
+  console.warn("⚠️ Firebase Firestore initialization warning:", e);
+}
+
+export async function syncUserToFirestore(user: MLMUser) {
+  if (!firestoreDb) return;
+  try {
+    await setDoc(doc(firestoreDb, "users", String(user.id)), { ...user }, { merge: true });
+  } catch (err) {
+    console.error("Firestore sync user error:", err);
+  }
+}
+
+export async function syncDepositToFirestore(deposit: DepositRequest) {
+  if (!firestoreDb) return;
+  try {
+    await setDoc(doc(firestoreDb, "deposits", String(deposit.id)), { ...deposit }, { merge: true });
+  } catch (err) {
+    console.error("Firestore sync deposit error:", err);
+  }
+}
+
+export async function syncWithdrawalToFirestore(wd: WDRequest) {
+  if (!firestoreDb) return;
+  try {
+    await setDoc(doc(firestoreDb, "withdrawals", String(wd.id)), { ...wd }, { merge: true });
+  } catch (err) {
+    console.error("Firestore sync withdrawal error:", err);
+  }
+}
+
+export async function syncTransactionToFirestore(tx: Transaction) {
+  if (!firestoreDb) return;
+  try {
+    await setDoc(doc(firestoreDb, "transactions", String(tx.id)), { ...tx }, { merge: true });
+  } catch (err) {
+    console.error("Firestore sync transaction error:", err);
+  }
+}
+
+export async function syncProductToFirestore(p: Product) {
+  if (!firestoreDb) return;
+  try {
+    await setDoc(doc(firestoreDb, "products", String(p.id)), { ...p }, { merge: true });
+  } catch (err) {
+    console.error("Firestore sync product error:", err);
+  }
+}
 
 // ==========================================
 // IN-MEMORY DATABASE STATE (Preseeded)
@@ -616,6 +678,11 @@ function activateUserMLM(userId: number) {
     currentParentId = parent.upline_id;
   }
 
+  // Sync all updated users and transactions to Firestore
+  for (const u of users) {
+    syncUserToFirestore(u);
+  }
+
   return true;
 }
 
@@ -678,6 +745,23 @@ app.get("/api/products", (req, res) => {
 // Get Public Settings
 app.get("/api/settings", (req, res) => {
   res.json(systemSettings);
+});
+
+// Get Firestore Info and Direct Console Link
+app.get("/api/firestore-info", (req, res) => {
+  res.json({
+    connected: Boolean(firestoreDb),
+    projectId: firebaseConfig.projectId,
+    firestoreDatabaseId: firebaseConfig.firestoreDatabaseId,
+    firebaseConsoleUrl: `https://console.firebase.google.com/u/0/project/${firebaseConfig.projectId}/firestore/databases/${firebaseConfig.firestoreDatabaseId}/data`,
+    collections: ["users", "deposits", "withdrawals", "transactions", "products"],
+    stats: {
+      totalUsers: users.length,
+      totalDeposits: deposits.length,
+      totalWithdrawals: withdrawals.length,
+      totalTransactions: transactions.length
+    }
+  });
 });
 
 // Update product stock (Admin operation)
@@ -834,6 +918,7 @@ app.post("/api/auth/register", (req, res) => {
   };
 
   users.push(newUser);
+  syncUserToFirestore(newUser);
 
   // Notify parent & sponsor
   notifications.push({
@@ -864,6 +949,7 @@ app.post("/api/user/activate", (req, res) => {
   const success = activateUserMLM(userId);
 
   if (success) {
+    syncUserToFirestore(user);
     res.json({ message: "Akun berhasil diaktifkan! Anda kini adalah Member Premium aktif.", user });
   } else {
     res.status(500).json({ message: "Gagal mengaktifkan member" });
@@ -878,14 +964,16 @@ app.post("/api/payment/simulate-gateway", (req, res) => {
   if (dep.status !== "pending") return res.status(400).json({ message: "Deposit sudah diproses" });
 
   dep.status = "success";
+  syncDepositToFirestore(dep);
   
   // Credit user's balance
   const user = users.find(u => u.id === dep.user_id);
   if (user) {
     user.balance += dep.amount;
+    syncUserToFirestore(user);
     
     // Log transaction
-    transactions.push({
+    const newTx: Transaction = {
       id: transactions.length + 1,
       user_id: user.id,
       username: user.username,
@@ -893,7 +981,9 @@ app.post("/api/payment/simulate-gateway", (req, res) => {
       amount: dep.amount,
       description: `Deposit via ${dep.method.toUpperCase()} Terverifikasi Otomatis`,
       created_at: new Date().toISOString()
-    });
+    };
+    transactions.push(newTx);
+    syncTransactionToFirestore(newTx);
 
     notifications.push({
       id: notifications.length + 1,
@@ -1101,6 +1191,7 @@ app.post("/api/user/deposit", async (req, res) => {
   };
 
   deposits.push(newDep);
+  syncDepositToFirestore(newDep);
   res.status(201).json({ message: "Instruksi deposit berhasil dibuat", deposit: newDep });
 });
 
@@ -1135,9 +1226,11 @@ app.post("/api/user/withdraw", (req, res) => {
   };
 
   withdrawals.push(newWD);
+  syncWithdrawalToFirestore(newWD);
+  syncUserToFirestore(user);
 
   // Log transaction
-  transactions.push({
+  const newTx: Transaction = {
     id: transactions.length + 1,
     user_id: user.id,
     username: user.username,
@@ -1145,7 +1238,9 @@ app.post("/api/user/withdraw", (req, res) => {
     amount: -numAmount,
     description: `Penarikan Dana ke ${bankName} (${isAutoPayout ? 'Terbayar Otomatis' : 'Menunggu Persetujuan'})`,
     created_at: new Date().toISOString()
-  });
+  };
+  transactions.push(newTx);
+  syncTransactionToFirestore(newTx);
 
   if (isAutoPayout) {
     notifications.push({
@@ -1455,9 +1550,11 @@ app.post("/api/user/purchase", (req, res) => {
   // Deduct Balance and Stock
   user.balance -= purchasePrice;
   prod.stock -= 1;
+  syncUserToFirestore(user);
+  syncProductToFirestore(prod);
 
   // Log Transaction
-  transactions.push({
+  const purchaseTx: Transaction = {
     id: transactions.length + 1,
     user_id: user.id,
     username: user.username,
@@ -1465,7 +1562,9 @@ app.post("/api/user/purchase", (req, res) => {
     amount: -purchasePrice,
     description: `Pembelian Celana ${prod.name} (Harga Member)`,
     created_at: new Date().toISOString()
-  });
+  };
+  transactions.push(purchaseTx);
+  syncTransactionToFirestore(purchaseTx);
 
   notifications.push({
     id: notifications.length + 1,

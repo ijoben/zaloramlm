@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "users": {
+      "title": "User",
+      "description": "Registered MLM Members",
+      "properties": {
+        "username": { "type": "string" },
+        "fullname": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string" },
+        "is_active": { "type": "boolean" },
+        "balance": { "type": "number" },
+        "sponsor_bonus": { "type": "number" },
+        "pairing_bonus": { "type": "number" },
+        "level_bonus": { "type": "number" },
+        "ro_bonus": { "type": "number" },
+        "left_count": { "type": "number" },
+        "right_count": { "type": "number" },
+        "left_sales": { "type": "number" },
+        "right_sales": { "type": "number" },
+        "upline_id": { "type": "string" },
+        "position": { "type": "string" },
+        "sponsor_id": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["username", "role", "is_active", "balance"]
+    },
+    "transactions": {
+      "title": "Transaction",
+      "description": "Financial and bonus transactions",
+      "properties": {
+        "user_id": { "type": "string" },
+        "username": { "type": "string" },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["user_id", "type", "amount", "created_at"]
+    },
+    "deposits": {
+      "title": "Deposit",
+      "description": "Deposit requests and payment status",
+      "properties": {
+        "user_id": { "type": "string" },
+        "username": { "type": "string" },
+        "amount": { "type": "number" },
+        "method": { "type": "string" },
+        "status": { "type": "string" },
+        "payment_code": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["user_id", "amount", "status", "created_at"]
+    },
+    "withdrawals": {
+      "title": "Withdrawal",
+      "description": "Withdrawal requests",
+      "properties": {
+        "user_id": { "type": "string" },
+        "username": { "type": "string" },
+        "amount": { "type": "number" },
+        "bank_name": { "type": "string" },
+        "account_number": { "type": "string" },
+        "account_holder": { "type": "string" },
+        "status": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["user_id", "amount", "bank_name", "account_number", "status", "created_at"]
+    },
+    "products": {
+      "title": "Product",
+      "description": "Zalora Denim Product inventory",
+      "properties": {
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "member_price": { "type": "number" },
+        "stock": { "type": "number" },
+        "bv": { "type": "number" },
+        "image": { "type": "string" }
+      },
+      "required": ["name", "price", "member_price", "stock"]
+    }
+  }
+}
