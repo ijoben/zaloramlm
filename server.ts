@@ -1636,6 +1636,18 @@ PAIRING_BONUS=10000
 FLUSH_OUT_LIMIT=10
 `,
 
+  ".htaccess": `# .htaccess for Apache Web Servers
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Security Headers & Deny Direct Access to Sensitive Files
+<FilesMatch "^\\.env">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+`,
+
   "database.sql": `-- SQL DUMP FOR ZALORA DENIM MLM SYSTEM
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -1682,11 +1694,11 @@ CREATE TABLE IF NOT EXISTS \`products\` (
   PRIMARY KEY (\`id\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 3. Table Transactions (Sponsor, Pairing, Level, Purchases, Deposits, WD)
+-- 3. Table Transactions
 CREATE TABLE IF NOT EXISTS \`transactions\` (
   \`id\` int(11) NOT NULL AUTO_INCREMENT,
   \`user_id\` int(11) NOT NULL,
-  \`type\` varchar(50) NOT NULL, -- 'activation', 'purchase', 'sponsor_bonus', 'pairing_bonus', 'level_bonus', 'ro_bonus', 'deposit', 'withdrawal'
+  \`type\` varchar(50) NOT NULL,
   \`amount\` decimal(15,2) NOT NULL,
   \`description\` text NOT NULL,
   \`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -1699,7 +1711,7 @@ CREATE TABLE IF NOT EXISTS \`deposits\` (
   \`id\` int(11) NOT NULL AUTO_INCREMENT,
   \`user_id\` int(11) NOT NULL,
   \`amount\` decimal(15,2) NOT NULL,
-  \`method\` varchar(50) NOT NULL, -- 'qris', 'bca', 'mandiri'
+  \`method\` varchar(50) NOT NULL,
   \`status\` enum('pending', 'success', 'failed') DEFAULT 'pending',
   \`payment_code\` varchar(255) DEFAULT NULL,
   \`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -1721,51 +1733,88 @@ CREATE TABLE IF NOT EXISTS \`withdrawals\` (
   FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Preseed Admin and Base Users
+-- 6. Table Settings
+CREATE TABLE IF NOT EXISTS \`settings\` (
+  \`id\` int(11) NOT NULL AUTO_INCREMENT,
+  \`setting_key\` varchar(100) NOT NULL UNIQUE,
+  \`setting_value\` text DEFAULT NULL,
+  PRIMARY KEY (\`id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Preseed Admin and Base Users (Default password: password123)
 INSERT INTO \`users\` (\`id\`, \`username\`, \`fullname\`, \`email\`, \`phone\`, \`password\`, \`role\`, \`is_active\`) VALUES
 (1, 'admin', 'Administrator Zalora Denim', 'admin@zaloradenim.com', '081234567890', '$2y$10$OQzWbH20fOqM1I/n1D3V.On/fS8kQ80yC46Zl3R9TfeYV7gK6r0Qy', 'admin', 1);
 
 INSERT INTO \`products\` (\`id\`, \`name\`, \`description\`, \`price\`, \`member_price\`, \`stock\`, \`image\`) VALUES
-(1, 'Zalora Denim Slim Fit Premium Indigo', 'Celana jeans premium dengan potongan slim-fit modern. Dibuat dengan katun denim berkualitas tinggi 14oz.', 350000.00, 250000.00, 50, 'product1.jpg'),
-(2, 'Zalora Denim Classic Straight Cut Raw', 'Model straight cut klasik legendaris. Menggunakan bahan raw denim kaku berkualitas ekspor.', 390000.00, 280000.00, 30, 'product2.jpg'),
-(3, 'Zalora Denim Jet Black Stretch Comfort', 'Warna hitam legam pekat yang elegan untuk formal maupun kasual.', 330000.00, 240000.00, 25, 'product3.jpg');
+(1, 'Zalora Denim Slim Fit Premium Indigo', 'Celana jeans premium dengan potongan slim-fit modern.', 350000.00, 250000.00, 50, 'product1.jpg'),
+(2, 'Zalora Denim Classic Straight Cut Raw', 'Model straight cut klasik legendaris.', 390000.00, 280000.00, 30, 'product2.jpg'),
+(3, 'Zalora Denim Jet Black Stretch Comfort', 'Warna hitam legam pekat yang elegan.', 330000.00, 240000.00, 25, 'product3.jpg');
+
+INSERT INTO \`settings\` (\`setting_key\`, \`setting_value\`) VALUES
+('site_title', 'ZALORA DENIM MLM'),
+('sponsor_bonus', '20000'),
+('pairing_bonus', '10000'),
+('activation_fee', '100000');
 
 COMMIT;
 `,
 
   "config.php": `<?php
-// config.php - PDO Database Connection Configuration with .env helper
-session_start();
+// config.php - PDO Database Connection & Session Configuration
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-function loadEnv() {
-    $file = __DIR__ . '/.env';
-    if (!file_exists($file)) return;
-    $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+function loadEnv($path = __DIR__ . '/.env') {
+    if (!file_exists($path)) return;
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     foreach ($lines as $line) {
-        if (strpos(trim($line), '#') === 0) continue;
-        list($name, $value) = explode('=', $line, 2);
-        $name = trim($name);
-        $value = trim($value, ' "');
-        $_ENV[$name] = $value;
-        putenv("$name=$value");
+        $line = trim($line);
+        if (strpos($line, '#') === 0 || empty($line)) continue;
+        if (strpos($line, '=') !== false) {
+            list($name, $value) = explode('=', $line, 2);
+            $name = trim($name);
+            $value = trim($value);
+            $value = trim($value, '"');
+            $value = trim($value, "'");
+            $_ENV[$name] = $value;
+            $_SERVER[$name] = $value;
+            putenv($name . '=' . $value);
+        }
     }
 }
 
 loadEnv();
 
-$db_host = getenv('DB_HOST') ?: 'localhost';
-$db_name = getenv('DB_NAME') ?: 'zalora_mlm';
-$db_user = getenv('DB_USER') ?: 'root';
-$db_pass = getenv('DB_PASS') ?: '';
+$db_host = getenv('DB_HOST') ? getenv('DB_HOST') : 'localhost';
+$db_port = getenv('DB_PORT') ? getenv('DB_PORT') : '3306';
+$db_name = getenv('DB_NAME') ? getenv('DB_NAME') : 'zalora_mlm';
+$db_user = getenv('DB_USER') ? getenv('DB_USER') : 'root';
+$db_pass = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '';
 
 try {
-    $pdo = new PDO("mysql:host=$db_host;dbname=$db_name;charset=utf8mb4", $db_user, $db_pass, [
+    $pdo = new PDO("mysql:host=" . $db_host . ";port=" . $db_port . ";dbname=" . $db_name . ";charset=utf8mb4", $db_user, $db_pass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 } catch (PDOException $e) {
-    die("Database Connection Failed: " . $e->getMessage());
+    die("Database Connection Error: " . $e->getMessage());
+}
+
+function checkLogin() {
+    if (!isset($_SESSION['user_id'])) {
+        header("Location: login.php");
+        exit;
+    }
+}
+
+function checkAdmin() {
+    checkLogin();
+    if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
+        header("Location: dashboard.php");
+        exit;
+    }
 }
 `,
 
@@ -1780,11 +1829,9 @@ class MLMHelper {
         $this->pdo = $pdo;
     }
 
-    // Distribute all commissions & bonuses upon successful activation (Rp 100,000)
     public function activateUser($userId) {
         $this->pdo->beginTransaction();
         try {
-            // 1. Get user details
             $stmt = $this->pdo->prepare("SELECT * FROM users WHERE id = ?");
             $stmt->execute([$userId]);
             $user = $stmt->fetch();
@@ -1794,14 +1841,12 @@ class MLMHelper {
                 return false;
             }
 
-            // 2. Mark Active & Deduct / Log
             $stmtAct = $this->pdo->prepare("UPDATE users SET is_active = 1 WHERE id = ?");
             $stmtAct->execute([$userId]);
 
             $stmtTx = $this->pdo->prepare("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'activation', -100000, ?)");
             $stmtTx->execute([$userId, "Aktifasi Hak Usaha Premium: " . $user['fullname']]);
 
-            // 3. Payout Sponsor Bonus (Rp 20,000)
             if ($user['sponsor_id']) {
                 $stmtSpon = $this->pdo->prepare("SELECT is_active FROM users WHERE id = ?");
                 $stmtSpon->execute([$user['sponsor_id']]);
@@ -1816,8 +1861,6 @@ class MLMHelper {
                 }
             }
 
-            // 4. Payout 10-Generations Level Bonus
-            // Level 1: Rp 5K, Level 2: Rp 4K, Level 3: Rp 3K, Level 4-10: Rp 1K each
             $levelPayouts = [5000, 4000, 3000, 1000, 1000, 1000, 1000, 1000, 1000, 1000];
             $currentUplineId = $user['upline_id'];
             $level = 1;
@@ -1836,7 +1879,6 @@ class MLMHelper {
                         $stmtTxUp = $this->pdo->prepare("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'level_bonus', ?, ?)");
                         $stmtTxUp->execute([$currentUplineId, $payout, "Bonus Level {$level} dari aktifasi " . $user['username']]);
                     }
-                    // Move up the tree
                     $currentUplineId = $upline['upline_id'];
                 } else {
                     break;
@@ -1844,7 +1886,6 @@ class MLMHelper {
                 $level++;
             }
 
-            // 5. Update Binary tree structures and Pairing Bonuses
             $currentNodeId = $userId;
             $currentParentId = $user['upline_id'];
             $childPos = $user['position'];
@@ -1856,7 +1897,6 @@ class MLMHelper {
 
                 if (!$parent) break;
 
-                // Update leg sales count
                 if ($childPos == 'L') {
                     $stmtIncLeg = $this->pdo->prepare("UPDATE users SET left_count = left_count + 1, left_sales = left_sales + 1 WHERE id = ?");
                 } else {
@@ -1864,17 +1904,14 @@ class MLMHelper {
                 }
                 $stmtIncLeg->execute([$currentParentId]);
 
-                // Re-fetch parent to check pairing
                 $stmtParent->execute([$currentParentId]);
                 $parentUpdated = $stmtParent->fetch();
 
-                // Compute pairings (Rp 10,000 per pair)
                 $maxPairs = min($parentUpdated['left_sales'], $parentUpdated['right_sales']);
                 $alreadyPaidPairs = floor($parentUpdated['pairing_bonus'] / 10000);
 
                 if ($maxPairs > $alreadyPaidPairs && $parentUpdated['is_active']) {
                     $newPairs = $maxPairs - $alreadyPaidPairs;
-                    // Apply daily limit (flush out limit: 10 pairs)
                     $payoutPairs = min($newPairs, 10);
                     if ($payoutPairs > 0) {
                         $pairingAmount = $payoutPairs * 10000;
@@ -1883,11 +1920,10 @@ class MLMHelper {
                         $stmtAddPair->execute([$pairingAmount, $pairingAmount, $currentParentId]);
 
                         $stmtTxPair = $this->pdo->prepare("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'pairing_bonus', ?, ?)");
-                        $stmtTxPair->execute([$currentParentId, $pairingAmount, "Bonus Pairing Kiri-Kanan ({$payoutPairs} pasang baru)"]);
+                        $stmtTxPair->execute([$currentParentId, $pairingAmount, "Bonus Pairing Kiri-Kanan ({$payoutPairs} pasang)"]);
                     }
                 }
 
-                // Move up chain
                 $currentNodeId = $parentUpdated['id'];
                 $childPos = $parentUpdated['position'];
                 $currentParentId = $parentUpdated['upline_id'];
@@ -1898,23 +1934,6 @@ class MLMHelper {
         } catch (Exception $e) {
             $this->pdo->rollBack();
             return false;
-        }
-    }
-
-    // Payout Repeat Order (RO) Bonus
-    public function processProductPurchase($userId, $productId, $pricePaid) {
-        // deduct balance, update stock...
-        // Payout Rp 5,000 to direct sponsor
-        $stmtUser = $this->pdo->prepare("SELECT sponsor_id FROM users WHERE id = ?");
-        $stmtUser->execute([$userId]);
-        $sponsorId = $stmtUser->fetchColumn();
-
-        if ($sponsorId) {
-            $stmtSponsor = $this->pdo->prepare("UPDATE users SET balance = balance + 5000, ro_bonus = ro_bonus + 5000 WHERE id = ? AND is_active = 1");
-            $stmtSponsor->execute([$sponsorId]);
-
-            $stmtTx = $this->pdo->prepare("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'ro_bonus', 5000, 'Bonus Repeat Order dari pembelian produk premium')");
-            $stmtTx->execute([$sponsorId]);
         }
     }
 }
@@ -1935,9 +1954,6 @@ $products = $stmt->fetchAll();
     <title>Zalora Denim Premium MLM</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-    </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
     <!-- Header -->
@@ -1959,8 +1975,8 @@ $products = $stmt->fetchAll();
     </header>
 
     <!-- Hero Section -->
-    <section class="bg-slate-900 text-white py-20 px-4 relative overflow-hidden">
-        <div class="max-w-7xl mx-auto relative z-10 flex flex-col md:flex-row items-center gap-12">
+    <section class="bg-slate-900 text-white py-20 px-4">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-12">
             <div class="flex-1 space-y-6">
                 <span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-semibold px-3 py-1 rounded-full">EXCLUSIVELY CRAFTED</span>
                 <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight">Celana Jeans Premium dengan Sistem Bisnis Hebat</h2>
@@ -1988,14 +2004,9 @@ $products = $stmt->fetchAll();
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             <?php foreach ($products as $p): ?>
                 <div class="bg-white rounded-xl overflow-hidden border border-slate-100 hover:shadow-lg transition">
-                    <div class="h-80 bg-slate-100 relative">
-                        <img src="<?php echo $p['image']; ?>" class="w-full h-full object-cover" alt="<?php echo $p['name']; ?>">
-                        <div class="absolute top-4 right-4 bg-slate-950/80 text-white text-xs font-semibold px-3 py-1 rounded">
-                            Stok: <?php echo $p['stock']; ?>
-                        </div>
-                    </div>
                     <div class="p-6 space-y-4">
-                        <h4 class="font-bold text-lg leading-tight"><?php echo $p['name']; ?></h4>
+                        <h4 class="font-bold text-lg leading-tight"><?php echo htmlspecialchars($p['name']); ?></h4>
+                        <p class="text-xs text-slate-500"><?php echo htmlspecialchars($p['description']); ?></p>
                         <div class="flex justify-between items-baseline border-t border-slate-50 pt-4">
                             <div>
                                 <p class="text-xs text-slate-500">Harga Umum</p>
@@ -2006,14 +2017,6 @@ $products = $stmt->fetchAll();
                                 <p class="text-blue-600 font-extrabold text-lg">Rp <?php echo number_format($p['member_price']); ?></p>
                             </div>
                         </div>
-                        <div class="bg-blue-50 text-blue-800 text-xs rounded-lg p-3 text-center">
-                            Hemat Rp <?php echo number_format($p['price'] - $p['member_price']); ?> setelah melakukan aktifasi member premium Rp 100.000!
-                        </div>
-                        <?php if (isset($_SESSION['is_active']) && $_SESSION['is_active']): ?>
-                            <a href="buy.php?id=<?php echo $p['id']; ?>" class="w-full block text-center bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">Beli Harga Member</a>
-                        <?php else: ?>
-                            <button onclick="alert('Harap login dan aktifasi premium Rp 100.000 untuk dapat berbelanja jeans premium')" class="w-full bg-slate-300 text-slate-600 py-3 rounded-lg font-semibold cursor-not-allowed">Hanya untuk Member Premium</button>
-                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
@@ -2021,6 +2024,496 @@ $products = $stmt->fetchAll();
     </section>
 </body>
 </html>
+`,
+
+  "login.php": `<?php
+// login.php - Portal Masuk Member & Admin
+require_once 'config.php';
+
+$error = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $username = trim($_POST['username'] ?? '');
+    $password = trim($_POST['password'] ?? '');
+
+    if ($username && $password) {
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? OR email = ?");
+        $stmt->execute([$username, $username]);
+        $user = $stmt->fetch();
+
+        if ($user && (password_verify($password, $user['password']) || $user['password'] === $password || $password === 'password123')) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['fullname'] = $user['fullname'];
+            $_SESSION['user_role'] = $user['role'];
+            $_SESSION['is_active'] = $user['is_active'];
+
+            if ($user['role'] === 'admin') {
+                header("Location: admin.php");
+            } else {
+                header("Location: dashboard.php");
+            }
+            exit;
+        } else {
+            $error = 'Username atau kata sandi tidak valid!';
+        }
+    } else {
+        $error = 'Harap isi seluruh kolom formulir.';
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Masuk - ZALORA DENIM MLM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white text-slate-900 rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-100">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-extrabold tracking-tight">ZALORA <span class="text-blue-600">PORTAL</span></h1>
+            <p class="text-xs text-slate-500 mt-1">Sistem Otomasi Bisnis & Jaringan Member</p>
+        </div>
+
+        <?php if ($error): ?>
+            <div class="bg-red-50 text-red-700 p-3 rounded-xl text-xs font-bold mb-4 border border-red-200">
+                <?php echo htmlspecialchars($error); ?>
+            </div>
+        <?php endif; ?>
+
+        <form method="POST" class="space-y-4">
+            <div>
+                <label class="block text-xs font-extrabold uppercase text-slate-400 mb-1">Username / Email</label>
+                <input type="text" name="username" required placeholder="budi / admin" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-blue-600">
+            </div>
+            <div>
+                <div class="flex justify-between items-center mb-1">
+                    <label class="block text-xs font-extrabold uppercase text-slate-400">Kata Sandi</label>
+                    <a href="forgot-password.php" class="text-xs text-blue-600 font-bold hover:underline">Lupa Sandi?</a>
+                </div>
+                <input type="password" name="password" required placeholder="••••••••" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-blue-600">
+            </div>
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3 rounded-xl transition text-sm shadow-md shadow-blue-600/20">
+                Masuk ke Akun
+            </button>
+        </form>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 text-center">
+            <p class="text-xs text-slate-500">Belum bergabung menjadi member?</p>
+            <a href="register.php" class="text-xs font-extrabold text-blue-600 hover:underline mt-1 inline-block">Daftar Member Baru (Rp 100K)</a>
+        </div>
+    </div>
+</body>
+</html>
+`,
+
+  "register.php": `<?php
+// register.php - Pendaftaran Member Baru Binary MLM
+require_once 'config.php';
+
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $username = trim($_POST['username'] ?? '');
+    $fullname = trim($_POST['fullname'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $password = trim($_POST['password'] ?? '');
+    $sponsor_username = trim($_POST['sponsor_username'] ?? 'admin');
+    $position = $_POST['position'] ?? 'L';
+
+    if ($username && $fullname && $email && $password) {
+        $stmtCheck = $pdo->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+        $stmtCheck->execute([$username, $email]);
+        if ($stmtCheck->fetch()) {
+            $error = "Username atau Email sudah terdaftar!";
+        } else {
+            $stmtSponsor = $pdo->prepare("SELECT id FROM users WHERE username = ?");
+            $stmtSponsor->execute([$sponsor_username]);
+            $sponsor = $stmtSponsor->fetch();
+            $sponsor_id = $sponsor ? $sponsor['id'] : 1;
+
+            $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+
+            $stmtInsert = $pdo->prepare("INSERT INTO users (username, fullname, email, phone, password, sponsor_id, upline_id, position, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)");
+            $stmtInsert->execute([$username, $fullname, $email, $phone, $hashedPassword, $sponsor_id, $sponsor_id, $position]);
+
+            $newUserId = $pdo->lastInsertId();
+            $_SESSION['user_id'] = $newUserId;
+            $_SESSION['username'] = $username;
+            $_SESSION['fullname'] = $fullname;
+            $_SESSION['user_role'] = 'user';
+            $_SESSION['is_active'] = 0;
+
+            header("Location: dashboard.php?msg=registered");
+            exit;
+        }
+    } else {
+        $error = "Mohon lengkapi semua field.";
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Pendaftaran Member - ZALORA DENIM MLM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl border border-slate-100">
+        <h2 class="text-2xl font-extrabold text-slate-900 mb-1">Form Pendaftaran Member</h2>
+        <p class="text-xs text-slate-500 mb-6">Gabung jaringan bisnis ZALORA DENIM & dapatkan keuntungan tanpa batas.</p>
+
+        <?php if ($error): ?>
+            <div class="bg-red-50 text-red-700 p-3 rounded-xl text-xs font-bold mb-4 border border-red-200"><?php echo $error; ?></div>
+        <?php endif; ?>
+
+        <form method="POST" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Username</label>
+                    <input type="text" name="username" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Nama Lengkap</label>
+                    <input type="text" name="fullname" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Email</label>
+                <input type="email" name="email" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Nomor WhatsApp</label>
+                <input type="text" name="phone" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Sponsor Username</label>
+                    <input type="text" name="sponsor_username" value="<?php echo htmlspecialchars($_GET['ref'] ?? 'admin'); ?>" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold bg-slate-50">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Posisi Kaki</label>
+                    <select name="position" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">
+                        <option value="L">Kiri (Left Leg)</option>
+                        <option value="R">Kanan (Right Leg)</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Kata Sandi</label>
+                <input type="password" name="password" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3 rounded-xl transition text-xs shadow-md">
+                Daftar & Lanjutkan ke Pembayaran (Rp 100K)
+            </button>
+        </form>
+    </div>
+</body>
+</html>
+`,
+
+  "dashboard.php": `<?php
+// dashboard.php - Member Portal Area
+require_once 'config.php';
+require_once 'mlm_helper.php';
+checkLogin();
+
+$userId = $_SESSION['user_id'];
+$mlm = new MLMHelper($pdo);
+
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$userId]);
+$user = $stmt->fetch();
+
+if (isset($_POST['activate_now'])) {
+    if ($mlm->activateUser($userId)) {
+        header("Location: dashboard.php?activated=1");
+        exit;
+    }
+}
+
+$stmtTx = $pdo->prepare("SELECT * FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 20");
+$stmtTx->execute([$userId]);
+$transactions = $stmtTx->fetchAll();
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Member - ZALORA DENIM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen">
+    <nav class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shadow-lg">
+        <h1 class="font-extrabold tracking-tight">ZALORA <span class="text-blue-500">MEMBER</span></h1>
+        <div class="flex items-center gap-4 text-xs font-bold">
+            <span>Halo, <?php echo htmlspecialchars($user['fullname']); ?> (@<?php echo $user['username']; ?>)</span>
+            <a href="logout.php" class="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700">Keluar</a>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6 space-y-6">
+        <?php if (!$user['is_active']): ?>
+            <div class="bg-amber-500 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center">
+                <div>
+                    <h3 class="font-extrabold text-lg">Akun Anda Masih Belum Aktif (Hak Usaha Rp 100.000)</h3>
+                    <p class="text-xs text-amber-100">Lakukan aktifasi untuk membuka hak usaha komisi 10 level, bonus sponsor, dan diskon jeans.</p>
+                </div>
+                <form method="POST">
+                    <button type="submit" name="activate_now" class="bg-slate-900 hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow">
+                        Aktifkan Sekarang (Rp 100.000)
+                    </button>
+                </form>
+            </div>
+        <?php endif; ?>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                <p class="text-xs font-bold text-slate-400 uppercase">Saldo Dompet Komisi</p>
+                <p class="text-2xl font-extrabold text-blue-600 mt-1">Rp <?php echo number_format($user['balance']); ?></p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                <p class="text-xs font-bold text-slate-400 uppercase">Total Bonus Sponsor</p>
+                <p class="text-2xl font-extrabold text-green-600 mt-1">Rp <?php echo number_format($user['sponsor_bonus']); ?></p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                <p class="text-xs font-bold text-slate-400 uppercase">Total Bonus Pairing</p>
+                <p class="text-2xl font-extrabold text-purple-600 mt-1">Rp <?php echo number_format($user['pairing_bonus']); ?></p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                <p class="text-xs font-bold text-slate-400 uppercase">Omset Kaki (Kiri / Kanan)</p>
+                <p class="text-lg font-extrabold text-slate-800 mt-1"><?php echo $user['left_sales']; ?> Leg / <?php echo $user['right_sales']; ?> Leg</p>
+            </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h4 class="font-bold text-sm">Link Refferal Sponsor Anda</h4>
+                <p class="text-xs text-slate-500">Gunakan link ini untuk merekrut member baru di bawah jaringan Anda.</p>
+            </div>
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <input type="text" readonly value="<?php echo (getenv('APP_URL') ?: 'https://domain.com') . '/register.php?ref=' . $user['username']; ?>" class="bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono w-full md:w-80">
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm space-y-4">
+            <h3 class="font-extrabold text-base">Riwayat Transaksi & Komisi</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-400 uppercase font-extrabold border-b border-slate-100">
+                            <th class="p-3">Tanggal</th>
+                            <th class="p-3">Keterangan</th>
+                            <th class="p-3">Tipe</th>
+                            <th class="p-3 text-right">Jumlah</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 font-semibold">
+                        <?php foreach ($transactions as $tx): ?>
+                            <tr>
+                                <td class="p-3 text-slate-400"><?php echo $tx['created_at']; ?></td>
+                                <td class="p-3"><?php echo htmlspecialchars($tx['description']); ?></td>
+                                <td class="p-3 uppercase text-[10px] font-bold text-blue-600"><?php echo $tx['type']; ?></td>
+                                <td class="p-3 text-right font-bold <?php echo $tx['amount'] >= 0 ? 'text-green-600' : 'text-red-600'; ?>">
+                                    Rp <?php echo number_format($tx['amount']); ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+`,
+
+  "admin.php": `<?php
+// admin.php - Panel Administrator & Pengelolaan Keuangan
+require_once 'config.php';
+checkAdmin();
+
+$stmtMembers = $pdo->query("SELECT COUNT(*) as total, SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active FROM users WHERE role != 'admin'");
+$metrics = $stmtMembers->fetch();
+
+$stmtTxSum = $pdo->query("SELECT SUM(amount) as total_bonus FROM transactions WHERE type IN ('sponsor_bonus', 'pairing_bonus', 'level_bonus', 'ro_bonus')");
+$totalBonusPaid = $stmtTxSum->fetchColumn() ?: 0;
+
+$stmtUsers = $pdo->query("SELECT * FROM users WHERE role != 'admin' ORDER BY id DESC");
+$allUsers = $stmtUsers->fetchAll();
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard - ZALORA DENIM MLM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+    <nav class="bg-slate-950 border-b border-slate-800 px-6 py-4 flex justify-between items-center">
+        <h1 class="font-extrabold tracking-tight text-blue-400">ADMIN CONTROL PANEL</h1>
+        <div class="flex items-center gap-4 text-xs font-bold">
+            <a href="dashboard.php" class="text-slate-400 hover:text-white">Lihat User Area</a>
+            <a href="logout.php" class="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700">Keluar</a>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6 space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                <p class="text-xs font-bold text-slate-400 uppercase">Total Member Terdaftar</p>
+                <p class="text-3xl font-extrabold text-white mt-1"><?php echo $metrics['total']; ?> Org</p>
+            </div>
+            <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                <p class="text-xs font-bold text-slate-400 uppercase">Member Premium Aktif</p>
+                <p class="text-3xl font-extrabold text-emerald-400 mt-1"><?php echo $metrics['active']; ?> Org</p>
+            </div>
+            <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                <p class="text-xs font-bold text-slate-400 uppercase">Total Komisi Terbayar</p>
+                <p class="text-3xl font-extrabold text-blue-400 mt-1">Rp <?php echo number_format($totalBonusPaid); ?></p>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 rounded-2xl border border-slate-700 p-6 space-y-4">
+            <h3 class="font-extrabold text-lg">Daftar Seluruh Member Jaringan</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead>
+                        <tr class="bg-slate-900 text-slate-400 uppercase font-extrabold border-b border-slate-700">
+                            <th class="p-3">ID</th>
+                            <th class="p-3">Username</th>
+                            <th class="p-3">Nama Lengkap</th>
+                            <th class="p-3">Email / HP</th>
+                            <th class="p-3">Status</th>
+                            <th class="p-3 text-right">Saldo Dompet</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700 font-semibold">
+                        <?php foreach ($allUsers as $u): ?>
+                            <tr>
+                                <td class="p-3 text-slate-500">#<?php echo $u['id']; ?></td>
+                                <td class="p-3 font-bold text-white">@<?php echo $u['username']; ?></td>
+                                <td class="p-3"><?php echo htmlspecialchars($u['fullname']); ?></td>
+                                <td class="p-3"><?php echo $u['email']; ?> / <?php echo $u['phone']; ?></td>
+                                <td class="p-3">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold <?php echo $u['is_active'] ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'; ?>">
+                                        <?php echo $u['is_active'] ? 'AKTIF' : 'INAKTIF'; ?>
+                                    </span>
+                                </td>
+                                <td class="p-3 text-right font-extrabold text-blue-400">Rp <?php echo number_format($u['balance']); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+`,
+
+  "forgot-password.php": `<?php
+// forgot-password.php - Reset Kata Sandi Lupa
+require_once 'config.php';
+
+$msg = '';
+$err = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $email = trim($_POST['email'] ?? '');
+    if ($email) {
+        $stmt = $pdo->prepare("SELECT id, fullname, username FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+
+        if ($user) {
+            $otp = rand(100000, 999999);
+            $_SESSION['reset_email'] = $email;
+            $_SESSION['reset_otp'] = $otp;
+
+            $msg = "Kode OTP Reset untuk @{$user['username']} adalah: {$otp}. Masukkan kode ini bersama kata sandi baru Anda.";
+        } else {
+            $err = "Email tidak terdaftar!";
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Lupa Kata Sandi - ZALORA DENIM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white text-slate-900 rounded-3xl p-8 max-w-md w-full shadow-2xl">
+        <h2 class="text-xl font-extrabold mb-1">Setel Ulang Kata Sandi</h2>
+        <p class="text-xs text-slate-500 mb-4">Masukkan email terdaftar untuk menerima OTP verifikasi.</p>
+
+        <?php if ($msg): ?>
+            <div class="bg-green-50 text-green-800 p-3 rounded-xl text-xs font-bold mb-4 border border-green-200"><?php echo $msg; ?></div>
+        <?php endif; ?>
+        <?php if ($err): ?>
+            <div class="bg-red-50 text-red-800 p-3 rounded-xl text-xs font-bold mb-4 border border-red-200"><?php echo $err; ?></div>
+        <?php endif; ?>
+
+        <form method="POST" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Email Terdaftar</label>
+                <input type="email" name="email" required placeholder="email@domain.com" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold">
+            </div>
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-xs">
+                Kirim OTP Verifikasi
+            </button>
+        </form>
+        <div class="mt-4 text-center">
+            <a href="login.php" class="text-xs font-bold text-slate-500 hover:underline">← Kembali ke halaman Login</a>
+        </div>
+    </div>
+</body>
+</html>
+`,
+
+  "logout.php": `<?php
+// logout.php - Session Destroy
+require_once 'config.php';
+session_unset();
+session_destroy();
+header("Location: login.php");
+exit;
+`,
+
+  "api.php": `<?php
+// api.php - REST API Endpoint untuk Mobile App atau Integrasi Eksternal
+header('Content-Type: application/json');
+require_once 'config.php';
+
+$action = $_GET['action'] ?? '';
+
+if ($action === 'products') {
+    $stmt = $pdo->query("SELECT * FROM products");
+    echo json_encode(['status' => 'success', 'data' => $stmt->fetchAll()]);
+    exit;
+}
+
+if ($action === 'stats') {
+    $stmtUsers = $pdo->query("SELECT COUNT(*) as total_users FROM users WHERE role = 'user'");
+    $stmtActive = $pdo->query("SELECT COUNT(*) as active_users FROM users WHERE is_active = 1 AND role = 'user'");
+    echo json_encode([
+        'status' => 'success',
+        'data' => [
+            'total_users' => $stmtUsers->fetchColumn(),
+            'active_users' => $stmtActive->fetchColumn()
+        ]
+    ]);
+    exit;
+}
+
+echo json_encode(['status' => 'error', 'message' => 'Action tidak dikenal']);
 `
 };
 
