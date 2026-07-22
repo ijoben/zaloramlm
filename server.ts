@@ -2521,6 +2521,20 @@ app.get("/api/export-php-code", (req, res) => {
   res.json({ files: phpProjectFiles });
 });
 
+// Express Error Handling Middleware for API routes to avoid HTML responses
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Unhandled API error:", err);
+  if (req.path.startsWith("/api/")) {
+    return res.status(500).json({ message: err?.message || "Terjadi kesalahan pada server" });
+  }
+  next(err);
+});
+
+// Catch-all for API 404
+app.use("/api/*", (req, res) => {
+  res.status(404).json({ message: `API Route ${req.originalUrl} tidak ditemukan` });
+});
+
 // ==========================================
 // MOUNT VITE MIDDLEWARE OR STATIC FILES
 // ==========================================
