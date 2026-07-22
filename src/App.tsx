@@ -640,53 +640,6 @@ export default function App() {
   return (
     <div className="bg-slate-50 min-h-screen flex flex-col font-sans" id="app-viewport">
       
-      {/* GLOBAL SYSTEM BAR FOR DEMO SWAPPING */}
-      <div className="bg-slate-950 text-slate-300 py-2.5 px-4 sm:px-6 flex flex-col md:flex-row justify-between items-center gap-3 border-b border-slate-900 text-xs font-semibold z-50 shadow-sm" id="global-demo-bar">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-          <span>Simulasi Sistem MLM Binary Aktif (Server Running)</span>
-        </div>
-        
-        {/* Navigation Swapping tabs */}
-        <div className="flex items-center gap-4 flex-wrap">
-          <button
-            id="global-tab-landing"
-            onClick={() => setActiveView('landing')}
-            className={`px-3 py-1 rounded transition hover:text-white ${activeView === 'landing' ? 'bg-blue-600 text-white font-extrabold shadow' : 'text-slate-400'}`}
-          >
-            Toko Zalora (Landing)
-          </button>
-          
-          <button
-            id="global-tab-code"
-            onClick={() => setActiveView('php-source')}
-            className={`px-3 py-1 rounded transition hover:text-white ${activeView === 'php-source' ? 'bg-blue-600 text-white font-extrabold shadow' : 'text-slate-400'}`}
-          >
-            Source Code PHP (Hosting)
-          </button>
-
-          {currentUser && (
-            <button
-              id="global-tab-portal"
-              onClick={() => setActiveView('dashboard')}
-              className={`px-3 py-1 rounded transition hover:text-white ${activeView === 'dashboard' ? 'bg-blue-600 text-white font-extrabold shadow' : 'text-slate-400'}`}
-            >
-              Portal {currentUser.role === 'admin' ? 'Admin' : 'Member'}
-            </button>
-          )}
-
-          {!currentUser && (
-            <button
-              id="global-btn-quick-login"
-              onClick={() => setShowLoginModal(true)}
-              className="bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white text-slate-300 px-3 py-1 rounded text-[11px] font-bold shadow-sm"
-            >
-              Masuk Portal Dashboard
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* RENDER ACTIVE VIEWPORT CONTAINER */}
       <div className="flex-1 flex flex-col" id="active-viewport-body">
         {activeView === 'landing' && (
