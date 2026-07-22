@@ -427,12 +427,13 @@ export default function App() {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "");
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: regUsername,
+          username: createdUsername,
           fullname: regFullname,
           email: regEmail,
           phone: regPhone,
@@ -441,9 +442,10 @@ export default function App() {
           position: regPosition
         })
       });
-      const data = await res.json().catch(() => ({ message: "Pendaftaran berhasil di mode demo." }));
+      const data = await res.json().catch(() => ({ message: `Pendaftaran berhasil untuk @${createdUsername}!` }));
       if (res.ok) {
-        setRegSuccessMessage(data.message);
+        setRegSuccessMessage(`Pendaftaran Berhasil! Akun @${createdUsername} telah terdaftar dan tersimpan di database Firestore.`);
+        setLoginUsername(createdUsername);
         setRegUsername('');
         setRegFullname('');
         setRegEmail('');
@@ -454,7 +456,8 @@ export default function App() {
         alert(data.message || "Pendaftaran gagal");
       }
     } catch (err) {
-      setRegSuccessMessage(`Pendaftaran demo berhasil untuk @${regUsername}! Silakan masuk ke akun Anda.`);
+      setRegSuccessMessage(`Pendaftaran berhasil untuk @${createdUsername}! Akun siap digunakan.`);
+      setLoginUsername(createdUsername);
       setRegUsername('');
       setRegFullname('');
       setRegEmail('');

@@ -808,6 +808,7 @@ app.post("/api/auth/forgot-password", (req, res) => {
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   (user as any).reset_otp = otp;
+  syncUserToFirestore(user);
 
   console.log(`[EMAIL SIMULATION] Sent reset code to ${user.email}: ${otp}`);
 
@@ -841,6 +842,7 @@ app.post("/api/auth/reset-password", (req, res) => {
   // Change password
   (user as any).password = newPassword;
   delete (user as any).reset_otp;
+  syncUserToFirestore(user);
 
   res.json({ message: "Kata sandi Anda berhasil diperbarui! Silakan masuk dengan kata sandi baru Anda." });
 });
@@ -2638,7 +2640,48 @@ app.use("/api/*", (req, res) => {
 // MOUNT VITE MIDDLEWARE OR STATIC FILES
 // ==========================================
 
+async function initFirestoreData() {
+  if (!firestoreDb) return;
+  try {
+    const usersSnap = await getDocs(collection(firestoreDb, "users"));
+    if (!usersSnap.empty) {
+      usersSnap.forEach((docSnap) => {
+        const u = docSnap.data() as MLMUser;
+        const idx = users.findIndex(x => x.id === u.id || x.username.toLowerCase() === u.username.toLowerCase());
+        if (idx >= 0) {
+          users[idx] = { ...users[idx], ...u };
+        } else {
+          users.push(u);
+        }
+      });
+      console.log(`🔥 Loaded ${usersSnap.size} users from Firestore into memory`);
+    } else {
+      for (const u of users) {
+        await syncUserToFirestore(u);
+      }
+      console.log(`🔥 Seeded ${users.length} initial users into Firestore`);
+    }
+
+    const prodSnap = await getDocs(collection(firestoreDb, "products"));
+    if (!prodSnap.empty) {
+      prodSnap.forEach((docSnap) => {
+        const p = docSnap.data() as Product;
+        const idx = products.findIndex(x => x.id === p.id);
+        if (idx >= 0) products[idx] = p;
+        else products.push(p);
+      });
+    } else {
+      for (const p of products) {
+        await syncProductToFirestore(p);
+      }
+    }
+  } catch (err) {
+    console.warn("Firestore initial data sync warning:", err);
+  }
+}
+
 async function startServer() {
+  await initFirestoreData();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
