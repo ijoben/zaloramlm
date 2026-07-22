@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 import firebaseConfig from "./firebase-applet-config.json";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode } from "./src/types";
 
@@ -67,6 +67,24 @@ export async function syncProductToFirestore(p: Product) {
     await setDoc(doc(firestoreDb, "products", String(p.id)), { ...p }, { merge: true });
   } catch (err) {
     console.error("Firestore sync product error:", err);
+  }
+}
+
+export async function syncSettingsToFirestore(s: any) {
+  if (!firestoreDb) return;
+  try {
+    await setDoc(doc(firestoreDb, "settings", "system"), { ...s }, { merge: true });
+  } catch (err) {
+    console.error("Firestore sync settings error:", err);
+  }
+}
+
+export async function syncNotificationToFirestore(n: MLMNotification) {
+  if (!firestoreDb) return;
+  try {
+    await setDoc(doc(firestoreDb, "notifications", String(n.id)), { ...n }, { merge: true });
+  } catch (err) {
+    console.error("Firestore sync notification error:", err);
   }
 }
 
@@ -747,6 +765,15 @@ app.get("/api/settings", (req, res) => {
   res.json(systemSettings);
 });
 
+// Update System Settings (Admin operation)
+app.post("/api/admin/settings", (req, res) => {
+  const newSettings = req.body;
+  if (!newSettings) return res.status(400).json({ message: "Pengaturan tidak valid" });
+  systemSettings = { ...systemSettings, ...newSettings };
+  syncSettingsToFirestore(systemSettings);
+  res.json({ message: "Pengaturan sistem & bonus komisi berhasil disimpan ke Firestore", settings: systemSettings });
+});
+
 // Get Firestore Info and Direct Console Link
 app.get("/api/firestore-info", (req, res) => {
   res.json({
@@ -754,12 +781,13 @@ app.get("/api/firestore-info", (req, res) => {
     projectId: firebaseConfig.projectId,
     firestoreDatabaseId: firebaseConfig.firestoreDatabaseId,
     firebaseConsoleUrl: `https://console.firebase.google.com/u/0/project/${firebaseConfig.projectId}/firestore/databases/${firebaseConfig.firestoreDatabaseId}/data`,
-    collections: ["users", "deposits", "withdrawals", "transactions", "products"],
+    collections: ["users", "settings", "products", "deposits", "withdrawals", "transactions", "notifications"],
     stats: {
       totalUsers: users.length,
       totalDeposits: deposits.length,
       totalWithdrawals: withdrawals.length,
-      totalTransactions: transactions.length
+      totalTransactions: transactions.length,
+      totalNotifications: notifications.length
     }
   });
 });
@@ -774,23 +802,28 @@ app.post("/api/admin/products/stock", (req, res) => {
   if (price !== undefined) product.price = Number(price);
   if (memberPrice !== undefined) product.member_price = Number(memberPrice);
 
-  res.json({ message: "Data produk dan stok berhasil diupdate", product });
+  syncProductToFirestore(product);
+  res.json({ message: "Data produk dan stok berhasil diupdate di Firestore", product });
 });
 
 // Authentication: Login
 app.post("/api/auth/login", (req, res) => {
   const { username, password } = req.body;
-  if (!username) return res.status(400).json({ message: "Username harus diisi" });
+  if (!username) return res.status(400).json({ message: "Username/Email harus diisi" });
 
-  const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+  const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === username.toLowerCase());
   if (!user) {
-    return res.status(404).json({ message: "User tidak ditemukan" });
+    return res.status(404).json({ message: "User/Email tidak ditemukan dalam database!" });
   }
 
-  // Simple password check. Default password is password123.
-  const userPassword = (user as any).password || "password123";
-  if (password && password !== userPassword) {
-    return res.status(401).json({ message: "Kata sandi salah!" });
+  // Password check against user password or default role password
+  const expectedPassword = (user as any).password || (user.role === 'admin' ? "admin123" : "user123");
+  if (!password) {
+    return res.status(400).json({ message: "Kata sandi wajib diisi!" });
+  }
+
+  if (password !== expectedPassword) {
+    return res.status(401).json({ message: "Kata sandi yang Anda masukkan salah!" });
   }
 
   res.json({ message: "Login berhasil", user });
@@ -849,14 +882,18 @@ app.post("/api/auth/reset-password", (req, res) => {
 
 // Authentication: Register Member
 app.post("/api/auth/register", (req, res) => {
-  const { username, fullname, email, phone, sponsor_username, upline_username, position } = req.body;
+  const { username, fullname, email, phone, password, sponsor_username, upline_username, position } = req.body;
 
   if (!username || !fullname || !email || !phone) {
-    return res.status(400).json({ message: "Mohon isi semua field wajib" });
+    return res.status(400).json({ message: "Mohon isi semua field wajib (Username, Nama Lengkap, Email, Telepon)" });
+  }
+
+  if (!password || password.length < 3) {
+    return res.status(400).json({ message: "Kata sandi wajib diisi (minimal 3 karakter)" });
   }
 
   if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
-    return res.status(400).json({ message: "Username sudah digunakan" });
+    return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
   }
 
   // 1. Resolve sponsor
@@ -916,7 +953,8 @@ app.post("/api/auth/register", (req, res) => {
     left_sales: 0,
     right_sales: 0,
     created_at: new Date().toISOString(),
-    role: "user"
+    role: "user",
+    password: password
   };
 
   users.push(newUser);
@@ -2643,6 +2681,7 @@ app.use("/api/*", (req, res) => {
 async function initFirestoreData() {
   if (!firestoreDb) return;
   try {
+    // 1. Users
     const usersSnap = await getDocs(collection(firestoreDb, "users"));
     if (!usersSnap.empty) {
       usersSnap.forEach((docSnap) => {
@@ -2662,6 +2701,21 @@ async function initFirestoreData() {
       console.log(`🔥 Seeded ${users.length} initial users into Firestore`);
     }
 
+    // 2. Settings
+    try {
+      const settingsDoc = await getDoc(doc(firestoreDb, "settings", "system"));
+      if (settingsDoc.exists()) {
+        systemSettings = { ...systemSettings, ...settingsDoc.data() };
+        console.log("🔥 Loaded system settings from Firestore");
+      } else {
+        await syncSettingsToFirestore(systemSettings);
+        console.log("🔥 Seeded system settings into Firestore");
+      }
+    } catch (e) {
+      console.warn("Firestore settings load warning:", e);
+    }
+
+    // 3. Products
     const prodSnap = await getDocs(collection(firestoreDb, "products"));
     if (!prodSnap.empty) {
       prodSnap.forEach((docSnap) => {
@@ -2675,6 +2729,67 @@ async function initFirestoreData() {
         await syncProductToFirestore(p);
       }
     }
+
+    // 4. Deposits
+    const depSnap = await getDocs(collection(firestoreDb, "deposits"));
+    if (!depSnap.empty) {
+      depSnap.forEach((docSnap) => {
+        const d = docSnap.data() as DepositRequest;
+        const idx = deposits.findIndex(x => x.id === d.id);
+        if (idx >= 0) deposits[idx] = d;
+        else deposits.push(d);
+      });
+    } else {
+      for (const d of deposits) {
+        await syncDepositToFirestore(d);
+      }
+    }
+
+    // 5. Withdrawals
+    const wdSnap = await getDocs(collection(firestoreDb, "withdrawals"));
+    if (!wdSnap.empty) {
+      wdSnap.forEach((docSnap) => {
+        const w = docSnap.data() as WDRequest;
+        const idx = withdrawals.findIndex(x => x.id === w.id);
+        if (idx >= 0) withdrawals[idx] = w;
+        else withdrawals.push(w);
+      });
+    } else {
+      for (const w of withdrawals) {
+        await syncWithdrawalToFirestore(w);
+      }
+    }
+
+    // 6. Transactions
+    const txSnap = await getDocs(collection(firestoreDb, "transactions"));
+    if (!txSnap.empty) {
+      txSnap.forEach((docSnap) => {
+        const t = docSnap.data() as Transaction;
+        const idx = transactions.findIndex(x => x.id === t.id);
+        if (idx >= 0) transactions[idx] = t;
+        else transactions.push(t);
+      });
+    } else {
+      for (const t of transactions) {
+        await syncTransactionToFirestore(t);
+      }
+    }
+
+    // 7. Notifications
+    const notifSnap = await getDocs(collection(firestoreDb, "notifications"));
+    if (!notifSnap.empty) {
+      notifSnap.forEach((docSnap) => {
+        const n = docSnap.data() as MLMNotification;
+        const idx = notifications.findIndex(x => x.id === n.id);
+        if (idx >= 0) notifications[idx] = n;
+        else notifications.push(n);
+      });
+    } else {
+      for (const n of notifications) {
+        await syncNotificationToFirestore(n);
+      }
+    }
+
   } catch (err) {
     console.warn("Firestore initial data sync warning:", err);
   }

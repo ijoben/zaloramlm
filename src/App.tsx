@@ -89,6 +89,8 @@ export default function App() {
   const [regFullname, setRegFullname] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regSponsor, setRegSponsor] = useState('');
   const [regUpline, setRegUpline] = useState('');
   const [regPosition, setRegPosition] = useState<'L' | 'R'>('L');
@@ -369,7 +371,11 @@ export default function App() {
   const handleLoginSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!loginUsername) {
-      setLoginError("Harap isi username");
+      setLoginError("Harap isi username atau email");
+      return;
+    }
+    if (!loginPassword) {
+      setLoginError("Harap masukkan kata sandi");
       return;
     }
     setLoginError('');
@@ -377,13 +383,14 @@ export default function App() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: loginUsername })
+        body: JSON.stringify({ username: loginUsername, password: loginPassword })
       });
       if (res.ok) {
         const data = await res.json();
         setCurrentUser(data.user);
         setShowLoginModal(false);
         setLoginUsername('');
+        setLoginPassword('');
         // Immediately fetch relative data
         if (data.user.role === 'admin') {
           try {
@@ -417,16 +424,25 @@ export default function App() {
       console.warn("API Login unreachable, using client fallback", err);
     }
 
-    // Fallback if API backend is unreachable (e.g. static hosting without Node.js backend)
+    // Fallback if API backend is unreachable
     const fallbackUser = getFallbackUser(loginUsername);
     setCurrentUser(fallbackUser);
     setShowLoginModal(false);
     setLoginUsername('');
+    setLoginPassword('');
     setActiveView('dashboard');
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!regPassword) {
+      alert("Mohon buat kata sandi untuk akun Anda.");
+      return;
+    }
+    if (regPassword !== regConfirmPassword) {
+      alert("Konfirmasi kata sandi tidak cocok dengan kata sandi Anda!");
+      return;
+    }
     const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "");
     try {
       const res = await fetch("/api/auth/register", {
@@ -437,6 +453,7 @@ export default function App() {
           fullname: regFullname,
           email: regEmail,
           phone: regPhone,
+          password: regPassword,
           sponsor_username: regSponsor,
           upline_username: regUpline,
           position: regPosition
@@ -444,12 +461,15 @@ export default function App() {
       });
       const data = await res.json().catch(() => ({ message: `Pendaftaran berhasil untuk @${createdUsername}!` }));
       if (res.ok) {
-        setRegSuccessMessage(`Pendaftaran Berhasil! Akun @${createdUsername} telah terdaftar dan tersimpan di database Firestore.`);
+        setRegSuccessMessage(`Pendaftaran Berhasil! Akun @${createdUsername} telah terdaftar dan tersimpan di database Firestore dengan password yang Anda buat.`);
         setLoginUsername(createdUsername);
+        setLoginPassword(regPassword);
         setRegUsername('');
         setRegFullname('');
         setRegEmail('');
         setRegPhone('');
+        setRegPassword('');
+        setRegConfirmPassword('');
         setRegSponsor('');
         setRegUpline('');
       } else {
@@ -458,22 +478,27 @@ export default function App() {
     } catch (err) {
       setRegSuccessMessage(`Pendaftaran berhasil untuk @${createdUsername}! Akun siap digunakan.`);
       setLoginUsername(createdUsername);
+      setLoginPassword(regPassword);
       setRegUsername('');
       setRegFullname('');
       setRegEmail('');
       setRegPhone('');
+      setRegPassword('');
+      setRegConfirmPassword('');
     }
   };
 
   const handleQuickLogin = async (role: 'user' | 'admin') => {
     const username = role === 'user' ? 'budi' : 'admin';
+    const password = role === 'user' ? 'user123' : 'admin123';
     setLoginUsername(username);
+    setLoginPassword(password);
     setLoginError('');
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username })
+        body: JSON.stringify({ username, password })
       });
       if (res.ok) {
         const data = await res.json();
@@ -481,6 +506,7 @@ export default function App() {
           setCurrentUser(data.user);
           setShowLoginModal(false);
           setLoginUsername('');
+          setLoginPassword('');
           if (data.user.role === 'admin') {
             try {
               const r = await fetch("/api/admin/dashboard");
@@ -926,17 +952,20 @@ export default function App() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Kata Sandi (Demo Bypass)</label>
+                <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Kata Sandi</label>
                 <div className="relative">
                   <input
                     type="password"
-                    disabled
+                    required
+                    placeholder="Masukkan kata sandi..."
                     value={loginPassword}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs bg-slate-50 font-mono text-slate-400 focus:outline-none"
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
                   />
                   <Key className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
                 </div>
-                <div className="text-right pt-1">
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-[10px] text-slate-400 italic">Default: admin123 / user123</span>
                   <button
                     type="button"
                     id="btn-forgot-password-trigger"
@@ -1238,6 +1267,32 @@ export default function App() {
                       value={regPhone}
                       onChange={(e) => setRegPhone(e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Kata Sandi</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Buat kata sandi..."
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Ulangi Kata Sandi</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Konfirmasi kata sandi..."
+                      value={regConfirmPassword}
+                      onChange={(e) => setRegConfirmPassword(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>

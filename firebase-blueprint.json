@@ -80,6 +80,27 @@
         "image": { "type": "string" }
       },
       "required": ["name", "price", "member_price", "stock"]
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "System branding and MLM commission rates",
+      "properties": {
+        "webName": { "type": "string" },
+        "sponsorBonus": { "type": "number" },
+        "pairingBonus": { "type": "number" },
+        "roBonus": { "type": "number" }
+      }
+    },
+    "notifications": {
+      "title": "Notification",
+      "description": "User notification logs",
+      "properties": {
+        "user_id": { "type": "number" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "created_at": { "type": "string" }
+      }
     }
   }
 }

@@ -19,6 +19,7 @@ export interface MLMUser {
   right_sales: number; // Total active sales right leg (for pairing/reward)
   created_at: string;
   role: 'user' | 'admin';
+  password?: string;
 }
 
 export interface Product {
