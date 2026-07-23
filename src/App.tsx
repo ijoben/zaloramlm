@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { getFirestore, doc, setDoc, getDoc, getDocs, collection } from "firebase/firestore";
 import firebaseConfig from "../firebase-applet-config.json";
 import LandingPage from "./components/LandingPage";
 import UserDashboard from "./components/UserDashboard";
@@ -9,9 +10,251 @@ import PHPSourceViewer from "./components/PHPSourceViewer";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest } from "./types";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
 
-// Initialize Firebase App & Auth SDK
+// Initialize Firebase App, Auth SDK & Firestore DB
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
+const db = firebaseConfig.firestoreDatabaseId 
+  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(app);
+
+// Client-side Firestore helper functions for Vercel/Static deployments and direct database sync
+async function fetchFirestoreUsers(): Promise<MLMUser[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, "users"));
+    const users: MLMUser[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      users.push({
+        id: Number(data.id),
+        username: data.username || "",
+        fullname: data.fullname || "",
+        email: data.email || "",
+        phone: data.phone || "",
+        password: data.password || "",
+        is_active: Boolean(data.is_active),
+        upline_id: data.upline_id !== null && data.upline_id !== undefined ? Number(data.upline_id) : null,
+        position: data.position || "L",
+        sponsor_id: data.sponsor_id !== null && data.sponsor_id !== undefined ? Number(data.sponsor_id) : null,
+        balance: Number(data.balance) || 0,
+        sponsor_bonus: Number(data.sponsor_bonus) || 0,
+        pairing_bonus: Number(data.pairing_bonus) || 0,
+        level_bonus: Number(data.level_bonus) || 0,
+        ro_bonus: Number(data.ro_bonus) || 0,
+        left_count: Number(data.left_count) || 0,
+        right_count: Number(data.right_count) || 0,
+        left_sales: Number(data.left_sales) || 0,
+        right_sales: Number(data.right_sales) || 0,
+        created_at: data.created_at || new Date().toISOString(),
+        role: data.role || "user",
+        firebase_uid: data.firebase_uid || ""
+      });
+    });
+
+    if (users.length === 0) {
+      const initialUsers: MLMUser[] = [
+        {
+          id: 1,
+          username: "admin",
+          fullname: "Administrator Zalora Denim",
+          email: "admin@zaloradenim.com",
+          phone: "081234567890",
+          password: "admin",
+          is_active: true,
+          upline_id: null,
+          position: null,
+          sponsor_id: null,
+          balance: 5000000,
+          sponsor_bonus: 0,
+          pairing_bonus: 0,
+          level_bonus: 0,
+          ro_bonus: 0,
+          left_count: 1,
+          right_count: 0,
+          left_sales: 1,
+          right_sales: 0,
+          created_at: new Date().toISOString(),
+          role: "admin"
+        },
+        {
+          id: 2,
+          username: "budi",
+          fullname: "Budi Santoso",
+          email: "budi@gmail.com",
+          phone: "081234567891",
+          password: "user123",
+          is_active: true,
+          upline_id: 1,
+          position: "L",
+          sponsor_id: 1,
+          balance: 750000,
+          sponsor_bonus: 40000,
+          pairing_bonus: 20000,
+          level_bonus: 15000,
+          ro_bonus: 5000,
+          left_count: 0,
+          right_count: 0,
+          left_sales: 0,
+          right_sales: 0,
+          created_at: new Date().toISOString(),
+          role: "user"
+        }
+      ];
+      for (const u of initialUsers) {
+        await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
+      }
+      return initialUsers;
+    }
+
+    return users;
+  } catch (err) {
+    console.warn("Error reading users from Firestore client-side:", err);
+    return [];
+  }
+}
+
+function findVacantSpotClient(users: MLMUser[], rootId: number, preferredPosition?: 'L' | 'R'): { upline_id: number, position: 'L' | 'R' } {
+  const root = users.find(u => Number(u.id) === Number(rootId));
+  if (!root) return { upline_id: Number(rootId) || 1, position: preferredPosition || 'L' };
+
+  const pos = preferredPosition || "L";
+  const directChild = users.find(u => Number(u.upline_id) === Number(rootId) && u.position === pos);
+  if (!directChild) {
+    return { upline_id: Number(rootId), position: pos };
+  }
+
+  let currentId = Number(directChild.id);
+  while (true) {
+    const nextChild = users.find(u => Number(u.upline_id) === Number(currentId) && u.position === pos);
+    if (!nextChild) {
+      return { upline_id: currentId, position: pos };
+    }
+    currentId = Number(nextChild.id);
+  }
+}
+
+async function updateAncestorCountsClient(users: MLMUser[], uplineId: number, position: 'L' | 'R') {
+  let currUplineId: number | null = uplineId;
+  let childPos: 'L' | 'R' = position;
+
+  while (currUplineId !== null && currUplineId !== undefined) {
+    const upline = users.find(u => Number(u.id) === Number(currUplineId));
+    if (!upline) break;
+
+    if (childPos === 'L') {
+      upline.left_count = (Number(upline.left_count) || 0) + 1;
+    } else {
+      upline.right_count = (Number(upline.right_count) || 0) + 1;
+    }
+
+    try {
+      await setDoc(doc(db, "users", String(upline.id)), upline, { merge: true });
+    } catch (e) {
+      console.warn("Failed updating ancestor count in Firestore:", e);
+    }
+
+    childPos = upline.position === 'R' ? 'R' : 'L';
+    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+  }
+}
+
+async function registerUserToFirestoreDirect(regData: {
+  username: string;
+  fullname: string;
+  email: string;
+  phone: string;
+  password?: string;
+  sponsor_username?: string;
+  upline_username?: string;
+  position?: 'L' | 'R';
+  firebase_uid?: string;
+}): Promise<MLMUser> {
+  const users = await fetchFirestoreUsers();
+
+  const normalizedUsername = regData.username.toLowerCase().replace(/\s+/g, "").trim();
+  if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
+    throw new Error("Username sudah digunakan oleh member lain");
+  }
+
+  // Resolve sponsor
+  let sponsorId: number = 1;
+  if (regData.sponsor_username) {
+    const sSearch = regData.sponsor_username.toLowerCase().trim();
+    const sponsor = users.find(u => u.username && u.username.toLowerCase().trim() === sSearch);
+    if (sponsor) sponsorId = Number(sponsor.id);
+  }
+
+  // Resolve upline
+  let uplineId: number = sponsorId || 1;
+  let finalPos: 'L' | 'R' = (regData.position === 'R' || regData.position === 'L') ? regData.position : "L";
+
+  if (regData.upline_username) {
+    const uSearch = regData.upline_username.toLowerCase().trim();
+    const uplineUser = users.find(u => u.username && u.username.toLowerCase().trim() === uSearch);
+    if (uplineUser) uplineId = Number(uplineUser.id);
+  }
+
+  // Check if position under uplineId is taken
+  const taken = users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
+  if (taken) {
+    const vacancy = findVacantSpotClient(users, uplineId, finalPos);
+    uplineId = vacancy.upline_id;
+    finalPos = vacancy.position;
+  }
+
+  const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
+  const newUser: MLMUser = {
+    id: newUserId,
+    username: normalizedUsername,
+    fullname: regData.fullname,
+    email: regData.email,
+    phone: regData.phone,
+    password: regData.password || "password123",
+    is_active: true,
+    upline_id: uplineId,
+    position: finalPos,
+    sponsor_id: sponsorId,
+    balance: 0,
+    sponsor_bonus: 0,
+    pairing_bonus: 0,
+    level_bonus: 0,
+    ro_bonus: 0,
+    left_count: 0,
+    right_count: 0,
+    left_sales: 0,
+    right_sales: 0,
+    created_at: new Date().toISOString(),
+    role: "user",
+    firebase_uid: regData.firebase_uid || ""
+  };
+
+  // Save to Firestore
+  await setDoc(doc(db, "users", String(newUserId)), newUser);
+
+  // Update ancestor counts in Firestore
+  await updateAncestorCountsClient(users, uplineId, finalPos);
+
+  return newUser;
+}
+
+function buildClientBinaryTree(users: MLMUser[], userId: number, depth = 0, maxDepth = 5): any {
+  if (depth > maxDepth) return null;
+  const user = users.find(u => Number(u.id) === Number(userId));
+  if (!user) return null;
+
+  const leftChild = users.find(u => Number(u.upline_id) === Number(userId) && u.position === "L");
+  const rightChild = users.find(u => Number(u.upline_id) === Number(userId) && u.position === "R");
+
+  return {
+    id: Number(user.id),
+    username: user.username,
+    fullname: user.fullname,
+    is_active: Boolean(user.is_active),
+    left_count: Number(user.left_count) || 0,
+    right_count: Number(user.right_count) || 0,
+    left: leftChild ? buildClientBinaryTree(users, Number(leftChild.id), depth + 1, maxDepth) : null,
+    right: rightChild ? buildClientBinaryTree(users, Number(rightChild.id), depth + 1, maxDepth) : null
+  };
+}
 
 export default function App() {
   const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>('landing');
@@ -323,6 +566,7 @@ export default function App() {
 
   const fetchDashboardData = async () => {
     if (!currentUser) return;
+    let apiSuccess = false;
     try {
       if (currentUser.role === 'admin') {
         const res = await fetch("/api/admin/dashboard");
@@ -330,6 +574,7 @@ export default function App() {
           const data = await res.json();
           setAdminDashboardData(data);
           if (data.settings) setSystemSettings(data.settings);
+          apiSuccess = true;
           return;
         }
       } else {
@@ -339,17 +584,49 @@ export default function App() {
           setUserDashboardData(data);
           if (data.settings) setSystemSettings(data.settings);
           if (data.user) setCurrentUser(data.user);
+          apiSuccess = true;
           return;
         }
       }
     } catch (err) {
-      console.warn("Gagal sinkronisasi data dashboard dari API, menggunakan data fallback", err);
+      console.warn("API unavailable, loading direct from Firestore database...", err);
     }
 
-    if (currentUser.role === 'admin') {
-      if (!adminDashboardData) setAdminDashboardData(getDefaultAdminDashboard(currentUser));
-    } else {
-      if (!userDashboardData) setUserDashboardData(getDefaultUserDashboard(currentUser));
+    if (!apiSuccess) {
+      // Direct Firestore sync
+      const fsUsers = await fetchFirestoreUsers();
+      if (currentUser.role === 'admin') {
+        const activeCount = fsUsers.filter(u => u.is_active).length;
+        setAdminDashboardData({
+          metrics: {
+            totalMembers: fsUsers.length,
+            activeMembers: activeCount,
+            inactiveMembers: fsUsers.length - activeCount,
+            totalTurnover: fsUsers.reduce((acc, u) => acc + (u.is_active ? 100000 : 0), 0),
+            totalBonusesPaid: fsUsers.reduce((acc, u) => acc + (u.sponsor_bonus || 0) + (u.pairing_bonus || 0), 0),
+            pendingWDCount: 0,
+            pendingWDAmount: 0,
+            isAutoPayout: false
+          },
+          users: fsUsers,
+          withdrawals: [],
+          deposits: [],
+          transactions: []
+        });
+      } else {
+        const freshUser = fsUsers.find(u => Number(u.id) === Number(currentUser.id)) || currentUser;
+        setCurrentUser(freshUser);
+        const binaryTree = buildClientBinaryTree(fsUsers, Number(freshUser.id), 0, 5);
+        const referrals = fsUsers.filter(u => Number(u.sponsor_id) === Number(freshUser.id));
+        setUserDashboardData({
+          user: freshUser,
+          binaryTree,
+          referrals,
+          transactions: [],
+          deposits: [],
+          withdrawals: []
+        });
+      }
     }
   };
 
@@ -421,26 +698,6 @@ export default function App() {
         setShowLoginModal(false);
         setLoginUsername('');
         setLoginPassword('');
-        // Immediately fetch relative data
-        if (data.user.role === 'admin') {
-          try {
-            const r = await fetch("/api/admin/dashboard");
-            if (r.ok) {
-              const d = await r.json();
-              setAdminDashboardData(d);
-              if (d.settings) setSystemSettings(d.settings);
-            }
-          } catch {}
-        } else {
-          try {
-            const r = await fetch(`/api/user/${data.user.id}/dashboard`);
-            if (r.ok) {
-              const d = await r.json();
-              setUserDashboardData(d);
-              if (d.settings) setSystemSettings(d.settings);
-            }
-          } catch {}
-        }
         setActiveView('dashboard');
         return;
       } else {
@@ -451,16 +708,31 @@ export default function App() {
         }
       }
     } catch (err: any) {
-      console.warn("API Login unreachable, using client fallback", err);
+      console.warn("API Login unreachable, using direct Firestore fallback...", err);
     }
 
-    // Fallback if API backend is unreachable
-    const fallbackUser = getFallbackUser(loginUsername);
-    setCurrentUser(fallbackUser);
-    setShowLoginModal(false);
-    setLoginUsername('');
-    setLoginPassword('');
-    setActiveView('dashboard');
+    // Fallback if API backend is unreachable (e.g. Vercel static host)
+    const fsUsers = await fetchFirestoreUsers();
+    const uSearch = loginUsername.toLowerCase().replace(/\s+/g, "").trim();
+    const matched = fsUsers.find(u => 
+      (u.username && u.username.toLowerCase().trim() === uSearch) || 
+      (u.email && u.email.toLowerCase().trim() === uSearch)
+    );
+
+    if (matched) {
+      setCurrentUser(matched);
+      setShowLoginModal(false);
+      setLoginUsername('');
+      setLoginPassword('');
+      setActiveView('dashboard');
+    } else {
+      const fallbackUser = getFallbackUser(loginUsername);
+      setCurrentUser(fallbackUser);
+      setShowLoginModal(false);
+      setLoginUsername('');
+      setLoginPassword('');
+      setActiveView('dashboard');
+    }
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
@@ -490,7 +762,6 @@ export default function App() {
       } catch (fbAuthErr: any) {
         console.warn("Firebase Auth SDK createUser notice:", fbAuthErr?.code || fbAuthErr?.message);
         if (fbAuthErr?.code === "auth/email-already-in-use") {
-          // If already in Firebase Auth, attempt login or proceed with profile sync
           try {
             const cred = await signInWithEmailAndPassword(auth, regEmail, regPassword);
             firebaseUid = cred.user.uid;
@@ -498,11 +769,40 @@ export default function App() {
         }
       }
 
-      // 2. Register profile in MLM Network Backend & Firestore
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // 2. Try API register endpoint first
+      let apiSuccess = false;
+      try {
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: createdUsername,
+            fullname: regFullname,
+            email: regEmail,
+            phone: regPhone,
+            password: regPassword,
+            sponsor_username: regSponsor,
+            upline_username: regUpline,
+            position: regPosition,
+            firebase_uid: firebaseUid
+          })
+        });
+        if (res.ok) {
+          apiSuccess = true;
+        } else {
+          const data = await res.json().catch(() => ({}));
+          if (data.message) {
+            alert(data.message);
+            return;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("Backend API unavailable, saving directly to Firestore database...", apiErr);
+      }
+
+      // 3. Direct Firestore write if API backend unavailable (e.g., Vercel static hosting)
+      if (!apiSuccess) {
+        await registerUserToFirestoreDirect({
           username: createdUsername,
           fullname: regFullname,
           email: regEmail,
@@ -512,31 +812,11 @@ export default function App() {
           upline_username: regUpline,
           position: regPosition,
           firebase_uid: firebaseUid
-        })
-      });
-
-      const data = await res.json().catch(() => ({ message: `Pendaftaran berhasil untuk @${createdUsername}!` }));
-      if (res.ok) {
-        setRegSuccessMessage(`Pendaftaran Berhasil via Firebase Auth SDK! Akun @${createdUsername} (${regEmail}) terdaftar di Firebase Auth & tersimpan di database.`);
-        setLoginUsername(regEmail);
-        setLoginPassword(regPassword);
-        setRegUsername('');
-        setRegFullname('');
-        setRegEmail('');
-        setRegPhone('');
-        setRegPassword('');
-        setRegConfirmPassword('');
-        setRegSponsor('');
-        setRegUpline('');
-        fetchDashboardData();
-        fetchProducts();
-      } else {
-        alert(data.message || "Pendaftaran gagal");
+        });
       }
-    } catch (err: any) {
-      console.error("Error during registration:", err);
-      setRegSuccessMessage(`Pendaftaran berhasil untuk @${createdUsername}! Akun siap digunakan.`);
-      setLoginUsername(createdUsername);
+
+      setRegSuccessMessage(`Pendaftaran Berhasil via Firebase & Firestore! Akun @${createdUsername} (${regEmail}) terdaftar di database.`);
+      setLoginUsername(regEmail);
       setLoginPassword(regPassword);
       setRegUsername('');
       setRegFullname('');
@@ -544,6 +824,12 @@ export default function App() {
       setRegPhone('');
       setRegPassword('');
       setRegConfirmPassword('');
+      setRegSponsor('');
+      setRegUpline('');
+      fetchDashboardData();
+    } catch (err: any) {
+      console.error("Error during registration:", err);
+      alert(err.message || "Pendaftaran gagal");
     }
   };
 
