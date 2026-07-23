@@ -738,50 +738,71 @@ async function activateUserMLM(userId: number) {
   return true;
 }
 
+// Helper to update ancestor downline counts (left_count / right_count) up to root
+async function updateAncestorCounts(uplineId: number, position: 'L' | 'R') {
+  let currUplineId: number | null = uplineId;
+  let childPos: 'L' | 'R' = position;
+
+  while (currUplineId !== null && currUplineId !== undefined) {
+    const upline = users.find(u => Number(u.id) === Number(currUplineId));
+    if (!upline) break;
+
+    if (childPos === 'L') {
+      upline.left_count = (Number(upline.left_count) || 0) + 1;
+    } else {
+      upline.right_count = (Number(upline.right_count) || 0) + 1;
+    }
+    await syncUserToFirestore(upline);
+
+    childPos = upline.position === 'R' ? 'R' : 'L';
+    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+  }
+}
+
 // Recursive helper to build Binary Tree for Visual Graph
-function buildBinaryTreeResponse(userId: number, depth: number = 0, maxDepth: number = 4): BinaryTreeNode | null {
+function buildBinaryTreeResponse(userId: number, depth: number = 0, maxDepth: number = 5): BinaryTreeNode | null {
   if (depth > maxDepth) return null;
-  const user = users.find(u => u.id === userId);
+  const user = users.find(u => Number(u.id) === Number(userId));
   if (!user) return null;
 
-  // Find left child
-  const leftChild = users.find(u => u.upline_id === userId && u.position === "L");
-  // Find right child
-  const rightChild = users.find(u => u.upline_id === userId && u.position === "R");
+  // Find left child (robust Number check)
+  const leftChild = users.find(u => Number(u.upline_id) === Number(userId) && u.position === "L");
+  // Find right child (robust Number check)
+  const rightChild = users.find(u => Number(u.upline_id) === Number(userId) && u.position === "R");
 
   return {
-    id: user.id,
+    id: Number(user.id),
     username: user.username,
     fullname: user.fullname,
-    is_active: user.is_active,
-    left_count: user.left_count,
-    right_count: user.right_count,
-    left: leftChild ? buildBinaryTreeResponse(leftChild.id, depth + 1, maxDepth) : null,
-    right: rightChild ? buildBinaryTreeResponse(rightChild.id, depth + 1, maxDepth) : null
+    is_active: Boolean(user.is_active),
+    left_count: Number(user.left_count) || 0,
+    right_count: Number(user.right_count) || 0,
+    left: leftChild ? buildBinaryTreeResponse(Number(leftChild.id), depth + 1, maxDepth) : null,
+    right: rightChild ? buildBinaryTreeResponse(Number(rightChild.id), depth + 1, maxDepth) : null
   };
 }
 
 // Find a vacant spot in binary tree under parent (for automated registration fallback)
 function findVacantSpot(rootId: number, preferredPosition?: 'L' | 'R'): { upline_id: number, position: 'L' | 'R' } {
-  const root = users.find(u => u.id === rootId);
+  const root = users.find(u => Number(u.id) === Number(rootId));
   if (!root) throw new Error("Root upline not found");
 
   const pos = preferredPosition || "L";
 
   // Check direct child first
-  const directChild = users.find(u => u.upline_id === rootId && u.position === pos);
+  const directChild = users.find(u => Number(u.upline_id) === Number(rootId) && u.position === pos);
   if (!directChild) {
-    return { upline_id: rootId, position: pos };
+    return { upline_id: Number(rootId), position: pos };
   }
 
   // Recursive search downwards following that leg
-  let currentId = directChild.id;
+  let currentId = Number(directChild.id);
   while (true) {
-    const nextChild = users.find(u => u.upline_id === currentId && u.position === pos);
+    const nextChild = users.find(u => Number(u.upline_id) === Number(currentId) && u.position === pos);
     if (!nextChild) {
       return { upline_id: currentId, position: pos };
     }
-    currentId = nextChild.id;
+    currentId = Number(nextChild.id);
   }
 }
 
@@ -921,6 +942,7 @@ app.post("/api/auth/reset-password", (req, res) => {
 
 // Authentication: Register Member
 app.post("/api/auth/register", async (req, res) => {
+  await initFirestoreData();
   const { username, fullname, email, phone, password, sponsor_username, upline_username, position } = req.body;
 
   if (!username || !fullname || !email || !phone) {
@@ -931,42 +953,37 @@ app.post("/api/auth/register", async (req, res) => {
     return res.status(400).json({ message: "Kata sandi wajib diisi (minimal 3 karakter)" });
   }
 
-  if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+  const normalizedUsername = username.toLowerCase().replace(/\s+/g, "").trim();
+
+  if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
     return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
   }
 
   // 1. Resolve sponsor
   let sponsorId: number | null = 1; // Default to admin
   if (sponsor_username) {
-    const sponsor = users.find(u => u.username.toLowerCase() === sponsor_username.toLowerCase());
-    if (sponsor) sponsorId = sponsor.id;
+    const sponsorSearch = String(sponsor_username).toLowerCase().trim();
+    const sponsor = users.find(u => u.username && u.username.toLowerCase().trim() === sponsorSearch);
+    if (sponsor) sponsorId = Number(sponsor.id);
   }
 
   // 2. Resolve upline & placement
-  let uplineId: number = 1;
-  let finalPos: 'L' | 'R' = position || "L";
+  let uplineId: number = sponsorId || 1;
+  let finalPos: 'L' | 'R' = (position === 'R' || position === 'L') ? position : "L";
 
   if (upline_username) {
-    const uplineUser = users.find(u => u.username.toLowerCase() === upline_username.toLowerCase());
+    const uplineSearch = String(upline_username).toLowerCase().trim();
+    const uplineUser = users.find(u => u.username && u.username.toLowerCase().trim() === uplineSearch);
     if (uplineUser) {
-      uplineId = uplineUser.id;
-      // Check if this position is already taken under this upline
-      const taken = users.find(u => u.upline_id === uplineId && u.position === finalPos);
-      if (taken) {
-        // Find vacancy downward
-        const vacancy = findVacantSpot(uplineId, finalPos);
-        uplineId = vacancy.upline_id;
-        finalPos = vacancy.position;
-      }
-    } else {
-      // Fallback
-      const vacancy = findVacantSpot(1, finalPos);
-      uplineId = vacancy.upline_id;
-      finalPos = vacancy.position;
+      uplineId = Number(uplineUser.id);
     }
-  } else {
-    // Fallback to admin vacancys
-    const vacancy = findVacantSpot(1, finalPos);
+  }
+
+  // Check if position under uplineId is taken
+  const taken = users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
+  if (taken) {
+    // Find vacancy downward following that leg
+    const vacancy = findVacantSpot(uplineId, finalPos);
     uplineId = vacancy.upline_id;
     finalPos = vacancy.position;
   }
@@ -975,7 +992,7 @@ app.post("/api/auth/register", async (req, res) => {
   const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
   const newUser: MLMUser = {
     id: newUserId,
-    username: username.toLowerCase().replace(/\s+/g, ""),
+    username: normalizedUsername,
     fullname,
     email,
     phone,
@@ -1000,12 +1017,15 @@ app.post("/api/auth/register", async (req, res) => {
   users.push(newUser);
   await syncUserToFirestore(newUser);
 
+  // Update left_count / right_count for all ancestor uplines up to root!
+  await updateAncestorCounts(uplineId, finalPos);
+
   // Notify parent & sponsor
   const notif: MLMNotification = {
     id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
     user_id: uplineId,
     title: "Member Baru!",
-    message: `${fullname} (${username}) bergabung di kaki ${finalPos === 'L' ? 'Kiri' : 'Kanan'} Anda. Silakan bantu untuk aktifasi Rp 100,000 agar bonus Anda mengalir!`,
+    message: `${fullname} (@${normalizedUsername}) bergabung di kaki ${finalPos === 'L' ? 'Kiri' : 'Kanan'} Anda. Silakan bantu untuk aktifasi Rp 100,000 agar bonus Anda mengalir!`,
     type: "info",
     created_at: new Date().toISOString()
   };
@@ -1697,21 +1717,22 @@ app.post("/api/user/purchase", async (req, res) => {
 });
 
 // Retrieve User Specific Data
-app.get("/api/user/:userId/dashboard", (req, res) => {
+app.get("/api/user/:userId/dashboard", async (req, res) => {
+  await initFirestoreData();
   const userId = Number(req.params.userId);
-  const user = users.find(u => u.id === userId);
+  const user = users.find(u => Number(u.id) === userId);
   if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
 
-  const userTransactions = transactions.filter(t => t.user_id === userId);
-  const userDeposits = deposits.filter(d => d.user_id === userId);
-  const userWDs = withdrawals.filter(w => w.user_id === userId);
-  const userNotifs = notifications.filter(n => n.user_id === userId).reverse();
+  const userTransactions = transactions.filter(t => Number(t.user_id) === userId);
+  const userDeposits = deposits.filter(d => Number(d.user_id) === userId);
+  const userWDs = withdrawals.filter(w => Number(w.user_id) === userId);
+  const userNotifs = notifications.filter(n => Number(n.user_id) === userId).reverse();
 
-  // Build network tree
-  const binaryTree = buildBinaryTreeResponse(userId, 0, 3);
+  // Build network tree up to 5 levels
+  const binaryTree = buildBinaryTreeResponse(userId, 0, 5);
 
   // Get referred members (sponsor list)
-  const referrals = users.filter(u => u.sponsor_id === userId);
+  const referrals = users.filter(u => Number(u.sponsor_id) === userId);
 
   res.json({
     user,
@@ -2742,14 +2763,31 @@ async function initFirestoreData() {
           const uId = Number(u.id);
           const uUsername = (u.username || "").toLowerCase().trim();
 
+          const normalizedLoadedUser: MLMUser = {
+            ...u,
+            id: uId,
+            upline_id: u.upline_id !== null && u.upline_id !== undefined ? Number(u.upline_id) : null,
+            sponsor_id: u.sponsor_id !== null && u.sponsor_id !== undefined ? Number(u.sponsor_id) : null,
+            left_count: Number(u.left_count) || 0,
+            right_count: Number(u.right_count) || 0,
+            left_sales: Number(u.left_sales) || 0,
+            right_sales: Number(u.right_sales) || 0,
+            balance: Number(u.balance) || 0,
+            sponsor_bonus: Number(u.sponsor_bonus) || 0,
+            pairing_bonus: Number(u.pairing_bonus) || 0,
+            level_bonus: Number(u.level_bonus) || 0,
+            ro_bonus: Number(u.ro_bonus) || 0,
+            position: u.position || "L"
+          };
+
           const idx = users.findIndex(x => 
             Number(x.id) === uId || 
             (x.username && x.username.toLowerCase().trim() === uUsername && uUsername !== "")
           );
           if (idx >= 0) {
-            users[idx] = { ...users[idx], ...u, id: uId };
+            users[idx] = { ...users[idx], ...normalizedLoadedUser };
           } else {
-            users.push({ ...u, id: uId });
+            users.push(normalizedLoadedUser);
           }
         } catch (e) {
           console.warn("User parse error in Firestore sync:", e);

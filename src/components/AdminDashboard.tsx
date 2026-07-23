@@ -972,6 +972,7 @@ export default function AdminDashboard({
                       <th className="py-3 px-4">ID</th>
                       <th className="py-3 px-4">Nama Lengkap</th>
                       <th className="py-3 px-4">Username & Telp</th>
+                      <th className="py-3 px-4">Upline & Sponsor</th>
                       <th className="py-3 px-4 text-center">Lisensi</th>
                       <th className="py-3 px-4 text-center">Tim L/R</th>
                       <th className="py-3 px-4 text-center">Omset L/R</th>
@@ -982,11 +983,13 @@ export default function AdminDashboard({
                   <tbody className="divide-y divide-slate-100">
                     {filteredUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-slate-400">Tidak ada data anggota ditemukan</td>
+                        <td colSpan={9} className="py-8 text-center text-slate-400">Tidak ada data anggota ditemukan</td>
                       </tr>
                     ) : (
                       filteredUsers.map((u) => {
                         const totalBonus = u.sponsor_bonus + u.pairing_bonus + u.level_bonus + u.ro_bonus;
+                        const uplineUser = users.find(x => Number(x.id) === Number(u.upline_id));
+                        const sponsorUser = users.find(x => Number(x.id) === Number(u.sponsor_id));
                         return (
                           <tr key={u.id} className="hover:bg-slate-50/50">
                             <td className="py-3.5 px-4 font-mono text-slate-400">#{u.id}</td>
@@ -997,6 +1000,16 @@ export default function AdminDashboard({
                             <td className="py-3.5 px-4 leading-normal">
                               <span className="font-bold text-blue-600 block">@{u.username}</span>
                               <span className="text-[10px] text-slate-500 font-mono">{u.phone}</span>
+                            </td>
+                            <td className="py-3.5 px-4 leading-normal">
+                              <div className="text-[10px] text-slate-700 font-medium">
+                                <span className="font-bold text-slate-900 block">
+                                  Upline: {uplineUser ? `@${uplineUser.username}` : 'Root'} <span className="text-blue-600 font-extrabold">({u.position || 'L'})</span>
+                                </span>
+                                <span className="text-slate-500 block">
+                                  Sponsor: {sponsorUser ? `@${sponsorUser.username}` : '-'}
+                                </span>
+                              </div>
                             </td>
                             <td className="py-3.5 px-4 text-center">
                               <span className={`inline-block px-2 py-0.5 rounded-full font-bold text-[9px] uppercase tracking-wide ${
