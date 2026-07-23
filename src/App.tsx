@@ -379,6 +379,75 @@ async function createFirestoreWithdrawal(wd: WDRequest): Promise<void> {
   }
 }
 
+async function fetchFirestoreTransactions(): Promise<Transaction[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, "transactions"));
+    const txs: Transaction[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      txs.push({
+        id: Number(data.id),
+        user_id: Number(data.user_id),
+        username: data.username || "",
+        type: data.type || "transaction",
+        amount: Number(data.amount) || 0,
+        description: data.description || "",
+        created_at: data.created_at || new Date().toISOString()
+      });
+    });
+
+    if (txs.length === 0) {
+      const defaultTxs: Transaction[] = [
+        {
+          id: 1,
+          user_id: 2,
+          username: "budi",
+          type: "deposit",
+          amount: 1000000,
+          description: "Deposit Saldo Berhasil via BCA (+Rp 1.000.000)",
+          created_at: "2026-06-14T08:00:00Z"
+        },
+        {
+          id: 2,
+          user_id: 2,
+          username: "budi",
+          type: "sponsor_bonus",
+          amount: 40000,
+          description: "Bonus Sponsor Pendaftaran Member Baru @dedi",
+          created_at: "2026-07-01T08:30:00Z"
+        },
+        {
+          id: 3,
+          user_id: 2,
+          username: "budi",
+          type: "pairing_bonus",
+          amount: 20000,
+          description: "Bonus Pairing Kiri & Kanan (2 Pasang Baru)",
+          created_at: "2026-07-01T09:00:00Z"
+        }
+      ];
+      for (const t of defaultTxs) {
+        await setDoc(doc(db, "transactions", String(t.id)), t, { merge: true });
+      }
+      return defaultTxs;
+    }
+
+    txs.sort((a, b) => b.id - a.id);
+    return txs;
+  } catch (err) {
+    console.warn("Error fetching transactions from Firestore:", err);
+    return [];
+  }
+}
+
+async function createFirestoreTransaction(tx: Transaction): Promise<void> {
+  try {
+    await setDoc(doc(db, "transactions", String(tx.id)), tx);
+  } catch (err) {
+    console.error("Error creating transaction in Firestore:", err);
+  }
+}
+
 async function updateFirestoreWithdrawalStatus(wdId: number, status: 'success' | 'failed' | 'pending'): Promise<void> {
   try {
     const wdRef = doc(db, "withdrawals", String(wdId));
@@ -394,6 +463,25 @@ async function updateFirestoreWithdrawalStatus(wdId: number, status: 'success' |
           const currentBal = Number(userSnap.data().balance) || 0;
           await setDoc(userRef, { balance: currentBal + oldWd.amount }, { merge: true });
         }
+        await createFirestoreTransaction({
+          id: Date.now(),
+          user_id: oldWd.user_id,
+          username: oldWd.username,
+          type: "refund",
+          amount: oldWd.amount,
+          description: `Pengembalian Dana Penarikan Ditolak (#WD-${wdId})`,
+          created_at: new Date().toISOString()
+        });
+      } else if (status === 'success' && oldWd.status === 'pending') {
+        await createFirestoreTransaction({
+          id: Date.now(),
+          user_id: oldWd.user_id,
+          username: oldWd.username,
+          type: "withdrawal",
+          amount: 0,
+          description: `Penarikan Dana (#WD-${wdId}) Disetujui Admin - Transfer ke Bank ${oldWd.bank_name}`,
+          created_at: new Date().toISOString()
+        });
       }
     }
   } catch (err) {
@@ -449,6 +537,15 @@ async function updateFirestoreDepositStatus(depositId: number, status: 'success'
           const currentBal = Number(userSnap.data().balance) || 0;
           await setDoc(userRef, { balance: currentBal + depData.amount }, { merge: true });
         }
+        await createFirestoreTransaction({
+          id: Date.now(),
+          user_id: depData.user_id,
+          username: depData.username,
+          type: "deposit",
+          amount: depData.amount,
+          description: `Deposit Saldo Berhasil via ${(depData.method || 'QRIS').toUpperCase()} (+Rp ${depData.amount.toLocaleString("id-ID")})`,
+          created_at: new Date().toISOString()
+        });
       }
     }
   } catch (err) {
@@ -483,11 +580,41 @@ async function updateFirestoreUserProfile(userId: number, updateData: { fullname
 }
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>('landing');
+  const [currentUser, setCurrentUser] = useState<MLMUser | null>(() => {
+    try {
+      const saved = localStorage.getItem("zalora_session_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>(() => {
+    try {
+      const saved = localStorage.getItem("zalora_session_user");
+      return saved ? 'dashboard' : 'landing';
+    } catch {
+      return 'landing';
+    }
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      try {
+        localStorage.setItem("zalora_session_user", JSON.stringify(currentUser));
+      } catch (e) {
+        console.warn("Failed to save session", e);
+      }
+    } else {
+      try {
+        localStorage.removeItem("zalora_session_user");
+      } catch {}
+    }
+  }, [currentUser]);
+
   const [products, setProducts] = useState<Product[]>([]);
   
   // Auth state
-  const [currentUser, setCurrentUser] = useState<MLMUser | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   
@@ -829,7 +956,9 @@ export default function App() {
         const contentType = res.headers.get("content-type");
         if (res.ok && contentType && contentType.includes("json")) {
           const data = await res.json();
-          setAdminDashboardData(data);
+          const fsTxs = await fetchFirestoreTransactions();
+          const mergedTxs = data.transactions && data.transactions.length > 0 ? data.transactions : fsTxs;
+          setAdminDashboardData({ ...data, transactions: mergedTxs });
           if (data.settings) setSystemSettings(data.settings);
           apiSuccess = true;
           return;
@@ -839,9 +968,16 @@ export default function App() {
         const contentType = res.headers.get("content-type");
         if (res.ok && contentType && contentType.includes("json")) {
           const data = await res.json();
-          setUserDashboardData(data);
+          const fsTxs = await fetchFirestoreTransactions();
+          const userTxs = data.transactions && data.transactions.length > 0
+            ? data.transactions
+            : fsTxs.filter(t => Number(t.user_id) === Number(currentUser.id));
+          setUserDashboardData({ ...data, transactions: userTxs });
           if (data.settings) setSystemSettings(data.settings);
-          if (data.user) setCurrentUser(data.user);
+          if (data.user) {
+            setCurrentUser(data.user);
+            try { localStorage.setItem("zalora_session_user", JSON.stringify(data.user)); } catch {}
+          }
           apiSuccess = true;
           return;
         }
@@ -855,6 +991,7 @@ export default function App() {
       const fsUsers = await fetchFirestoreUsers();
       const fsWithdrawals = await fetchFirestoreWithdrawals();
       const fsDeposits = await fetchFirestoreDeposits();
+      const fsTransactions = await fetchFirestoreTransactions();
 
       if (currentUser.role === 'admin') {
         const activeCount = fsUsers.filter(u => u.is_active).length;
@@ -873,21 +1010,23 @@ export default function App() {
           users: fsUsers,
           withdrawals: fsWithdrawals,
           deposits: fsDeposits,
-          transactions: []
+          transactions: fsTransactions
         });
       } else {
         const freshUser = fsUsers.find(u => Number(u.id) === Number(currentUser.id)) || currentUser;
         setCurrentUser(freshUser);
+        try { localStorage.setItem("zalora_session_user", JSON.stringify(freshUser)); } catch {}
         const binaryTree = buildClientBinaryTree(fsUsers, Number(freshUser.id), 0, 5);
         const referrals = fsUsers.filter(u => Number(u.sponsor_id) === Number(freshUser.id));
         const userWDs = fsWithdrawals.filter(w => Number(w.user_id) === Number(freshUser.id));
         const userDeps = fsDeposits.filter(d => Number(d.user_id) === Number(freshUser.id));
+        const userTxs = fsTransactions.filter(t => Number(t.user_id) === Number(freshUser.id));
 
         setUserDashboardData({
           user: freshUser,
           binaryTree,
           referrals,
-          transactions: [],
+          transactions: userTxs,
           deposits: userDeps,
           withdrawals: userWDs,
           notifications: [
@@ -1134,6 +1273,30 @@ export default function App() {
 
   const handleBuyProduct = async (productId: number) => {
     if (!currentUser) return;
+    const prod = products.find(p => p.id === productId);
+    const priceToPay = currentUser.is_active ? (prod?.member_price || prod?.price || 120000) : (prod?.price || 150000);
+
+    if (currentUser.balance < priceToPay) {
+      alert(`Saldo Anda (Rp ${currentUser.balance.toLocaleString("id-ID")}) tidak mencukupi untuk membeli ${prod?.name || 'produk'} seharga Rp ${priceToPay.toLocaleString("id-ID")}. Silakan Lakukan Deposit terlebih dahulu!`);
+      return;
+    }
+
+    if (prod && prod.stock < 1) {
+      alert(`Stok ${prod.name} sedang habis!`);
+      return;
+    }
+
+    const txBuy: Transaction = {
+      id: Date.now(),
+      user_id: currentUser.id,
+      username: currentUser.username,
+      type: "purchase",
+      amount: -priceToPay,
+      description: `Pembelian Produk: ${prod?.name || 'Jeans Zalora Denim'} (-Rp ${priceToPay.toLocaleString("id-ID")})`,
+      created_at: new Date().toISOString()
+    };
+
+    let apiSuccess = false;
     try {
       const res = await fetch("/api/user/purchase", {
         method: "POST",
@@ -1141,20 +1304,39 @@ export default function App() {
         body: JSON.stringify({ userId: currentUser.id, productId })
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || "Gagal membeli produk");
+      if (res.ok) {
+        apiSuccess = true;
+      } else if (data.message) {
+        alert(data.message);
+        return;
       }
-      fetchProducts();
-      fetchDashboardData();
     } catch (err: any) {
-      alert(err.message || "Gagal memproses pembelian.");
+      console.warn("Purchase API unreachable, processing purchase direct in Firestore...", err);
     }
+
+    if (!apiSuccess) {
+      const updatedBal = Math.max(0, currentUser.balance - priceToPay);
+      await updateFirestoreUserProfile(currentUser.id, { balance: updatedBal } as any);
+
+      if (prod) {
+        await setDoc(doc(db, "products", String(prod.id)), { stock: Math.max(0, prod.stock - 1) }, { merge: true });
+      }
+
+      await createFirestoreTransaction(txBuy);
+      setCurrentUser(prev => prev ? ({ ...prev, balance: updatedBal }) : null);
+      alert(`Pembelian ${prod?.name || 'Produk'} berhasil! Sisa saldo Anda: Rp ${updatedBal.toLocaleString("id-ID")}`);
+    } else {
+      await createFirestoreTransaction(txBuy);
+    }
+
+    await fetchProducts();
+    await fetchDashboardData();
   };
 
   const handleWithdraw = async (amount: number, bank: string, accountNum: string, holder: string) => {
     if (!currentUser) return;
     if (currentUser.balance < amount) {
-      alert("Saldo Anda tidak mencukupi untuk penarikan ini!");
+      alert(`Saldo Anda (Rp ${currentUser.balance.toLocaleString("id-ID")}) tidak mencukupi untuk penarikan sebesar Rp ${amount.toLocaleString("id-ID")}!`);
       return;
     }
 
@@ -1170,6 +1352,17 @@ export default function App() {
       created_at: new Date().toISOString()
     };
 
+    const txWD: Transaction = {
+      id: Date.now() + 1,
+      user_id: currentUser.id,
+      username: currentUser.username,
+      type: "withdrawal",
+      amount: -amount,
+      description: `Penarikan Dana (WD) ke Bank ${bank} - No.Rek: ${accountNum} a.n ${holder}`,
+      created_at: new Date().toISOString()
+    };
+
+    let apiSuccess = false;
     try {
       const res = await fetch("/api/user/withdraw", {
         method: "POST",
@@ -1184,15 +1377,24 @@ export default function App() {
       });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("json")) {
-        fetchDashboardData();
-        return;
+        apiSuccess = true;
       }
     } catch (err) {
       console.warn("Withdraw API call unreachable, writing directly to Firestore...", err);
     }
 
-    await createFirestoreWithdrawal(newWD);
+    if (!apiSuccess) {
+      const newBal = Math.max(0, currentUser.balance - amount);
+      await updateFirestoreUserProfile(currentUser.id, { balance: newBal } as any);
+      await createFirestoreWithdrawal(newWD);
+      await createFirestoreTransaction(txWD);
+      setCurrentUser(prev => prev ? ({ ...prev, balance: newBal }) : null);
+    } else {
+      await createFirestoreTransaction(txWD);
+    }
+
     await fetchDashboardData();
+    alert(`Pengajuan penarikan dana sebesar Rp ${amount.toLocaleString("id-ID")} berhasil dikirim! Menunggu konfirmasi admin.`);
   };
 
   const handleDeposit = async (amount: number, method: 'qris' | 'bca' | 'mandiri') => {
@@ -1208,6 +1410,17 @@ export default function App() {
       created_at: new Date().toISOString()
     };
 
+    const txDep: Transaction = {
+      id: Date.now() + 1,
+      user_id: currentUser.id,
+      username: currentUser.username,
+      type: "deposit",
+      amount: amount,
+      description: `Pengajuan Deposit Saldo via ${method.toUpperCase()} (Menunggu Pembayaran)`,
+      created_at: new Date().toISOString()
+    };
+
+    let apiSuccess = false;
     try {
       const res = await fetch("/api/user/deposit", {
         method: "POST",
@@ -1216,15 +1429,21 @@ export default function App() {
       });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("json")) {
-        fetchDashboardData();
-        return;
+        apiSuccess = true;
       }
     } catch (err) {
       console.warn("Deposit API call unreachable, writing directly to Firestore...", err);
     }
 
-    await createFirestoreDeposit(newDep);
+    if (!apiSuccess) {
+      await createFirestoreDeposit(newDep);
+      await createFirestoreTransaction(txDep);
+    } else {
+      await createFirestoreTransaction(txDep);
+    }
+
     await fetchDashboardData();
+    alert(`Pengajuan deposit sebesar Rp ${amount.toLocaleString("id-ID")} via ${method.toUpperCase()} telah dibuat.`);
   };
 
   const handleSimulatePayment = async (depositId: number) => {
