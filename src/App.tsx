@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, getDocs, collection } from "firebase/firestore";
 import firebaseConfig from "../firebase-applet-config.json";
 import LandingPage from "./components/LandingPage";
@@ -598,7 +598,10 @@ export default function App() {
     }
   });
 
+  const currentUserRef = React.useRef<MLMUser | null>(currentUser);
+
   useEffect(() => {
+    currentUserRef.current = currentUser;
     if (currentUser) {
       try {
         localStorage.setItem("zalora_session_user", JSON.stringify(currentUser));
@@ -948,15 +951,18 @@ export default function App() {
   });
 
   const fetchDashboardData = async () => {
-    if (!currentUser) return;
+    if (!currentUserRef.current) return;
+    const targetUser = currentUserRef.current;
     let apiSuccess = false;
     try {
-      if (currentUser.role === 'admin') {
+      if (targetUser.role === 'admin') {
         const res = await fetch("/api/admin/dashboard");
+        if (!currentUserRef.current) return;
         const contentType = res.headers.get("content-type");
         if (res.ok && contentType && contentType.includes("json")) {
           const data = await res.json();
           const fsTxs = await fetchFirestoreTransactions();
+          if (!currentUserRef.current) return;
           const mergedTxs = data.transactions && data.transactions.length > 0 ? data.transactions : fsTxs;
           setAdminDashboardData({ ...data, transactions: mergedTxs });
           if (data.settings) setSystemSettings(data.settings);
@@ -964,17 +970,19 @@ export default function App() {
           return;
         }
       } else {
-        const res = await fetch(`/api/user/${currentUser.id}/dashboard`);
+        const res = await fetch(`/api/user/${targetUser.id}/dashboard`);
+        if (!currentUserRef.current) return;
         const contentType = res.headers.get("content-type");
         if (res.ok && contentType && contentType.includes("json")) {
           const data = await res.json();
           const fsTxs = await fetchFirestoreTransactions();
+          if (!currentUserRef.current) return;
           const userTxs = data.transactions && data.transactions.length > 0
             ? data.transactions
-            : fsTxs.filter(t => Number(t.user_id) === Number(currentUser.id));
+            : fsTxs.filter(t => Number(t.user_id) === Number(targetUser.id));
           setUserDashboardData({ ...data, transactions: userTxs });
           if (data.settings) setSystemSettings(data.settings);
-          if (data.user) {
+          if (data.user && currentUserRef.current) {
             setCurrentUser(data.user);
             try { localStorage.setItem("zalora_session_user", JSON.stringify(data.user)); } catch {}
           }
@@ -986,14 +994,16 @@ export default function App() {
       console.warn("API unavailable, loading direct from Firestore database...", err);
     }
 
-    if (!apiSuccess) {
+    if (!apiSuccess && currentUserRef.current) {
       // Direct Firestore sync
       const fsUsers = await fetchFirestoreUsers();
       const fsWithdrawals = await fetchFirestoreWithdrawals();
       const fsDeposits = await fetchFirestoreDeposits();
       const fsTransactions = await fetchFirestoreTransactions();
 
-      if (currentUser.role === 'admin') {
+      if (!currentUserRef.current) return;
+
+      if (targetUser.role === 'admin') {
         const activeCount = fsUsers.filter(u => u.is_active).length;
         const pendingWDs = fsWithdrawals.filter(w => w.status === 'pending');
         setAdminDashboardData({
@@ -1013,7 +1023,8 @@ export default function App() {
           transactions: fsTransactions
         });
       } else {
-        const freshUser = fsUsers.find(u => Number(u.id) === Number(currentUser.id)) || currentUser;
+        const freshUser = fsUsers.find(u => Number(u.id) === Number(targetUser.id)) || targetUser;
+        if (!currentUserRef.current) return;
         setCurrentUser(freshUser);
         try { localStorage.setItem("zalora_session_user", JSON.stringify(freshUser)); } catch {}
         const binaryTree = buildClientBinaryTree(fsUsers, Number(freshUser.id), 0, 5);
@@ -1643,8 +1654,10 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    currentUserRef.current = null;
     try {
       localStorage.removeItem("zalora_session_user");
+      signOut(auth).catch(() => {});
     } catch (err) {
       console.warn("Failed to clear local session:", err);
     }
