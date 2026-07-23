@@ -295,12 +295,9 @@ export default function UserDashboard({
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900" id="user-dashboard-root">
       {/* Upper Brand bar */}
-      <header className="bg-slate-950 text-white h-16 px-6 flex items-center justify-between shadow-lg sticky top-0 z-40" id="user-header">
+      <header className="bg-slate-950 text-white h-16 px-4 sm:px-6 flex items-center justify-between shadow-lg sticky top-0 z-40" id="user-header">
         <div className="flex items-center gap-3">
-          <span className="text-xl font-display font-black tracking-tight text-white">ZALORA<span className="text-blue-500 font-light">.PORTAL</span></span>
-          <span className="bg-blue-600/20 text-blue-300 text-[9px] font-bold px-2.5 py-0.5 rounded-full border border-blue-500/15 uppercase tracking-wider">
-            HAK USAHA MEMBER
-          </span>
+          <span className="text-lg sm:text-xl font-display font-black tracking-tight text-white">ZALORA<span className="text-blue-500 font-light">.PORTAL</span></span>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
@@ -313,7 +310,7 @@ export default function UserDashboard({
           <button 
             id="btn-logout"
             onClick={onLogout} 
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-lg transition font-bold text-xs"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-lg transition font-bold text-xs"
             title="Keluar dari Aplikasi"
           >
             <LogOut className="w-3.5 h-3.5" />
@@ -348,9 +345,6 @@ export default function UserDashboard({
                 <div className="flex flex-col">
                   <span className="text-lg font-display font-black tracking-tight text-white">
                     ZALORA<span className="text-blue-500 font-light">.PORTAL</span>
-                  </span>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                    Hak Usaha Member
                   </span>
                 </div>
                 <button 
@@ -645,7 +639,7 @@ export default function UserDashboard({
               <ShoppingBag className="w-4 h-4" />
               <span>Belanja Jeans</span>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${activeTab === 'shop' ? 'bg-blue-500/20 text-white' : 'bg-blue-50 text-blue-700'}`}>
-                Diskon HU
+                Diskon Member
               </span>
             </button>
  

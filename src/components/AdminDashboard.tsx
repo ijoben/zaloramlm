@@ -473,7 +473,7 @@ export default function AdminDashboard({
           <button 
             id="admin-btn-logout"
             onClick={onLogout} 
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-lg transition font-bold text-xs"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-lg transition font-bold text-xs"
             title="Keluar dari Aplikasi"
           >
             <LogOut className="w-3.5 h-3.5" />
