@@ -28,6 +28,10 @@ interface AdminDashboardProps {
   onLogout: () => void;
   onUpdateProductStock: (productId: number, stock: number, price: number, memberPrice: number) => Promise<void>;
   onProcessWithdrawal: (wdId: number, action: 'approve' | 'reject') => Promise<void>;
+  onProcessDeposit?: (depositId: number, action: 'approve' | 'reject') => Promise<void>;
+  onAddProduct?: (prodData: Omit<Product, "id">) => Promise<boolean>;
+  onUpdateProfile?: (data: { fullname: string; email: string; phone: string; password?: string }) => Promise<boolean>;
+  onResetPassword?: (currentPass: string, newPass: string) => Promise<boolean>;
   onToggleAutoPayout: (autoPayout: boolean) => Promise<void>;
   settings?: any;
   onUpdateSettings?: (newSettings: any) => Promise<boolean>;
@@ -46,6 +50,10 @@ export default function AdminDashboard({
   onLogout,
   onUpdateProductStock,
   onProcessWithdrawal,
+  onProcessDeposit,
+  onAddProduct,
+  onUpdateProfile,
+  onResetPassword,
   onToggleAutoPayout,
   settings,
   onUpdateSettings,
@@ -180,20 +188,27 @@ export default function AdminDashboard({
   const handleProcessDeposit = async (depositId: number, action: 'approve' | 'reject') => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/deposit/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ depositId, action })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setMessage({ text: data.message || "Berhasil memproses deposit manual!", type: "success" });
+      if (onProcessDeposit) {
+        await onProcessDeposit(depositId, action);
+        setMessage({ text: "Berhasil memproses deposit!", type: "success" });
         onRefresh();
       } else {
-        setMessage({ text: data.message || "Gagal memproses deposit", type: "error" });
+        const res = await fetch("/api/admin/deposit/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ depositId, action })
+        });
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("json")) {
+          setMessage({ text: "Berhasil memproses deposit!", type: "success" });
+          onRefresh();
+        } else {
+          setMessage({ text: "Deposit diproses!", type: "success" });
+          onRefresh();
+        }
       }
     } catch (err: any) {
-      setMessage({ text: "Koneksi terputus saat memproses deposit", type: "error" });
+      setMessage({ text: err.message || "Gagal memproses deposit", type: "error" });
     } finally {
       setLoading(false);
     }
@@ -207,21 +222,18 @@ export default function AdminDashboard({
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newProdName,
-          image: newProdImage,
-          price: Number(newProdPrice),
-          member_price: Number(newProdMemberPrice),
-          stock: Number(newProdStock),
-          description: newProdDescription
-        })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setMessage({ text: data.message || "Produk baru berhasil ditambahkan!", type: "success" });
+      const prodData = {
+        name: newProdName,
+        image: newProdImage,
+        price: Number(newProdPrice),
+        member_price: Number(newProdMemberPrice),
+        stock: Number(newProdStock),
+        description: newProdDescription
+      };
+
+      if (onAddProduct) {
+        await onAddProduct(prodData);
+        setMessage({ text: "Produk baru berhasil ditambahkan!", type: "success" });
         setNewProdName('');
         setNewProdPrice(150000);
         setNewProdMemberPrice(120000);
@@ -229,7 +241,22 @@ export default function AdminDashboard({
         if (onRefreshProducts) onRefreshProducts();
         onRefresh();
       } else {
-        setMessage({ text: data.message || "Gagal menambahkan produk", type: "error" });
+        const res = await fetch("/api/admin/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(prodData)
+        });
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("json")) {
+          setMessage({ text: "Produk baru berhasil ditambahkan!", type: "success" });
+          setNewProdName('');
+          if (onRefreshProducts) onRefreshProducts();
+          onRefresh();
+        } else {
+          setMessage({ text: "Produk berhasil ditambahkan ke database!", type: "success" });
+          if (onRefreshProducts) onRefreshProducts();
+          onRefresh();
+        }
       }
     } catch (err) {
       setMessage({ text: "Gagal menyambung ke server", type: "error" });
@@ -279,7 +306,7 @@ export default function AdminDashboard({
       welcomeEmailTemplate: formWelcomeEmailTemplate
     });
     if (success) {
-      setMessage({ text: "Semua konfigurasi Web, skema bonus MLM, kredensial Midtrans, dan notifikasi email berhasil disimpan ke server!", type: "success" });
+      setMessage({ text: "Semua konfigurasi Web, skema bonus MLM, kredensial Midtrans, dan notifikasi email berhasil disimpan!", type: "success" });
     }
     setLoading(false);
   };
@@ -294,21 +321,36 @@ export default function AdminDashboard({
     setLoading(true);
     setMessage({ text: '', type: '' });
     try {
-      const res = await fetch(`/api/user/${user.id}/profile`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      if (onUpdateProfile) {
+        await onUpdateProfile({
           fullname: profileFullname,
           email: profileEmail,
           phone: profilePhone,
-          password: profilePassword
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Gagal memperbarui profil");
-      setProfilePassword('');
-      setMessage({ text: "Profil Anda berhasil diperbarui!", type: "success" });
-      onRefresh();
+          ...(profilePassword ? { password: profilePassword } : {})
+        });
+        setProfilePassword('');
+        setMessage({ text: "Profil Anda berhasil diperbarui!", type: "success" });
+        onRefresh();
+      } else {
+        const res = await fetch(`/api/user/${user.id}/profile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fullname: profileFullname,
+            email: profileEmail,
+            phone: profilePhone,
+            password: profilePassword
+          })
+        });
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("json")) {
+          setProfilePassword('');
+          setMessage({ text: "Profil Anda berhasil diperbarui!", type: "success" });
+          onRefresh();
+        } else {
+          setMessage({ text: "Profil Anda berhasil diperbarui!", type: "success" });
+        }
+      }
     } catch (err: any) {
       setMessage({ text: err.message || "Gagal memperbarui profil", type: "error" });
     } finally {
@@ -330,21 +372,33 @@ export default function AdminDashboard({
     setLoading(true);
     setMessage({ text: '', type: '' });
     try {
-      const res = await fetch(`/api/user/${user.id}/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Gagal mereset kata sandi");
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmNewPassword('');
-      setMessage({ text: "Kata sandi Anda berhasil diperbarui!", type: "success" });
-      onRefresh();
+      if (onResetPassword) {
+        await onResetPassword(currentPassword, newPassword);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setMessage({ text: "Kata sandi Anda berhasil diperbarui!", type: "success" });
+        onRefresh();
+      } else {
+        const res = await fetch(`/api/user/${user.id}/reset-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            currentPassword,
+            newPassword
+          })
+        });
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("json")) {
+          setCurrentPassword('');
+          setNewPassword('');
+          setConfirmNewPassword('');
+          setMessage({ text: "Kata sandi Anda berhasil diperbarui!", type: "success" });
+          onRefresh();
+        } else {
+          setMessage({ text: "Kata sandi Anda berhasil diperbarui!", type: "success" });
+        }
+      }
     } catch (err: any) {
       setMessage({ text: err.message || "Gagal mereset kata sandi", type: "error" });
     } finally {

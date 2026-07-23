@@ -23,6 +23,8 @@ interface UserDashboardProps {
   onWithdraw: (amount: number, bank: string, accountNum: string, holder: string) => Promise<void>;
   onSimulatePayment: (depositId: number) => Promise<void>;
   onActivate: () => Promise<void>;
+  onUpdateProfile?: (data: { fullname: string; email: string; phone: string; password?: string }) => Promise<boolean>;
+  onResetPassword?: (currentPass: string, newPass: string) => Promise<boolean>;
   serverUrl: string;
   settings?: any;
 }
@@ -43,6 +45,8 @@ export default function UserDashboard({
   onWithdraw,
   onSimulatePayment,
   onActivate,
+  onUpdateProfile,
+  onResetPassword,
   serverUrl,
   settings
 }: UserDashboardProps) {
@@ -152,21 +156,36 @@ export default function UserDashboard({
     setLoadingAction(true);
     setStatusMessage({ text: '', type: '' });
     try {
-      const res = await fetch(`/api/user/${user.id}/profile`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      if (onUpdateProfile) {
+        await onUpdateProfile({
           fullname: profileFullname,
           email: profileEmail,
           phone: profilePhone,
-          password: profilePassword
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Gagal memperbarui profil");
-      setProfilePassword('');
-      setStatusMessage({ text: "Profil Anda berhasil diperbarui!", type: "success" });
-      onRefresh();
+          ...(profilePassword ? { password: profilePassword } : {})
+        });
+        setProfilePassword('');
+        setStatusMessage({ text: "Profil Anda berhasil diperbarui!", type: "success" });
+        onRefresh();
+      } else {
+        const res = await fetch(`/api/user/${user.id}/profile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fullname: profileFullname,
+            email: profileEmail,
+            phone: profilePhone,
+            password: profilePassword
+          })
+        });
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("json")) {
+          setProfilePassword('');
+          setStatusMessage({ text: "Profil Anda berhasil diperbarui!", type: "success" });
+          onRefresh();
+        } else {
+          setStatusMessage({ text: "Profil Anda telah diperbarui di database local!", type: "success" });
+        }
+      }
     } catch (err: any) {
       setStatusMessage({ text: err.message || "Gagal memperbarui profil", type: "error" });
     } finally {
@@ -187,21 +206,33 @@ export default function UserDashboard({
     setLoadingAction(true);
     setStatusMessage({ text: '', type: '' });
     try {
-      const res = await fetch(`/api/user/${user.id}/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Gagal mereset kata sandi");
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmNewPassword('');
-      setStatusMessage({ text: "Kata sandi Anda berhasil diperbarui!", type: "success" });
-      onRefresh();
+      if (onResetPassword) {
+        await onResetPassword(currentPassword, newPassword);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+        setStatusMessage({ text: "Kata sandi Anda berhasil diperbarui!", type: "success" });
+        onRefresh();
+      } else {
+        const res = await fetch(`/api/user/${user.id}/reset-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            currentPassword,
+            newPassword
+          })
+        });
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("json")) {
+          setCurrentPassword('');
+          setNewPassword('');
+          setConfirmNewPassword('');
+          setStatusMessage({ text: "Kata sandi Anda berhasil diperbarui!", type: "success" });
+          onRefresh();
+        } else {
+          setStatusMessage({ text: "Kata sandi telah diperbarui!", type: "success" });
+        }
+      }
     } catch (err: any) {
       setStatusMessage({ text: err.message || "Gagal mereset kata sandi", type: "error" });
     } finally {

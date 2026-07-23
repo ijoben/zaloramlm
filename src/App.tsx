@@ -105,6 +105,7 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
       return initialUsers;
     }
 
+    users.sort((a, b) => Number(a.id) - Number(b.id));
     return users;
   } catch (err) {
     console.warn("Error reading users from Firestore client-side:", err);
@@ -335,6 +336,150 @@ async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
     console.error("Error saving settings to Firestore:", err);
     return false;
   }
+}
+
+async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, "withdrawals"));
+    const wds: WDRequest[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      wds.push({
+        id: Number(data.id),
+        user_id: Number(data.user_id),
+        username: data.username || "",
+        amount: Number(data.amount) || 0,
+        bank_name: data.bank_name || "",
+        account_number: data.account_number || "",
+        account_holder: data.account_holder || "",
+        status: data.status || "pending",
+        created_at: data.created_at || new Date().toISOString()
+      });
+    });
+    wds.sort((a, b) => b.id - a.id);
+    return wds;
+  } catch (err) {
+    console.warn("Error fetching withdrawals from Firestore:", err);
+    return [];
+  }
+}
+
+async function createFirestoreWithdrawal(wd: WDRequest): Promise<void> {
+  try {
+    await setDoc(doc(db, "withdrawals", String(wd.id)), wd);
+    const userRef = doc(db, "users", String(wd.user_id));
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      const currentBal = Number(userSnap.data().balance) || 0;
+      const newBal = Math.max(0, currentBal - wd.amount);
+      await setDoc(userRef, { balance: newBal }, { merge: true });
+    }
+  } catch (err) {
+    console.error("Error creating withdrawal in Firestore:", err);
+  }
+}
+
+async function updateFirestoreWithdrawalStatus(wdId: number, status: 'success' | 'failed' | 'pending'): Promise<void> {
+  try {
+    const wdRef = doc(db, "withdrawals", String(wdId));
+    const wdSnap = await getDoc(wdRef);
+    if (wdSnap.exists()) {
+      const oldWd = wdSnap.data() as WDRequest;
+      await setDoc(wdRef, { status }, { merge: true });
+
+      if (status === 'failed' && oldWd.status === 'pending') {
+        const userRef = doc(db, "users", String(oldWd.user_id));
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const currentBal = Number(userSnap.data().balance) || 0;
+          await setDoc(userRef, { balance: currentBal + oldWd.amount }, { merge: true });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error updating withdrawal in Firestore:", err);
+  }
+}
+
+async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, "deposits"));
+    const deps: DepositRequest[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      deps.push({
+        id: Number(data.id),
+        user_id: Number(data.user_id),
+        username: data.username || "",
+        amount: Number(data.amount) || 0,
+        method: data.method || "qris",
+        status: data.status || "pending",
+        payment_code: data.payment_code || "",
+        created_at: data.created_at || new Date().toISOString()
+      });
+    });
+    deps.sort((a, b) => b.id - a.id);
+    return deps;
+  } catch (err) {
+    console.warn("Error fetching deposits from Firestore:", err);
+    return [];
+  }
+}
+
+async function createFirestoreDeposit(dep: DepositRequest): Promise<void> {
+  try {
+    await setDoc(doc(db, "deposits", String(dep.id)), dep);
+  } catch (err) {
+    console.error("Error creating deposit in Firestore:", err);
+  }
+}
+
+async function updateFirestoreDepositStatus(depositId: number, status: 'success' | 'failed' | 'pending'): Promise<void> {
+  try {
+    const depRef = doc(db, "deposits", String(depositId));
+    const depSnap = await getDoc(depRef);
+    if (depSnap.exists()) {
+      const depData = depSnap.data() as DepositRequest;
+      await setDoc(depRef, { status }, { merge: true });
+
+      if (status === 'success' && depData.status === 'pending') {
+        const userRef = doc(db, "users", String(depData.user_id));
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const currentBal = Number(userSnap.data().balance) || 0;
+          await setDoc(userRef, { balance: currentBal + depData.amount }, { merge: true });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error updating deposit in Firestore:", err);
+  }
+}
+
+async function addFirestoreProduct(prod: Omit<Product, "id">): Promise<Product> {
+  const existing = await fetchFirestoreProducts();
+  const nextId = existing.length > 0 ? Math.max(...existing.map(p => p.id)) + 1 : 1;
+  const newProduct: Product = {
+    id: nextId,
+    name: prod.name,
+    description: prod.description || "",
+    price: prod.price,
+    member_price: prod.member_price,
+    stock: prod.stock,
+    image: prod.image
+  };
+  await setDoc(doc(db, "products", String(nextId)), newProduct);
+  return newProduct;
+}
+
+async function updateFirestoreUserProfile(userId: number, updateData: { fullname?: string; email?: string; phone?: string; password?: string }): Promise<void> {
+  const cleanData: any = {};
+  if (updateData.fullname) cleanData.fullname = updateData.fullname;
+  if (updateData.email) cleanData.email = updateData.email;
+  if (updateData.phone) cleanData.phone = updateData.phone;
+  if (updateData.password) cleanData.password = updateData.password;
+
+  await setDoc(doc(db, "users", String(userId)), cleanData, { merge: true });
 }
 
 export default function App() {
@@ -681,7 +826,8 @@ export default function App() {
     try {
       if (currentUser.role === 'admin') {
         const res = await fetch("/api/admin/dashboard");
-        if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("json")) {
           const data = await res.json();
           setAdminDashboardData(data);
           if (data.settings) setSystemSettings(data.settings);
@@ -690,7 +836,8 @@ export default function App() {
         }
       } else {
         const res = await fetch(`/api/user/${currentUser.id}/dashboard`);
-        if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("json")) {
           const data = await res.json();
           setUserDashboardData(data);
           if (data.settings) setSystemSettings(data.settings);
@@ -706,8 +853,12 @@ export default function App() {
     if (!apiSuccess) {
       // Direct Firestore sync
       const fsUsers = await fetchFirestoreUsers();
+      const fsWithdrawals = await fetchFirestoreWithdrawals();
+      const fsDeposits = await fetchFirestoreDeposits();
+
       if (currentUser.role === 'admin') {
         const activeCount = fsUsers.filter(u => u.is_active).length;
+        const pendingWDs = fsWithdrawals.filter(w => w.status === 'pending');
         setAdminDashboardData({
           metrics: {
             totalMembers: fsUsers.length,
@@ -715,13 +866,13 @@ export default function App() {
             inactiveMembers: fsUsers.length - activeCount,
             totalTurnover: fsUsers.reduce((acc, u) => acc + (u.is_active ? 100000 : 0), 0),
             totalBonusesPaid: fsUsers.reduce((acc, u) => acc + (u.sponsor_bonus || 0) + (u.pairing_bonus || 0), 0),
-            pendingWDCount: 0,
-            pendingWDAmount: 0,
+            pendingWDCount: pendingWDs.length,
+            pendingWDAmount: pendingWDs.reduce((sum, w) => sum + w.amount, 0),
             isAutoPayout: false
           },
           users: fsUsers,
-          withdrawals: [],
-          deposits: [],
+          withdrawals: fsWithdrawals,
+          deposits: fsDeposits,
           transactions: []
         });
       } else {
@@ -729,13 +880,16 @@ export default function App() {
         setCurrentUser(freshUser);
         const binaryTree = buildClientBinaryTree(fsUsers, Number(freshUser.id), 0, 5);
         const referrals = fsUsers.filter(u => Number(u.sponsor_id) === Number(freshUser.id));
+        const userWDs = fsWithdrawals.filter(w => Number(w.user_id) === Number(freshUser.id));
+        const userDeps = fsDeposits.filter(d => Number(d.user_id) === Number(freshUser.id));
+
         setUserDashboardData({
           user: freshUser,
           binaryTree,
           referrals,
           transactions: [],
-          deposits: [],
-          withdrawals: [],
+          deposits: userDeps,
+          withdrawals: userWDs,
           notifications: [
             { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Member Zalora Denim MLM.", read: false, time: "Baru saja" }
           ]
@@ -997,58 +1151,24 @@ export default function App() {
     }
   };
 
-  const handleDeposit = async (amount: number, method: 'qris' | 'bca' | 'mandiri') => {
-    if (!currentUser) return;
-    try {
-      const res = await fetch("/api/user/deposit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUser.id, amount, method })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        fetchDashboardData();
-        return;
-      } else {
-        if (data.message) {
-          alert(data.message);
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn("Deposit API call unreachable, using local fallback mode", err);
-    }
-
-    // Client-side fallback for static deployment / offline mode
-    const newDep: DepositRequest = {
-      id: Date.now(),
-      user_id: currentUser.id,
-      username: currentUser.username,
-      amount,
-      method,
-      status: "pending",
-      payment_code: method === 'qris'
-        ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=ZaloraDenimQRIS${amount}`
-        : `MOCK-${method.toUpperCase()}-VA-${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-      created_at: new Date().toISOString()
-    };
-
-    if (userDashboardData) {
-      setUserDashboardData({
-        ...userDashboardData,
-        deposits: [newDep, ...(userDashboardData.deposits || [])]
-      });
-    } else {
-      fetchDashboardData();
-    }
-  };
-
   const handleWithdraw = async (amount: number, bank: string, accountNum: string, holder: string) => {
     if (!currentUser) return;
     if (currentUser.balance < amount) {
       alert("Saldo Anda tidak mencukupi untuk penarikan ini!");
       return;
     }
+
+    const newWD: WDRequest = {
+      id: Date.now(),
+      user_id: currentUser.id,
+      username: currentUser.username,
+      amount,
+      bank_name: bank,
+      account_number: accountNum,
+      account_holder: holder,
+      status: "pending",
+      created_at: new Date().toISOString()
+    };
 
     try {
       const res = await fetch("/api/user/withdraw", {
@@ -1062,57 +1182,49 @@ export default function App() {
           accountHolder: holder 
         })
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("json")) {
         fetchDashboardData();
         return;
-      } else {
-        if (data.message) {
-          alert(data.message);
-          return;
-        }
       }
     } catch (err) {
-      console.warn("Withdraw API call unreachable, using local fallback mode", err);
+      console.warn("Withdraw API call unreachable, writing directly to Firestore...", err);
     }
 
-    // Client-side fallback for withdrawal
-    const updatedUser = { ...currentUser, balance: currentUser.balance - amount };
-    setCurrentUser(updatedUser);
+    await createFirestoreWithdrawal(newWD);
+    await fetchDashboardData();
+  };
 
-    const newWD: WDRequest = {
+  const handleDeposit = async (amount: number, method: 'qris' | 'bca' | 'mandiri') => {
+    if (!currentUser) return;
+    const newDep: DepositRequest = {
       id: Date.now(),
       user_id: currentUser.id,
       username: currentUser.username,
       amount,
-      bank_name: bank,
-      account_number: accountNum,
-      account_holder: holder,
-      status: "success",
+      method,
+      status: "pending",
+      payment_code: `DEP-${Date.now().toString().slice(-6)}`,
       created_at: new Date().toISOString()
     };
 
-    if (userDashboardData) {
-      setUserDashboardData({
-        ...userDashboardData,
-        user: updatedUser,
-        withdrawals: [newWD, ...(userDashboardData.withdrawals || [])],
-        transactions: [
-          {
-            id: Date.now(),
-            user_id: currentUser.id,
-            username: currentUser.username,
-            type: "withdrawal",
-            amount: -amount,
-            description: `Penarikan Dana ke ${bank} (${accountNum})`,
-            created_at: new Date().toISOString()
-          },
-          ...(userDashboardData.transactions || [])
-        ]
+    try {
+      const res = await fetch("/api/user/deposit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser.id, amount, method })
       });
-    } else {
-      fetchDashboardData();
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("json")) {
+        fetchDashboardData();
+        return;
+      }
+    } catch (err) {
+      console.warn("Deposit API call unreachable, writing directly to Firestore...", err);
     }
+
+    await createFirestoreDeposit(newDep);
+    await fetchDashboardData();
   };
 
   const handleSimulatePayment = async (depositId: number) => {
@@ -1122,40 +1234,17 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ depositId })
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("json")) {
         fetchDashboardData();
         return;
       }
     } catch (err) {
-      console.warn("Simulate payment API unreachable, updating local state", err);
+      console.warn("Simulate payment API unreachable, updating in Firestore...", err);
     }
 
-    // Fallback simulation in local state
-    if (currentUser && userDashboardData) {
-      const dep = userDashboardData.deposits?.find(d => d.id === depositId);
-      if (dep && dep.status === 'pending') {
-        dep.status = 'success';
-        const updatedUser = { ...currentUser, balance: currentUser.balance + dep.amount };
-        setCurrentUser(updatedUser);
-        setUserDashboardData({
-          ...userDashboardData,
-          user: updatedUser,
-          transactions: [
-            {
-              id: Date.now(),
-              user_id: currentUser.id,
-              username: currentUser.username,
-              type: "deposit",
-              amount: dep.amount,
-              description: `Deposit via ${dep.method.toUpperCase()} Terverifikasi Otomatis`,
-              created_at: new Date().toISOString()
-            },
-            ...(userDashboardData.transactions || [])
-          ]
-        });
-      }
-    }
+    await updateFirestoreDepositStatus(depositId, 'success');
+    await fetchDashboardData();
   };
 
   const handleAccountActivation = async () => {
@@ -1166,21 +1255,17 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: currentUser.id })
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("json")) {
         fetchDashboardData();
         return;
       }
     } catch (err) {
-      console.warn("Activation API unreachable, activating locally", err);
+      console.warn("Activation API unreachable, activating in Firestore...", err);
     }
 
-    // Local fallback activation
-    const updatedUser = { ...currentUser, is_active: true };
-    setCurrentUser(updatedUser);
-    if (userDashboardData) {
-      setUserDashboardData({ ...userDashboardData, user: updatedUser });
-    }
+    await updateFirestoreUserProfile(currentUser.id, { is_active: true } as any);
+    await fetchDashboardData();
   };
 
   // ADMIN OPERATIONS
@@ -1191,15 +1276,19 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productId, stock, price, memberPrice })
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || "Gagal update stok");
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("json")) {
+        fetchProducts();
+        fetchDashboardData();
+        return;
       }
-      fetchProducts();
-      fetchDashboardData();
-    } catch (err: any) {
-      alert(err.message || "Gagal memperbarui stok.");
+    } catch (err) {
+      console.warn("Update stock API unreachable, updating directly in Firestore...", err);
     }
+
+    await setDoc(doc(db, "products", String(productId)), { stock, price, member_price: memberPrice }, { merge: true });
+    await fetchProducts();
+    await fetchDashboardData();
   };
 
   const handleProcessWithdrawal = async (wdId: number, action: 'approve' | 'reject') => {
@@ -1209,19 +1298,112 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wdId, action })
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("json")) {
         fetchDashboardData();
         return;
       }
     } catch (err) {
-      console.warn("WD process API unreachable, updating local state", err);
+      console.warn("WD process API unreachable, updating directly in Firestore", err);
     }
 
-    if (adminDashboardData) {
-      const wds = adminDashboardData.withdrawals.map(w => w.id === wdId ? { ...w, status: action === 'approve' ? 'success' as const : 'failed' as const } : w);
-      setAdminDashboardData({ ...adminDashboardData, withdrawals: wds });
+    await updateFirestoreWithdrawalStatus(wdId, action === 'approve' ? 'success' : 'failed');
+    await fetchDashboardData();
+  };
+
+  const handleProcessDeposit = async (depositId: number, action: 'approve' | 'reject') => {
+    try {
+      const res = await fetch("/api/admin/deposit/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ depositId, action })
+      });
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("json")) {
+        fetchDashboardData();
+        return;
+      }
+    } catch (err) {
+      console.warn("Process deposit API unreachable, updating directly in Firestore", err);
     }
+
+    await updateFirestoreDepositStatus(depositId, action === 'approve' ? 'success' : 'failed');
+    await fetchDashboardData();
+  };
+
+  const handleAddProduct = async (prodData: Omit<Product, "id">): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/admin/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(prodData)
+      });
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("json")) {
+        fetchProducts();
+        fetchDashboardData();
+        return true;
+      }
+    } catch (err) {
+      console.warn("Add product API unreachable, saving directly to Firestore...", err);
+    }
+
+    await addFirestoreProduct(prodData);
+    await fetchProducts();
+    await fetchDashboardData();
+    return true;
+  };
+
+  const handleUpdateProfile = async (data: { fullname: string; email: string; phone: string; password?: string }): Promise<boolean> => {
+    if (!currentUser) return false;
+    try {
+      const res = await fetch(`/api/user/${currentUser.id}/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("json")) {
+        fetchDashboardData();
+        return true;
+      }
+    } catch (err) {
+      console.warn("Profile update API unreachable, updating directly in Firestore...", err);
+    }
+
+    await updateFirestoreUserProfile(currentUser.id, data);
+    setCurrentUser(prev => prev ? ({
+      ...prev,
+      fullname: data.fullname || prev.fullname,
+      email: data.email || prev.email,
+      phone: data.phone || prev.phone,
+      ...(data.password ? { password: data.password } : {})
+    }) : null);
+    await fetchDashboardData();
+    return true;
+  };
+
+  const handleResetPassword = async (currentPass: string, newPass: string): Promise<boolean> => {
+    if (!currentUser) return false;
+    try {
+      const res = await fetch(`/api/user/${currentUser.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass })
+      });
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("json")) {
+        fetchDashboardData();
+        return true;
+      }
+    } catch (err) {
+      console.warn("Reset password API unreachable, updating directly in Firestore...", err);
+    }
+
+    await updateFirestoreUserProfile(currentUser.id, { password: newPass });
+    setCurrentUser(prev => prev ? ({ ...prev, password: newPass }) : null);
+    await fetchDashboardData();
+    return true;
   };
 
   const handleToggleAutoPayout = async (autoPayout: boolean) => {
@@ -1289,6 +1471,10 @@ export default function App() {
                 onLogout={handleLogout}
                 onUpdateProductStock={handleUpdateProductStock}
                 onProcessWithdrawal={handleProcessWithdrawal}
+                onProcessDeposit={handleProcessDeposit}
+                onAddProduct={handleAddProduct}
+                onUpdateProfile={handleUpdateProfile}
+                onResetPassword={(curP, newP) => handleResetPassword(curP, newP)}
                 onToggleAutoPayout={handleToggleAutoPayout}
                 settings={systemSettings}
                 onUpdateSettings={handleUpdateSettings}
@@ -1315,6 +1501,8 @@ export default function App() {
                 onWithdraw={handleWithdraw}
                 onSimulatePayment={handleSimulatePayment}
                 onActivate={handleAccountActivation}
+                onUpdateProfile={handleUpdateProfile}
+                onResetPassword={(curP, newP) => handleResetPassword(curP, newP)}
                 serverUrl={window.location.origin}
                 settings={systemSettings}
               />

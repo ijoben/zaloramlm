@@ -20,6 +20,7 @@ export interface MLMUser {
   created_at: string;
   role: 'user' | 'admin';
   password?: string;
+  firebase_uid?: string;
 }
 
 export interface Product {
