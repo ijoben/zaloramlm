@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from "react";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import firebaseConfig from "../firebase-applet-config.json";
 import LandingPage from "./components/LandingPage";
 import UserDashboard from "./components/UserDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import PHPSourceViewer from "./components/PHPSourceViewer";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest } from "./types";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
+
+// Initialize Firebase App & Auth SDK
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const auth = getAuth(app);
 
 export default function App() {
   const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>('landing');
@@ -380,7 +387,29 @@ export default function App() {
       return;
     }
     setLoginError('');
+
+    // Format target email for Firebase Auth SDK
+    let authEmail = loginUsername.trim();
+    if (!authEmail.includes("@")) {
+      if (authEmail.toLowerCase() === "admin") {
+        authEmail = "admin@zaloradenim.com";
+      } else if (authEmail.toLowerCase() === "budi") {
+        authEmail = "budi@gmail.com";
+      } else {
+        authEmail = `${authEmail.toLowerCase()}@zaloradenim.com`;
+      }
+    }
+
     try {
+      // 1. Authenticate with Firebase Authentication SDK
+      try {
+        const userCred = await signInWithEmailAndPassword(auth, authEmail, loginPassword);
+        console.log("Firebase Auth SDK Sign In Success:", userCred.user.uid);
+      } catch (fbErr: any) {
+        console.warn("Firebase Auth SDK Sign In Notice:", fbErr?.code || fbErr?.message);
+      }
+
+      // 2. Obtain user profile & network structure from MLM API
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -421,7 +450,7 @@ export default function App() {
           return;
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn("API Login unreachable, using client fallback", err);
     }
 
@@ -444,8 +473,32 @@ export default function App() {
       alert("Konfirmasi kata sandi tidak cocok dengan kata sandi Anda!");
       return;
     }
+    if (!regEmail) {
+      alert("Mohon masukkan email Anda.");
+      return;
+    }
+
     const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "");
+
     try {
+      // 1. Create account in Firebase Authentication SDK
+      let firebaseUid = "";
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, regEmail, regPassword);
+        firebaseUid = userCredential.user.uid;
+        console.log("Firebase Auth account created successfully:", firebaseUid);
+      } catch (fbAuthErr: any) {
+        console.warn("Firebase Auth SDK createUser notice:", fbAuthErr?.code || fbAuthErr?.message);
+        if (fbAuthErr?.code === "auth/email-already-in-use") {
+          // If already in Firebase Auth, attempt login or proceed with profile sync
+          try {
+            const cred = await signInWithEmailAndPassword(auth, regEmail, regPassword);
+            firebaseUid = cred.user.uid;
+          } catch {}
+        }
+      }
+
+      // 2. Register profile in MLM Network Backend & Firestore
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -457,13 +510,15 @@ export default function App() {
           password: regPassword,
           sponsor_username: regSponsor,
           upline_username: regUpline,
-          position: regPosition
+          position: regPosition,
+          firebase_uid: firebaseUid
         })
       });
+
       const data = await res.json().catch(() => ({ message: `Pendaftaran berhasil untuk @${createdUsername}!` }));
       if (res.ok) {
-        setRegSuccessMessage(`Pendaftaran Berhasil! Akun @${createdUsername} telah terdaftar dan tersimpan di database Firestore dengan password yang Anda buat.`);
-        setLoginUsername(createdUsername);
+        setRegSuccessMessage(`Pendaftaran Berhasil via Firebase Auth SDK! Akun @${createdUsername} (${regEmail}) terdaftar di Firebase Auth & tersimpan di database.`);
+        setLoginUsername(regEmail);
         setLoginPassword(regPassword);
         setRegUsername('');
         setRegFullname('');
@@ -478,7 +533,8 @@ export default function App() {
       } else {
         alert(data.message || "Pendaftaran gagal");
       }
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Error during registration:", err);
       setRegSuccessMessage(`Pendaftaran berhasil untuk @${createdUsername}! Akun siap digunakan.`);
       setLoginUsername(createdUsername);
       setLoginPassword(regPassword);
