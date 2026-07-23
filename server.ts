@@ -841,11 +841,16 @@ app.post("/api/admin/products/stock", async (req, res) => {
 });
 
 // Authentication: Login
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
+  await initFirestoreData();
   const { username, password } = req.body;
   if (!username) return res.status(400).json({ message: "Username/Email harus diisi" });
 
-  const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === username.toLowerCase());
+  const searchVal = String(username).toLowerCase().trim();
+  const user = users.find(u => 
+    (u.username && u.username.toLowerCase().trim() === searchVal) || 
+    (u.email && u.email.toLowerCase().trim() === searchVal)
+  );
   if (!user) {
     return res.status(404).json({ message: "User/Email tidak ditemukan dalam database!" });
   }
@@ -1721,7 +1726,8 @@ app.get("/api/user/:userId/dashboard", (req, res) => {
 });
 
 // Admin Overview Metrics and Lists
-app.get("/api/admin/dashboard", (req, res) => {
+app.get("/api/admin/dashboard", async (req, res) => {
+  await initFirestoreData();
   const totalMembers = users.filter(u => u.role !== 'admin').length;
   const activeMembers = users.filter(u => u.is_active && u.role !== 'admin').length;
   
@@ -2730,12 +2736,23 @@ async function initFirestoreData() {
     const usersSnap = await getDocs(collection(firestoreDb, "users"));
     if (!usersSnap.empty) {
       usersSnap.forEach((docSnap) => {
-        const u = docSnap.data() as MLMUser;
-        const idx = users.findIndex(x => x.id === u.id || x.username.toLowerCase() === u.username.toLowerCase());
-        if (idx >= 0) {
-          users[idx] = { ...users[idx], ...u };
-        } else {
-          users.push(u);
+        try {
+          const u = docSnap.data() as MLMUser;
+          if (!u || u.id === undefined || u.id === null) return;
+          const uId = Number(u.id);
+          const uUsername = (u.username || "").toLowerCase().trim();
+
+          const idx = users.findIndex(x => 
+            Number(x.id) === uId || 
+            (x.username && x.username.toLowerCase().trim() === uUsername && uUsername !== "")
+          );
+          if (idx >= 0) {
+            users[idx] = { ...users[idx], ...u, id: uId };
+          } else {
+            users.push({ ...u, id: uId });
+          }
+        } catch (e) {
+          console.warn("User parse error in Firestore sync:", e);
         }
       });
       console.log(`🔥 Loaded ${usersSnap.size} users from Firestore into memory`);
@@ -2761,78 +2778,108 @@ async function initFirestoreData() {
     }
 
     // 3. Products
-    const prodSnap = await getDocs(collection(firestoreDb, "products"));
-    if (!prodSnap.empty) {
-      prodSnap.forEach((docSnap) => {
-        const p = docSnap.data() as Product;
-        const idx = products.findIndex(x => x.id === p.id);
-        if (idx >= 0) products[idx] = p;
-        else products.push(p);
-      });
-    } else {
-      for (const p of products) {
-        await syncProductToFirestore(p);
+    try {
+      const prodSnap = await getDocs(collection(firestoreDb, "products"));
+      if (!prodSnap.empty) {
+        prodSnap.forEach((docSnap) => {
+          const p = docSnap.data() as Product;
+          if (!p || p.id === undefined) return;
+          const pId = Number(p.id);
+          const idx = products.findIndex(x => Number(x.id) === pId);
+          if (idx >= 0) products[idx] = { ...p, id: pId };
+          else products.push({ ...p, id: pId });
+        });
+      } else {
+        for (const p of products) {
+          await syncProductToFirestore(p);
+        }
       }
+    } catch (e) {
+      console.warn("Firestore products sync error:", e);
     }
 
     // 4. Deposits
-    const depSnap = await getDocs(collection(firestoreDb, "deposits"));
-    if (!depSnap.empty) {
-      depSnap.forEach((docSnap) => {
-        const d = docSnap.data() as DepositRequest;
-        const idx = deposits.findIndex(x => x.id === d.id);
-        if (idx >= 0) deposits[idx] = d;
-        else deposits.push(d);
-      });
-    } else {
-      for (const d of deposits) {
-        await syncDepositToFirestore(d);
+    try {
+      const depSnap = await getDocs(collection(firestoreDb, "deposits"));
+      if (!depSnap.empty) {
+        depSnap.forEach((docSnap) => {
+          const d = docSnap.data() as DepositRequest;
+          if (!d || d.id === undefined) return;
+          const dId = Number(d.id);
+          const idx = deposits.findIndex(x => Number(x.id) === dId);
+          if (idx >= 0) deposits[idx] = { ...d, id: dId };
+          else deposits.push({ ...d, id: dId });
+        });
+      } else {
+        for (const d of deposits) {
+          await syncDepositToFirestore(d);
+        }
       }
+    } catch (e) {
+      console.warn("Firestore deposits sync error:", e);
     }
 
     // 5. Withdrawals
-    const wdSnap = await getDocs(collection(firestoreDb, "withdrawals"));
-    if (!wdSnap.empty) {
-      wdSnap.forEach((docSnap) => {
-        const w = docSnap.data() as WDRequest;
-        const idx = withdrawals.findIndex(x => x.id === w.id);
-        if (idx >= 0) withdrawals[idx] = w;
-        else withdrawals.push(w);
-      });
-    } else {
-      for (const w of withdrawals) {
-        await syncWithdrawalToFirestore(w);
+    try {
+      const wdSnap = await getDocs(collection(firestoreDb, "withdrawals"));
+      if (!wdSnap.empty) {
+        wdSnap.forEach((docSnap) => {
+          const w = docSnap.data() as WDRequest;
+          if (!w || w.id === undefined) return;
+          const wId = Number(w.id);
+          const idx = withdrawals.findIndex(x => Number(x.id) === wId);
+          if (idx >= 0) withdrawals[idx] = { ...w, id: wId };
+          else withdrawals.push({ ...w, id: wId });
+        });
+      } else {
+        for (const w of withdrawals) {
+          await syncWithdrawalToFirestore(w);
+        }
       }
+    } catch (e) {
+      console.warn("Firestore withdrawals sync error:", e);
     }
 
     // 6. Transactions
-    const txSnap = await getDocs(collection(firestoreDb, "transactions"));
-    if (!txSnap.empty) {
-      txSnap.forEach((docSnap) => {
-        const t = docSnap.data() as Transaction;
-        const idx = transactions.findIndex(x => x.id === t.id);
-        if (idx >= 0) transactions[idx] = t;
-        else transactions.push(t);
-      });
-    } else {
-      for (const t of transactions) {
-        await syncTransactionToFirestore(t);
+    try {
+      const txSnap = await getDocs(collection(firestoreDb, "transactions"));
+      if (!txSnap.empty) {
+        txSnap.forEach((docSnap) => {
+          const t = docSnap.data() as Transaction;
+          if (!t || t.id === undefined) return;
+          const tId = Number(t.id);
+          const idx = transactions.findIndex(x => Number(x.id) === tId);
+          if (idx >= 0) transactions[idx] = { ...t, id: tId };
+          else transactions.push({ ...t, id: tId });
+        });
+      } else {
+        for (const t of transactions) {
+          await syncTransactionToFirestore(t);
+        }
       }
+    } catch (e) {
+      console.warn("Firestore transactions sync error:", e);
     }
 
     // 7. Notifications
-    const notifSnap = await getDocs(collection(firestoreDb, "notifications"));
-    if (!notifSnap.empty) {
-      notifSnap.forEach((docSnap) => {
-        const n = docSnap.data() as MLMNotification;
-        const idx = notifications.findIndex(x => x.id === n.id);
-        if (idx >= 0) notifications[idx] = n;
-        else notifications.push(n);
-      });
-    } else {
-      for (const n of notifications) {
-        await syncNotificationToFirestore(n);
+    try {
+      const notifSnap = await getDocs(collection(firestoreDb, "notifications"));
+      if (!notifSnap.empty) {
+        notifSnap.forEach((docSnap) => {
+          const n = docSnap.data() as MLMNotification;
+          if (!n || n.id === undefined) return;
+          const nId = Number(n.id);
+          const idx = notifications.findIndex(x => Number(x.id) === nId);
+          if (idx >= 0) notifications[idx] = { ...n, id: nId };
+          else notifications.push({ ...n, id: nId });
+        });
+      } else {
+        for (const n of notifications) {
+          await syncNotificationToFirestore(n);
+        }
       }
+    } catch (e) {
+      console.warn("Firestore notifications sync error:", e);
     }
 
   } catch (err) {
