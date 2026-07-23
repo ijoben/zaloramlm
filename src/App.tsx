@@ -1643,6 +1643,11 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    try {
+      localStorage.removeItem("zalora_session_user");
+    } catch (err) {
+      console.warn("Failed to clear local session:", err);
+    }
     setCurrentUser(null);
     setUserDashboardData(null);
     setAdminDashboardData(null);

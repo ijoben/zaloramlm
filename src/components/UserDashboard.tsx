@@ -303,29 +303,28 @@ export default function UserDashboard({
           </span>
         </div>
 
-        <div className="hidden lg:flex items-center gap-4">
-          <div className="flex items-center gap-2 pl-4">
-            <div className="text-right hidden sm:block">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="hidden sm:flex items-center gap-2">
+            <div className="text-right">
               <p className="text-xs font-bold text-slate-200">{user.fullname}</p>
               <p className="text-[10px] text-slate-400">@{user.username} • {user.is_active ? 'Premium Active' : 'Inactive'}</p>
             </div>
-            <button 
-              id="btn-logout"
-              onClick={onLogout} 
-              className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition"
-              title="Logout"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
-        </div>
-
-        {/* Mobile Header Buttons */}
-        <div className="flex lg:hidden items-center gap-2">
+          <button 
+            id="btn-logout"
+            onClick={onLogout} 
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-lg transition font-bold text-xs"
+            title="Keluar dari Aplikasi"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Keluar</span>
+          </button>
+          
+          {/* Mobile Menu Toggle Button */}
           <button 
             id="user-burger-btn"
             onClick={() => setIsMobileMenuOpen(true)} 
-            className="p-2 hover:bg-slate-800 rounded-lg transition text-slate-300 hover:text-white"
+            className="lg:hidden p-2 hover:bg-slate-800 rounded-lg transition text-slate-300 hover:text-white"
           >
             <Menu className="w-6 h-6" />
           </button>
@@ -710,6 +709,17 @@ export default function UserDashboard({
               <User className="w-4 h-4 text-blue-500" />
               <span>Profil Saya</span>
             </button>
+
+            <div className="pt-2 border-t border-slate-100">
+              <button
+                id="sidebar-btn-logout"
+                onClick={onLogout}
+                className="w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition"
+              >
+                <LogOut className="w-4 h-4 text-red-500" />
+                <span>Keluar (Logout)</span>
+              </button>
+            </div>
           </nav>
         </aside>
  

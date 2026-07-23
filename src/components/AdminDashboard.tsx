@@ -4,7 +4,7 @@ import {
   Shield, Users, DollarSign, Package, TrendingUp, HelpCircle, 
   CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, 
   ArrowUpRight, ArrowDownLeft, RefreshCw, BarChart2, Search, Percent,
-  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock
+  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock, LogOut
 } from "lucide-react";
 
 interface AdminDashboardProps {
@@ -460,31 +460,30 @@ export default function AdminDashboard({
           </span>
         </div>
 
-        <div className="hidden lg:flex items-center gap-4">
-          <div className="flex items-center gap-2 pl-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="hidden sm:flex items-center gap-2">
             <span className="p-1 bg-blue-500/10 text-blue-400 rounded-lg">
-              <Shield className="w-5 h-5" />
+              <Shield className="w-4 h-4" />
             </span>
-            <div className="text-left hidden sm:block">
+            <div className="text-left">
               <p className="text-xs font-bold text-slate-200 leading-none">Sistem Admin</p>
               <p className="text-[9px] text-slate-400 mt-1 uppercase tracking-wider font-semibold">ADMINISTRATOR PERUSAHAAN</p>
             </div>
-            <button 
-              id="admin-btn-logout"
-              onClick={onLogout} 
-              className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition ml-2 font-bold text-xs flex items-center gap-1"
-            >
-              Keluar
-            </button>
           </div>
-        </div>
-
-        {/* Mobile Header Buttons */}
-        <div className="flex lg:hidden items-center gap-2 shrink-0">
+          <button 
+            id="admin-btn-logout"
+            onClick={onLogout} 
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-lg transition font-bold text-xs"
+            title="Keluar dari Aplikasi"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Keluar</span>
+          </button>
+          
           <button 
             id="admin-burger-btn"
             onClick={() => setIsMobileMenuOpen(true)} 
-            className="p-2 hover:bg-slate-800 rounded-lg transition text-slate-300 hover:text-white"
+            className="lg:hidden p-2 hover:bg-slate-800 rounded-lg transition text-slate-300 hover:text-white"
           >
             <Menu className="w-6 h-6" />
           </button>
@@ -738,6 +737,17 @@ export default function AdminDashboard({
               <User className="w-4 h-4" />
               <span>Profil Saya & Sandi</span>
             </button>
+
+            <div className="pt-2 border-t border-slate-100">
+              <button
+                id="admin-sidebar-btn-logout"
+                onClick={onLogout}
+                className="w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition"
+              >
+                <LogOut className="w-4 h-4 text-red-500" />
+                <span>Keluar (Logout)</span>
+              </button>
+            </div>
           </nav>
         </aside>
 
