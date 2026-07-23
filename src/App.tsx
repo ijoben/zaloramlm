@@ -256,6 +256,87 @@ function buildClientBinaryTree(users: MLMUser[], userId: number, depth = 0, maxD
   };
 }
 
+async function fetchFirestoreProducts(): Promise<Product[]> {
+  try {
+    const querySnapshot = await getDocs(collection(db, "products"));
+    const prods: Product[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      prods.push({
+        id: Number(data.id),
+        name: data.name || "",
+        description: data.description || "",
+        price: Number(data.price) || 0,
+        member_price: Number(data.member_price) || 0,
+        stock: Number(data.stock) || 0,
+        image: data.image || ""
+      });
+    });
+
+    if (prods.length === 0) {
+      const defaultProducts: Product[] = [
+        {
+          id: 1,
+          name: "Zalora Denim Slim Fit Indigo 12oz",
+          description: "Celana Jeans Slim Fit Denim Premium Indigo 12oz dengan jahitan rantai presisi dan bahannya sangat nyaman.",
+          price: 250000,
+          member_price: 200000,
+          stock: 50,
+          image: "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=600&q=80"
+        },
+        {
+          id: 2,
+          name: "Zalora Denim Jaket Trucker Raw Dark Blue",
+          description: "Jaket Jeans Raw Denim Dark Blue kaku nan gagah, cocok untuk style harian dan touring.",
+          price: 350000,
+          member_price: 280000,
+          stock: 30,
+          image: "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?auto=format&fit=crop&w=600&q=80"
+        },
+        {
+          id: 3,
+          name: "Zalora Denim Regular Fit Black Selvedge 14oz",
+          description: "Jeans Hitam Solid Selvedge Accent 14oz Heavyweight, ketahanan ekstra untuk pemakaian jangka panjang.",
+          price: 390000,
+          member_price: 310000,
+          stock: 25,
+          image: "https://images.unsplash.com/photo-1582552938357-32b906df40cb?auto=format&fit=crop&w=600&q=80"
+        }
+      ];
+      for (const p of defaultProducts) {
+        await setDoc(doc(db, "products", String(p.id)), p, { merge: true });
+      }
+      return defaultProducts;
+    }
+    return prods;
+  } catch (err) {
+    console.warn("Error fetching products from Firestore:", err);
+    return [];
+  }
+}
+
+async function fetchFirestoreSettings(): Promise<any> {
+  try {
+    const docSnap = await getDoc(doc(db, "settings", "global"));
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } catch (err) {
+    console.warn("Error fetching settings from Firestore:", err);
+  }
+  return null;
+}
+
+async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
+  try {
+    await setDoc(doc(db, "settings", "global"), newSettings, { merge: true });
+    return true;
+  } catch (err) {
+    console.error("Error saving settings to Firestore:", err);
+    return false;
+  }
+}
+
 export default function App() {
   const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>('landing');
   const [products, setProducts] = useState<Product[]>([]);
@@ -429,10 +510,14 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setProducts(data);
+        return;
       }
     } catch (err) {
-      console.error("Gagal memuat produk", err);
+      console.warn("API products unavailable, fetching direct from Firestore...", err);
     }
+
+    const fsProds = await fetchFirestoreProducts();
+    setProducts(fsProds);
   };
 
   const fetchSettings = async () => {
@@ -441,10 +526,36 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setSystemSettings(data);
+        return;
       }
     } catch (err) {
-      console.error("Gagal memuat setting", err);
+      console.warn("API settings unavailable, fetching direct from Firestore...", err);
     }
+
+    const fsSettings = await fetchFirestoreSettings();
+    if (fsSettings) {
+      setSystemSettings(fsSettings);
+    }
+  };
+
+  const handleUpdateSettings = async (newSettings: any): Promise<boolean> => {
+    let apiSuccess = false;
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newSettings)
+      });
+      if (res.ok) {
+        apiSuccess = true;
+      }
+    } catch (err) {
+      console.warn("Backend API /api/admin/settings unavailable, saving directly to Firestore database...", err);
+    }
+
+    const savedToFirestore = await saveFirestoreSettings(newSettings);
+    setSystemSettings((prev: any) => ({ ...prev, ...newSettings }));
+    return apiSuccess || savedToFirestore;
   };
 
   const getFallbackUser = (username: string): MLMUser => {
@@ -624,34 +735,16 @@ export default function App() {
           referrals,
           transactions: [],
           deposits: [],
-          withdrawals: []
+          withdrawals: [],
+          notifications: [
+            { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Member Zalora Denim MLM.", read: false, time: "Baru saja" }
+          ]
         });
       }
     }
   };
 
-  const handleUpdateSettings = async (newSettings: any) => {
-    try {
-      const res = await fetch("/api/admin/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newSettings)
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSystemSettings(data.settings);
-        fetchDashboardData();
-        return true;
-      } else {
-        alert(data.message || "Gagal mengupdate settings");
-        return false;
-      }
-    } catch (err) {
-      console.error("Error updating settings", err);
-      alert("Koneksi gagal saat menyimpan settings");
-      return false;
-    }
-  };
+
 
   const handleLoginSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
