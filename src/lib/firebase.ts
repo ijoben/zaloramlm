@@ -11,13 +11,13 @@ try {
   if (resolvedFirebaseConfig.apiKey) {
     app = getApps().length > 0 ? getApp() : initializeApp(resolvedFirebaseConfig);
     auth = getAuth(app);
-    const dbId = resolvedFirebaseConfig.firestoreDatabaseId;
+    const dbId = resolvedFirebaseConfig.firestoreDatabaseId || "ai-studio-zaloradenimmlmbi-5abf2514-6c97-4eab-bc10-6219841824f9";
     const isCustomDb = dbId && dbId.trim() !== '' && dbId !== "(default)" && dbId !== "default";
 
     try {
       db = isCustomDb
-        ? initializeFirestore(app, { experimentalForceLongPolling: true }, dbId)
-        : initializeFirestore(app, { experimentalForceLongPolling: true });
+        ? initializeFirestore(app, { experimentalAutoDetectLongPolling: true }, dbId)
+        : initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
     } catch {
       db = isCustomDb
         ? getFirestore(app, dbId)

@@ -17,13 +17,13 @@ try {
 }
 
 const resolvedServerFirebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey || "",
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain || "",
-  projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId || "",
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket || "",
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId || "",
-  appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId || "",
-  firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || "",
+  apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey || "AIzaSyCEOmnP2Ua4VJJQ0AFpTdPQeHRa-4OzzvE",
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain || "primordial-antler-0gtt6.firebaseapp.com",
+  projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId || "primordial-antler-0gtt6",
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket || "primordial-antler-0gtt6.firebasestorage.app",
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId || "822667437818",
+  appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId || "1:822667437818:web:625363340a5061f144cb43",
+  firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || "ai-studio-zaloradenimmlmbi-5abf2514-6c97-4eab-bc10-6219841824f9",
 };
 
 const app = express();
@@ -42,13 +42,13 @@ let firestoreDb: any = null;
 if (resolvedServerFirebaseConfig.apiKey) {
   try {
     const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(resolvedServerFirebaseConfig as any);
-    const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId;
+    const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId || "ai-studio-zaloradenimmlmbi-5abf2514-6c97-4eab-bc10-6219841824f9";
     const isCustomDb = dbId && dbId.trim() !== '' && dbId !== "(default)" && dbId !== "default";
 
     try {
       firestoreDb = isCustomDb
-        ? initializeFirestore(firebaseApp, { experimentalForceLongPolling: true }, dbId)
-        : initializeFirestore(firebaseApp, { experimentalForceLongPolling: true });
+        ? initializeFirestore(firebaseApp, { experimentalAutoDetectLongPolling: true }, dbId)
+        : initializeFirestore(firebaseApp, { experimentalAutoDetectLongPolling: true });
     } catch {
       firestoreDb = isCustomDb
         ? getFirestore(firebaseApp, dbId)
@@ -917,7 +917,7 @@ app.post(["/api/admin/settings", "/admin/settings"], async (req, res) => {
 app.get("/api/firestore-info", (req, res) => {
   try {
     const projId = resolvedServerFirebaseConfig.projectId || "MISSING";
-    const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId || "(default)";
+    const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId || "ai-studio-zaloradenimmlmbi-5abf2514-6c97-4eab-bc10-6219841824f9";
     res.json({
       connected: Boolean(firestoreDb),
       projectId: projId,
