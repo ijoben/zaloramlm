@@ -601,7 +601,7 @@ async function activateUserMLM(userId: number) {
     user_id: user.id,
     username: user.username,
     type: "activation",
-    amount: -100000,
+    amount: -550000,
     description: `Aktifasi Akun Premium Hak Usaha ${user.fullname}`,
     created_at: new Date().toISOString()
   };
@@ -1046,7 +1046,7 @@ app.post("/api/auth/register", async (req, res) => {
     id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
     user_id: uplineId,
     title: "Member Baru!",
-    message: `${fullname} (@${normalizedUsername}) bergabung di kaki ${finalPos === 'L' ? 'Kiri' : 'Kanan'} Anda. Silakan bantu untuk aktifasi Rp 100,000 agar bonus Anda mengalir!`,
+    message: `${fullname} (@${normalizedUsername}) bergabung di kaki ${finalPos === 'L' ? 'Kiri' : 'Kanan'} Anda. Silakan bantu untuk aktifasi Rp 550,000 agar bonus Anda mengalir!`,
     type: "info",
     created_at: new Date().toISOString()
   };
@@ -1054,7 +1054,7 @@ app.post("/api/auth/register", async (req, res) => {
   await syncNotificationToFirestore(notif);
 
   res.status(201).json({
-    message: "Pendaftaran berhasil! Akun Anda berstatus TIDAK AKTIF. Lakukan pembayaran aktifasi Rp 100,000 untuk menikmati seluruh fitur dan berbelanja produk Zalora Denim.",
+    message: "Pendaftaran berhasil! Akun Anda berstatus TIDAK AKTIF. Lakukan pembayaran aktifasi Rp 550,000 untuk menikmati seluruh fitur dan berbelanja produk Zalora Denim.",
     user: newUser
   });
 });
@@ -1067,7 +1067,7 @@ app.post("/api/user/activate", async (req, res) => {
   if (user.is_active) return res.status(400).json({ message: "User sudah aktif" });
 
   // Simulate payment
-  user.balance -= 100000;
+  user.balance -= 550000;
   const success = await activateUserMLM(userId);
 
   if (success) {
@@ -1658,7 +1658,7 @@ app.post("/api/user/purchase", async (req, res) => {
   if (!prod) return res.status(404).json({ message: "Produk tidak ditemukan" });
 
   if (!user.is_active) {
-    return res.status(400).json({ message: "Anda harus melakukan aktifasi Rp 100.000 terlebih dahulu untuk melakukan pembelian produk premium." });
+    return res.status(400).json({ message: "Anda harus melakukan aktifasi Rp 550.000 terlebih dahulu untuk melakukan pembelian produk premium." });
   }
 
   if (prod.stock < 1) {
@@ -1773,8 +1773,8 @@ app.get("/api/admin/dashboard", async (req, res) => {
   const totalMembers = users.filter(u => u.role !== 'admin').length;
   const activeMembers = users.filter(u => u.is_active && u.role !== 'admin').length;
   
-  // Turnover company: total activation payments (100k each active member) + total jeans sales price
-  const activationTurnover = activeMembers * 100000;
+  // Turnover company: total activation payments (550k each active member) + total jeans sales price
+  const activationTurnover = activeMembers * 550000;
   const purchaseTransactions = transactions.filter(t => t.type === 'purchase');
   const purchaseTurnover = Math.abs(purchaseTransactions.reduce((acc, t) => acc + t.amount, 0));
   const totalTurnover = activationTurnover + purchaseTurnover;

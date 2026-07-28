@@ -242,7 +242,7 @@ export default function UserDashboard({
 
   const handleProductPurchase = async (productId: number) => {
     if (!user.is_active) {
-      alert("Aktifkan akun premium Rp 100.000 terlebih dahulu!");
+      alert("Aktifkan akun premium Rp 550.000 terlebih dahulu!");
       return;
     }
     setLoadingAction(true);
@@ -257,8 +257,8 @@ export default function UserDashboard({
   };
 
   const handleAccountActivation = async () => {
-    if (user.balance < 100000) {
-      alert("Saldo Anda kurang dari Rp 100.000. Silakan lakukan deposit terlebih dahulu!");
+    if (user.balance < 550000) {
+      alert("Saldo Anda kurang dari Rp 550.000. Silakan lakukan deposit terlebih dahulu!");
       return;
     }
     setLoadingAction(true);
@@ -380,19 +380,19 @@ export default function UserDashboard({
                     <ShieldAlert className="w-4.5 h-4.5 shrink-0" />
                     <div>
                       <span className="font-extrabold block text-amber-300 text-xs">AKUN BELUM AKTIF</span>
-                      Wajib aktifasi Rp 100.000 untuk bonus jaringan & belanja.
+                      Wajib aktifasi Rp 550.000 untuk bonus jaringan & belanja.
                     </div>
                   </div>
                   <button
                     onClick={() => { setIsMobileMenuOpen(false); handleAccountActivation(); }}
-                    disabled={user.balance < 100000 || loadingAction}
+                    disabled={user.balance < 550000 || loadingAction}
                     className={`w-full text-xs font-bold py-2 rounded-lg transition text-center shadow-sm ${
-                      user.balance >= 100000 
+                      user.balance >= 550000 
                         ? 'bg-amber-600 text-white hover:bg-amber-700' 
                         : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                     }`}
                   >
-                    {user.balance >= 100000 ? "Aktifkan Akun (Dipotong Saldo)" : "Isi Saldo Rp 100k untuk Aktifasi"}
+                    {user.balance >= 550000 ? "Aktifkan Akun (Dipotong Saldo)" : "Isi Saldo Rp 550k untuk Aktifasi"}
                   </button>
                 </div>
               )}
@@ -568,20 +568,20 @@ export default function UserDashboard({
                   <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-xs leading-normal font-medium">
                     <span className="font-bold block text-amber-900">Lisensi Tidak Aktif</span>
-                    Wajib aktifasi Rp 100.000 untuk bonus jaringan & belanja.
+                    Wajib aktifasi Rp 550.000 untuk bonus jaringan & belanja.
                   </div>
                 </div>
                 <button
                   id="btn-activate-account"
                   onClick={handleAccountActivation}
-                  disabled={user.balance < 100000 || loadingAction}
+                  disabled={user.balance < 550000 || loadingAction}
                   className={`w-full text-xs font-bold py-2.5 rounded-xl transition text-center shadow-sm ${
-                    user.balance >= 100000 
+                    user.balance >= 550000 
                       ? 'bg-amber-600 text-white hover:bg-amber-700' 
                       : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/50'
                   }`}
                 >
-                  {user.balance >= 100000 ? "Aktifkan Akun (Dipotong Saldo)" : "Isi Saldo Rp 100k untuk Aktifasi"}
+                  {user.balance >= 550000 ? "Aktifkan Akun (Dipotong Saldo)" : "Isi Saldo Rp 550k untuk Aktifasi"}
                 </button>
               </div>
             )}
@@ -1184,7 +1184,7 @@ export default function UserDashboard({
                       type="number"
                       required
                       min="50000"
-                      placeholder="Contoh: 100000"
+                      placeholder="Contoh: 550000"
                       value={depAmount}
                       onChange={(e) => setDepAmount(e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 font-extrabold"

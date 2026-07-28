@@ -8,6 +8,7 @@ import UserDashboard from "./components/UserDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import PHPSourceViewer from "./components/PHPSourceViewer";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest } from "./types";
+import { DEFAULT_PRODUCTS } from "./data/defaultProducts";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
 
 // Initialize Firebase App, Auth SDK & Firestore DB
@@ -632,7 +633,7 @@ export default function App() {
     }
   }, [currentUser]);
 
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
   
   // Auth state
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -801,15 +802,21 @@ export default function App() {
       const res = await fetch("/api/products");
       if (res.ok) {
         const data = await res.json();
-        setProducts(data);
-        return;
+        if (Array.isArray(data) && data.length > 0) {
+          setProducts(data);
+          return;
+        }
       }
     } catch (err) {
       console.warn("API products unavailable, fetching direct from Firestore...", err);
     }
 
     const fsProds = await fetchFirestoreProducts();
-    setProducts(fsProds);
+    if (Array.isArray(fsProds) && fsProds.length > 0) {
+      setProducts(fsProds);
+    } else {
+      setProducts(DEFAULT_PRODUCTS);
+    }
   };
 
   const fetchSettings = async () => {
@@ -1028,7 +1035,7 @@ export default function App() {
             totalMembers: fsUsers.length,
             activeMembers: activeCount,
             inactiveMembers: fsUsers.length - activeCount,
-            totalTurnover: fsUsers.reduce((acc, u) => acc + (u.is_active ? 100000 : 0), 0),
+            totalTurnover: fsUsers.reduce((acc, u) => acc + (u.is_active ? 550000 : 0), 0),
             totalBonusesPaid: fsUsers.reduce((acc, u) => acc + (u.sponsor_bonus || 0) + (u.pairing_bonus || 0), 0),
             pendingWDCount: pendingWDs.length,
             pendingWDAmount: pendingWDs.reduce((sum, w) => sum + w.amount, 0),
@@ -2071,7 +2078,7 @@ export default function App() {
                 <h4 className="font-extrabold text-green-950">Pendaftaran Anda Berhasil!</h4>
                 <p className="text-xs text-green-800 leading-relaxed">
                   Akun Anda telah terdaftar sebagai member dalam pohon jaringan silsilah binary. Status Anda saat ini adalah <strong className="text-red-600 font-black">TIDAK AKTIF</strong>. <br />
-                  Silakan masuk menggunakan akun baru Anda, lalu lakukan pengisian deposit saldo Rp 100.000 untuk melakukan aktifasi premium agar seluruh bonus mengalir lancar!
+                  Silakan masuk menggunakan akun baru Anda, lalu lakukan pengisian deposit saldo Rp 550.000 untuk melakukan aktifasi premium agar seluruh bonus mengalir lancar!
                 </p>
                 <div className="flex gap-3 pt-2">
                   <button

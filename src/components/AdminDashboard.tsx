@@ -788,7 +788,7 @@ export default function AdminDashboard({
                   </div>
                   <div className="border-t border-slate-800 pt-3 mt-5 flex justify-between text-[10px] text-slate-400 font-medium">
                     <span>Omset Aktifasi Member:</span>
-                    <strong className="text-white">Rp {(metrics.activeMembers * 100000).toLocaleString()}</strong>
+                    <strong className="text-white">Rp {(metrics.activeMembers * 550000).toLocaleString()}</strong>
                   </div>
                 </div>
 

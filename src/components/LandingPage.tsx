@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Product } from "../types";
+import { DEFAULT_PRODUCTS } from "../data/defaultProducts";
 import { 
   ShoppingBag, Heart, Search, Truck, ChevronLeft, ChevronRight, 
   X, Check, Menu, Filter, ArrowRight, User, ShieldCheck, Sparkles,
@@ -108,8 +109,10 @@ export default function LandingPage({
     return "pria";
   };
 
+  const activeProducts = (products && products.length > 0) ? products : DEFAULT_PRODUCTS;
+
   // Filter products by active Category & Search Query
-  const filteredProducts = products.filter((p) => {
+  const filteredProducts = activeProducts.filter((p) => {
     if (searchQuery.trim() !== "") {
       const q = searchQuery.toLowerCase();
       const matchName = p.name.toLowerCase().includes(q);
@@ -134,7 +137,7 @@ export default function LandingPage({
   });
 
   // Best Sellers (Product Carousel)
-  const bestSellerProducts = products.slice(0, 8);
+  const bestSellerProducts = activeProducts.slice(0, 8);
 
   // Scroll carousel left/right
   const scrollCarousel = (direction: "left" | "right") => {
@@ -252,16 +255,16 @@ export default function LandingPage({
       </div>
 
       {/* 2. Main E-Commerce Header Navigation */}
-      <header className="bg-white border-b border-neutral-200 sticky top-0 z-40 shadow-xs w-full overflow-hidden" id="main-header">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-1.5 sm:gap-4">
+      <header className="bg-white border-b border-neutral-200 sticky top-0 z-40 shadow-xs w-full" id="main-header">
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-1 sm:gap-4">
           
           {/* Brand Logo */}
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            <a href="#" className="flex items-center gap-2 group">
-              <div className="bg-[#C41230] text-white font-black font-display text-sm sm:text-2xl tracking-tighter px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-b-md shadow-md uppercase border-t-2 border-red-800 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-4 shrink-0 min-w-0">
+            <a href="#" className="flex items-center gap-1.5 group">
+              <div className="bg-[#C41230] text-white font-black font-display text-xs sm:text-2xl tracking-tighter px-2 sm:px-4 py-1 sm:py-1.5 rounded-b-md shadow-md uppercase border-t-2 border-red-800 shrink-0">
                 LEVI'S® <span className="font-light text-red-200 ml-0.5 sm:ml-1">DENIM</span>
               </div>
-              <div className="hidden sm:flex flex-col">
+              <div className="hidden md:flex flex-col">
                 <span className="text-[11px] font-black tracking-widest uppercase text-neutral-800 leading-tight">
                   OFFICIAL STORE
                 </span>
@@ -324,28 +327,28 @@ export default function LandingPage({
           </nav>
 
           {/* Right Actions: Search, Wishlist, Cart, Member Login, Mobile Menu Toggle */}
-          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
             
             {/* Search Trigger */}
             <button
               id="btn-trigger-search"
               onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="p-1.5 sm:p-2 text-neutral-700 hover:text-[#C41230] transition relative"
+              className="p-1 sm:p-2 text-neutral-700 hover:text-[#C41230] transition relative"
               title="Cari Produk Denim"
             >
-              <Search className="w-5 h-5" />
+              <Search className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
             {/* Wishlist Trigger */}
             <button
               id="btn-trigger-wishlist"
               onClick={() => setIsWishlistOpen(true)}
-              className="p-1.5 sm:p-2 text-neutral-700 hover:text-[#C41230] transition relative"
+              className="p-1 sm:p-2 text-neutral-700 hover:text-[#C41230] transition relative hidden xs:flex"
               title="Wishlist Saya"
             >
-              <Heart className="w-5 h-5" />
+              <Heart className="w-4 h-4 sm:w-5 sm:h-5" />
               {wishlist.length > 0 && (
-                <span className="absolute top-0 right-0 bg-[#C41230] text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute top-0 right-0 bg-[#C41230] text-white text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
                   {wishlist.length}
                 </span>
               )}
@@ -355,18 +358,13 @@ export default function LandingPage({
             <button
               id="btn-trigger-cart"
               onClick={() => setIsCartOpen(true)}
-              className="p-1.5 sm:p-2 text-neutral-700 hover:text-[#C41230] transition relative flex items-center gap-1 sm:gap-2 bg-neutral-100 hover:bg-neutral-200 px-2 sm:px-3 py-1.5"
+              className="p-1 sm:p-2 text-neutral-700 hover:text-[#C41230] transition relative flex items-center gap-1 bg-neutral-100 hover:bg-neutral-200 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xs"
               title="Keranjang Belanja"
             >
-              <ShoppingBag className="w-5 h-5 text-[#C41230]" />
-              <span className="text-xs font-black font-mono text-neutral-900 hidden sm:inline-block">
+              <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-[#C41230]" />
+              <span className="text-xs font-black font-mono text-neutral-900">
                 {cartCount}
               </span>
-              {cartCount > 0 && (
-                <span className="sm:hidden absolute -top-1 -right-1 bg-[#C41230] text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
-                  {cartCount}
-                </span>
-              )}
             </button>
 
             {/* Member Area Portal Button */}
@@ -374,7 +372,7 @@ export default function LandingPage({
               <button
                 id="btn-header-dashboard"
                 onClick={onDashboardClick}
-                className="bg-neutral-900 hover:bg-[#C41230] text-white px-2.5 sm:px-4 py-1.5 sm:py-2.5 text-[11px] sm:text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs"
+                className="bg-neutral-900 hover:bg-[#C41230] text-white px-2 sm:px-3.5 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs shrink-0"
               >
                 <User className="w-3.5 h-3.5" /> <span className="hidden sm:inline">MEMBER AREA</span><span className="sm:hidden">MEMBER</span>
               </button>
@@ -382,19 +380,19 @@ export default function LandingPage({
               <button
                 id="btn-header-login"
                 onClick={onLoginClick}
-                className="bg-[#C41230] hover:bg-[#A00E26] text-white px-2.5 sm:px-4 py-1.5 sm:py-2.5 text-[11px] sm:text-xs font-black uppercase tracking-wider transition shadow-xs flex items-center gap-1"
+                className="bg-[#C41230] hover:bg-[#A00E26] text-white px-2 sm:px-3.5 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black uppercase tracking-wider transition shadow-xs flex items-center gap-1 shrink-0"
               >
                 <User className="w-3.5 h-3.5" /> <span className="hidden sm:inline">MEMBER PORTAL</span><span className="sm:hidden">MASUK</span>
               </button>
             )}
 
-            {/* Mobile Menu Toggle Button */}
+            {/* Mobile Menu Toggle Button - Always Fits & Visible */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-1.5 sm:p-2 text-neutral-900 lg:hidden focus:outline-none shrink-0 border border-neutral-200 rounded-xs bg-neutral-50 hover:bg-neutral-100"
+              className="p-1.5 sm:p-2 text-neutral-900 lg:hidden focus:outline-none shrink-0 border border-neutral-300 rounded-xs bg-neutral-100 hover:bg-neutral-200"
               aria-label="Toggle Mobile Menu"
             >
-              {isMobileMenuOpen ? <X className="w-5 h-5 sm:w-6 sm:h-6" /> : <Menu className="w-5 h-5 sm:w-6 sm:h-6" />}
+              {isMobileMenuOpen ? <X className="w-5 h-5 text-[#C41230]" /> : <Menu className="w-5 h-5 text-neutral-900" />}
             </button>
           </div>
         </div>
@@ -645,14 +643,15 @@ export default function LandingPage({
         {/* Horizontal Carousel Container */}
         <div
           ref={carouselRef}
-          className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 pt-1 scrollbar-thin scrollbar-thumb-[#C41230]/40 scrollbar-track-neutral-100 snap-x snap-mandatory touch-pan-x scroll-smooth min-w-0 w-full"
+          className="flex gap-3 sm:gap-5 overflow-x-auto pb-4 pt-1 scrollbar-thin scrollbar-thumb-[#C41230] scrollbar-track-neutral-100 snap-x snap-mandatory touch-pan-x scroll-smooth min-w-0 w-full"
+          style={{ WebkitOverflowScrolling: 'touch' }}
         >
           {bestSellerProducts.map((p) => (
             <div
               key={p.id}
-              className="w-[220px] sm:w-[260px] md:w-[280px] bg-white border border-neutral-200 snap-start flex flex-col hover:border-[#C41230] transition group shadow-xs shrink-0"
+              className="w-[200px] sm:w-[240px] md:w-[260px] bg-white border border-neutral-200 snap-start flex flex-col hover:border-[#C41230] transition group shadow-xs shrink-0"
             >
-              <div className="h-52 sm:h-64 w-full overflow-hidden relative bg-neutral-100">
+              <div className="h-44 sm:h-56 w-full overflow-hidden relative bg-neutral-100">
                 <img
                   referrerPolicy="no-referrer"
                   src={p.image}
@@ -861,7 +860,7 @@ export default function LandingPage({
                 <h3 className="font-black text-base uppercase tracking-wider text-neutral-900">
                   KHUSUS MEMBER TERDAFTAR
                 </h3>
-                <p className="text-[11px] text-[#C41230] font-bold">Lisensi Keanggotaan Rp 100.000</p>
+                <p className="text-[11px] text-[#C41230] font-bold">Lisensi Keanggotaan Rp 550.000</p>
               </div>
             </div>
 
@@ -878,7 +877,7 @@ export default function LandingPage({
             )}
 
             <p className="text-xs text-neutral-600 leading-relaxed mb-6">
-              Sesuai peraturan sistem Zalora Denim, produk berkualitas ini <strong>hanya dapat dibeli oleh Member Terdaftar & Bayar Lisensi (Rp 100.000)</strong>. 
+              Sesuai peraturan sistem Zalora Denim, produk berkualitas ini <strong>hanya dapat dibeli oleh Member Terdaftar & Bayar Lisensi (Rp 550.000)</strong>. 
               Silakan Masuk ke akun anda atau lakukan Pendaftaran Member Baru.
             </p>
 
@@ -899,7 +898,7 @@ export default function LandingPage({
                 }}
                 className="w-full bg-neutral-900 hover:bg-neutral-800 text-white py-3 text-xs font-black uppercase tracking-widest transition flex items-center justify-center gap-2"
               >
-                <Sparkles className="w-4 h-4 text-amber-400" /> DAFTAR MEMBER (RP 100.000)
+                <Sparkles className="w-4 h-4 text-amber-400" /> DAFTAR MEMBER (RP 550.000)
               </button>
               <button
                 onClick={() => setIsMemberOnlyModalOpen(false)}
