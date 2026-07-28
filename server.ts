@@ -1,10 +1,31 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
-import firebaseConfig from "./firebase-applet-config.json";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode } from "./src/types";
+
+// Safe loader for firebase-applet-config.json
+let firebaseConfig: any = {};
+try {
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  }
+} catch (err) {
+  console.warn("Notice: firebase-applet-config.json file not found, falling back to process.env variables");
+}
+
+const resolvedServerFirebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey || "",
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain || "",
+  projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId || "",
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket || "",
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId || "",
+  appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId || "",
+  firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || "",
+};
 
 const app = express();
 const PORT = 3000;
@@ -16,11 +37,11 @@ app.use(express.json());
 // ==========================================
 let firestoreDb: any = null;
 try {
-  const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig as any);
-  firestoreDb = firebaseConfig.firestoreDatabaseId
-    ? getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId)
+  const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(resolvedServerFirebaseConfig as any);
+  firestoreDb = resolvedServerFirebaseConfig.firestoreDatabaseId
+    ? getFirestore(firebaseApp, resolvedServerFirebaseConfig.firestoreDatabaseId)
     : getFirestore(firebaseApp);
-  console.log("🔥 Firebase Firestore connected! Project ID:", firebaseConfig.projectId, "Database ID:", firebaseConfig.firestoreDatabaseId);
+  console.log("🔥 Firebase Firestore connected! Project ID:", resolvedServerFirebaseConfig.projectId, "Database ID:", resolvedServerFirebaseConfig.firestoreDatabaseId);
 } catch (e) {
   console.warn("⚠️ Firebase Firestore initialization warning:", e);
 }
