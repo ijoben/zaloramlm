@@ -42,7 +42,7 @@ export interface Transaction {
   id: number;
   user_id: number;
   username: string;
-  type: 'activation' | 'purchase' | 'sponsor_bonus' | 'pairing_bonus' | 'level_bonus' | 'ro_bonus' | 'deposit' | 'withdrawal' | 'refund';
+  type: 'activation' | 'purchase' | 'sponsor_bonus' | 'pairing_bonus' | 'level_bonus' | 'ro_bonus' | 'deposit' | 'withdrawal' | 'refund' | 'bonus_produk';
   amount: number;
   description: string;
   created_at: string;

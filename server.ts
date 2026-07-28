@@ -618,6 +618,19 @@ async function activateUserMLM(userId: number) {
   transactions.push(actTx);
   await syncTransactionToFirestore(actTx);
 
+  // Add Gratis 1 Produk Paket Perdana (Rp 550.000) transaction
+  const prodBonusTx: Transaction = {
+    id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
+    user_id: user.id,
+    username: user.username,
+    type: "bonus_produk",
+    amount: 550000,
+    description: "Bonus Registrasi/Aktifasi: Gratis 1 Produk Paket Perdana Zalora Denim senilai Rp 550.000 (Paket Hak Usaha Pendaftaran)",
+    created_at: new Date().toISOString()
+  };
+  transactions.push(prodBonusTx);
+  await syncTransactionToFirestore(prodBonusTx);
+
   // 2. Distribute Sponsor Bonus (If MLM Bonus Active)
   if (systemSettings.enableMlmBonus !== false && user.sponsor_id) {
     const sponsor = users.find(u => u.id === user.sponsor_id);

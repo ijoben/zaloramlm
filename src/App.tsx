@@ -12,27 +12,9 @@ import { DEFAULT_PRODUCTS } from "./data/defaultProducts";
 import { DEFAULT_USERS } from "./data/defaultUsers";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
 
-// Client-side LocalStorage + Firestore Hybrid DB Helpers for Vercel/Static deployments
-const getLocalData = <T,>(key: string, fallback: T): T => {
-  try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const setLocalData = <T,>(key: string, data: T): void => {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (e) {
-    console.warn(`Failed to set local storage key ${key}:`, e);
-  }
-};
-
+// Firebase Firestore Direct Data Helpers
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
-  const localUsers = getLocalData<MLMUser[]>("zalora_users_db", DEFAULT_USERS);
-  if (!db) return localUsers;
+  if (!db) return DEFAULT_USERS;
 
   try {
     const querySnapshot = await getDocs(collection(db, "users"));
@@ -64,24 +46,42 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
           right_sales: Number(data.right_sales) || 0,
           created_at: data.created_at || new Date().toISOString(),
           role: data.role || (parsedId === 1 ? "admin" : "user"),
-          firebase_uid: data.firebase_uid || ""
+          firebase_uid: data.firebase_uid || "",
+          ktp: data.ktp || "",
+          whatsapp: data.whatsapp || "",
+          bank_name: data.bank_name || "",
+          bank_account: data.bank_account || "",
+          bank_holder: data.bank_holder || ""
         });
       }
     });
 
-    for (const defU of localUsers.length > 0 ? localUsers : DEFAULT_USERS) {
-      if (!usersMap.has(defU.id)) {
+    if (usersMap.size === 0) {
+      for (const defU of DEFAULT_USERS) {
         usersMap.set(defU.id, defU);
+        try {
+          await setDoc(doc(db, "users", String(defU.id)), defU);
+        } catch (e) {
+          console.warn(`Failed seeding user ${defU.username} to Firestore:`, e);
+        }
+      }
+    } else {
+      for (const defU of DEFAULT_USERS) {
+        if (!usersMap.has(defU.id)) {
+          usersMap.set(defU.id, defU);
+          try {
+            await setDoc(doc(db, "users", String(defU.id)), defU);
+          } catch {}
+        }
       }
     }
 
     const finalUsers = Array.from(usersMap.values());
     finalUsers.sort((a, b) => Number(a.id) - Number(b.id));
-    setLocalData("zalora_users_db", finalUsers);
     return finalUsers;
   } catch (err) {
-    console.warn("Error reading users from Firestore client-side:", err);
-    return localUsers;
+    console.warn("Error reading users from Firestore:", err);
+    return DEFAULT_USERS;
   }
 }
 
@@ -130,7 +130,6 @@ async function updateAncestorCountsClient(users: MLMUser[], uplineId: number, po
     childPos = upline.position === 'R' ? 'R' : 'L';
     currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
   }
-  setLocalData("zalora_users_db", users);
 }
 
 async function registerUserToFirestoreDirect(regData: {
@@ -187,7 +186,7 @@ async function registerUserToFirestoreDirect(regData: {
     email: regData.email,
     phone: regData.phone,
     password: regData.password || "password123",
-    is_active: true,
+    is_active: true, // Auto Active upon registration package
     upline_id: uplineId,
     position: finalPos,
     sponsor_id: sponsorId,
@@ -211,12 +210,44 @@ async function registerUserToFirestoreDirect(regData: {
   };
 
   const updatedUsers = [...users, newUser];
-  setLocalData("zalora_users_db", updatedUsers);
 
   if (db) {
     try {
       await setDoc(doc(db, "users", String(newUserId)), newUser);
       await updateAncestorCountsClient(updatedUsers, uplineId, finalPos);
+
+      // Log Gratis 1 Produk Paket Perdana (Rp 550.000) transaction for the new user
+      await createFirestoreTransaction({
+        id: Date.now(),
+        user_id: newUserId,
+        username: normalizedUsername,
+        type: "bonus_produk",
+        amount: 550000,
+        description: "Bonus Registrasi: Gratis 1 Produk Paket Perdana Zalora Denim senilai Rp 550.000 (Termasuk Paket Pendaftaran Hak Usaha)",
+        created_at: new Date().toISOString()
+      });
+
+      // Distribute Sponsor Bonus (Rp 40.000) to Sponsor
+      if (sponsorId) {
+        const sponsor = users.find(u => Number(u.id) === Number(sponsorId));
+        if (sponsor) {
+          const newSponBal = (Number(sponsor.balance) || 0) + 40000;
+          const newSponBonus = (Number(sponsor.sponsor_bonus) || 0) + 40000;
+          await updateFirestoreUserProfile(sponsor.id, {
+            balance: newSponBal,
+            sponsor_bonus: newSponBonus
+          } as any);
+          await createFirestoreTransaction({
+            id: Date.now() + 1,
+            user_id: sponsor.id,
+            username: sponsor.username,
+            type: "sponsor_bonus",
+            amount: 40000,
+            description: `Bonus Sponsor Pendaftaran Member Baru @${normalizedUsername} (+Rp 40.000)`,
+            created_at: new Date().toISOString()
+          });
+        }
+      }
     } catch (e) {
       console.warn("Firestore setDoc failed for user registration:", e);
     }
@@ -246,8 +277,7 @@ function buildClientBinaryTree(users: MLMUser[], userId: number, depth = 0, maxD
 }
 
 async function fetchFirestoreProducts(): Promise<Product[]> {
-  const localProds = getLocalData<Product[]>("zalora_products_db", DEFAULT_PRODUCTS);
-  if (!db) return localProds;
+  if (!db) return DEFAULT_PRODUCTS;
 
   try {
     const querySnapshot = await getDocs(collection(db, "products"));
@@ -266,42 +296,38 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
     });
 
     if (prods.length === 0) {
-      setLocalData("zalora_products_db", localProds.length > 0 ? localProds : DEFAULT_PRODUCTS);
-      return localProds.length > 0 ? localProds : DEFAULT_PRODUCTS;
+      for (const defP of DEFAULT_PRODUCTS) {
+        try {
+          await setDoc(doc(db, "products", String(defP.id)), defP);
+        } catch {}
+      }
+      return DEFAULT_PRODUCTS;
     }
 
     prods.sort((a, b) => a.id - b.id);
-    setLocalData("zalora_products_db", prods);
     return prods;
   } catch (err) {
     console.warn("Error fetching products from Firestore:", err);
-    return localProds;
+    return DEFAULT_PRODUCTS;
   }
 }
 
 async function fetchFirestoreSettings(): Promise<any> {
-  const localSettings = getLocalData<any>("zalora_settings_db", null);
-  if (!db) return localSettings;
+  if (!db) return null;
 
   try {
     const docRef = doc(db, "settings", "system");
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      const data = docSnap.data();
-      setLocalData("zalora_settings_db", data);
-      return data;
+      return docSnap.data();
     }
   } catch (err) {
     console.warn("Error fetching settings from Firestore:", err);
   }
-  return localSettings;
+  return null;
 }
 
 async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
-  const current = getLocalData<any>("zalora_settings_db", {});
-  const merged = { ...current, ...newSettings };
-  setLocalData("zalora_settings_db", merged);
-
   if (db) {
     try {
       await setDoc(doc(db, "settings", "system"), newSettings, { merge: true });
@@ -314,8 +340,7 @@ async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
 }
 
 async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
-  const localWDs = getLocalData<WDRequest[]>("zalora_withdrawals_db", []);
-  if (!db) return localWDs;
+  if (!db) return [];
 
   try {
     const querySnapshot = await getDocs(collection(db, "withdrawals"));
@@ -335,21 +360,15 @@ async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
       });
     });
 
-    const finalWDs = wds.length > 0 ? wds : localWDs;
-    finalWDs.sort((a, b) => b.id - a.id);
-    setLocalData("zalora_withdrawals_db", finalWDs);
-    return finalWDs;
+    wds.sort((a, b) => b.id - a.id);
+    return wds;
   } catch (err) {
     console.warn("Error fetching withdrawals from Firestore:", err);
-    return localWDs;
+    return [];
   }
 }
 
 async function createFirestoreWithdrawal(wd: WDRequest): Promise<void> {
-  const existing = await fetchFirestoreWithdrawals();
-  const updated = [wd, ...existing];
-  setLocalData("zalora_withdrawals_db", updated);
-
   if (db) {
     try {
       await setDoc(doc(db, "withdrawals", String(wd.id)), wd);
@@ -362,8 +381,6 @@ async function createFirestoreWithdrawal(wd: WDRequest): Promise<void> {
 async function updateFirestoreWithdrawalStatus(wdId: number, status: 'approved' | 'rejected' | 'pending'): Promise<void> {
   const wds = await fetchFirestoreWithdrawals();
   const oldWd = wds.find(w => Number(w.id) === Number(wdId));
-  const updatedWDs = wds.map(w => Number(w.id) === Number(wdId) ? { ...w, status: status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'pending' } : w);
-  setLocalData("zalora_withdrawals_db", updatedWDs);
 
   if (oldWd && status === 'approved' && oldWd.status === 'pending') {
     await createFirestoreTransaction({
@@ -387,8 +404,7 @@ async function updateFirestoreWithdrawalStatus(wdId: number, status: 'approved' 
 }
 
 async function fetchFirestoreTransactions(): Promise<Transaction[]> {
-  const localTxs = getLocalData<Transaction[]>("zalora_transactions_db", []);
-  if (!db) return localTxs;
+  if (!db) return [];
 
   try {
     const querySnapshot = await getDocs(collection(db, "transactions"));
@@ -406,21 +422,15 @@ async function fetchFirestoreTransactions(): Promise<Transaction[]> {
       });
     });
 
-    const finalTxs = txs.length > 0 ? txs : localTxs;
-    finalTxs.sort((a, b) => b.id - a.id);
-    setLocalData("zalora_transactions_db", finalTxs);
-    return finalTxs;
+    txs.sort((a, b) => b.id - a.id);
+    return txs;
   } catch (err) {
     console.warn("Error fetching transactions from Firestore:", err);
-    return localTxs;
+    return [];
   }
 }
 
 async function createFirestoreTransaction(tx: Transaction): Promise<void> {
-  const existing = await fetchFirestoreTransactions();
-  const updated = [tx, ...existing];
-  setLocalData("zalora_transactions_db", updated);
-
   if (db) {
     try {
       await setDoc(doc(db, "transactions", String(tx.id)), tx);
@@ -431,8 +441,7 @@ async function createFirestoreTransaction(tx: Transaction): Promise<void> {
 }
 
 async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
-  const localDeps = getLocalData<DepositRequest[]>("zalora_deposits_db", []);
-  if (!db) return localDeps;
+  if (!db) return [];
 
   try {
     const querySnapshot = await getDocs(collection(db, "deposits"));
@@ -451,21 +460,15 @@ async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
       });
     });
 
-    const finalDeps = deps.length > 0 ? deps : localDeps;
-    finalDeps.sort((a, b) => b.id - a.id);
-    setLocalData("zalora_deposits_db", finalDeps);
-    return finalDeps;
+    deps.sort((a, b) => b.id - a.id);
+    return deps;
   } catch (err) {
     console.warn("Error fetching deposits from Firestore:", err);
-    return localDeps;
+    return [];
   }
 }
 
 async function createFirestoreDeposit(dep: DepositRequest): Promise<void> {
-  const existing = await fetchFirestoreDeposits();
-  const updated = [dep, ...existing];
-  setLocalData("zalora_deposits_db", updated);
-
   if (db) {
     try {
       await setDoc(doc(db, "deposits", String(dep.id)), dep);
@@ -478,13 +481,14 @@ async function createFirestoreDeposit(dep: DepositRequest): Promise<void> {
 async function updateFirestoreDepositStatus(depositId: number, status: 'success' | 'failed' | 'pending'): Promise<void> {
   const deps = await fetchFirestoreDeposits();
   const depData = deps.find(d => Number(d.id) === Number(depositId));
-  const updatedDeps = deps.map(d => Number(d.id) === Number(depositId) ? { ...d, status } : d);
-  setLocalData("zalora_deposits_db", updatedDeps);
 
   if (depData && status === 'success' && depData.status === 'pending') {
     const users = await fetchFirestoreUsers();
-    const updatedUsers = users.map(u => Number(u.id) === Number(depData.user_id) ? { ...u, balance: (Number(u.balance) || 0) + depData.amount } : u);
-    setLocalData("zalora_users_db", updatedUsers);
+    const targetUser = users.find(u => Number(u.id) === Number(depData.user_id));
+    if (targetUser) {
+      const newBal = (Number(targetUser.balance) || 0) + depData.amount;
+      await updateFirestoreUserProfile(targetUser.id, { balance: newBal });
+    }
 
     await createFirestoreTransaction({
       id: Date.now(),
@@ -519,14 +523,11 @@ async function addFirestoreProduct(prod: Omit<Product, "id">): Promise<Product> 
     image: prod.image
   };
 
-  const updatedProds = [...existing, newProduct];
-  setLocalData("zalora_products_db", updatedProds);
-
   if (db) {
     try {
       await setDoc(doc(db, "products", String(nextId)), newProduct);
     } catch (e) {
-      console.warn("Error adding product to Firestore, kept in local DB:", e);
+      console.warn("Error adding product to Firestore:", e);
     }
   }
 
@@ -534,10 +535,6 @@ async function addFirestoreProduct(prod: Omit<Product, "id">): Promise<Product> 
 }
 
 async function updateFirestoreProduct(productId: number, stock: number, price: number, memberPrice: number): Promise<void> {
-  const existing = await fetchFirestoreProducts();
-  const updatedProds = existing.map(p => Number(p.id) === Number(productId) ? { ...p, stock, price, member_price: memberPrice } : p);
-  setLocalData("zalora_products_db", updatedProds);
-
   if (db) {
     try {
       await setDoc(doc(db, "products", String(productId)), { stock, price, member_price: memberPrice }, { merge: true });
@@ -547,24 +544,7 @@ async function updateFirestoreProduct(productId: number, stock: number, price: n
   }
 }
 
-async function updateFirestoreUserProfile(userId: number, updateData: { fullname?: string; email?: string; phone?: string; password?: string; balance?: number; is_active?: boolean }): Promise<void> {
-  const users = await fetchFirestoreUsers();
-  const updatedUsers = users.map(u => {
-    if (Number(u.id) === Number(userId)) {
-      return {
-        ...u,
-        ...(updateData.fullname ? { fullname: updateData.fullname } : {}),
-        ...(updateData.email ? { email: updateData.email } : {}),
-        ...(updateData.phone ? { phone: updateData.phone } : {}),
-        ...(updateData.password ? { password: updateData.password } : {}),
-        ...(updateData.balance !== undefined ? { balance: updateData.balance } : {}),
-        ...(updateData.is_active !== undefined ? { is_active: updateData.is_active } : {})
-      };
-    }
-    return u;
-  });
-  setLocalData("zalora_users_db", updatedUsers);
-
+async function updateFirestoreUserProfile(userId: number, updateData: { fullname?: string; email?: string; phone?: string; password?: string; balance?: number; is_active?: boolean; sponsor_bonus?: number; pairing_bonus?: number; level_bonus?: number; ro_bonus?: number }): Promise<void> {
   if (db) {
     try {
       const cleanData: any = {};
@@ -574,6 +554,10 @@ async function updateFirestoreUserProfile(userId: number, updateData: { fullname
       if (updateData.password) cleanData.password = updateData.password;
       if (updateData.balance !== undefined) cleanData.balance = updateData.balance;
       if (updateData.is_active !== undefined) cleanData.is_active = updateData.is_active;
+      if (updateData.sponsor_bonus !== undefined) cleanData.sponsor_bonus = updateData.sponsor_bonus;
+      if (updateData.pairing_bonus !== undefined) cleanData.pairing_bonus = updateData.pairing_bonus;
+      if (updateData.level_bonus !== undefined) cleanData.level_bonus = updateData.level_bonus;
+      if (updateData.ro_bonus !== undefined) cleanData.ro_bonus = updateData.ro_bonus;
 
       await setDoc(doc(db, "users", String(userId)), cleanData, { merge: true });
     } catch (e) {

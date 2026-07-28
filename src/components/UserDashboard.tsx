@@ -4,7 +4,7 @@ import {
   DollarSign, TrendingUp, Users, TreePine, ArrowUpRight, ArrowDownLeft, 
   Copy, Check, ShoppingBag, ShieldAlert, CheckCircle, RefreshCw, 
   CreditCard, Send, LogOut, Bell, HelpCircle, Award, Percent, Menu, X,
-  User, Lock
+  User, Lock, Sparkles
 } from "lucide-react";
 
 interface UserDashboardProps {
@@ -1410,6 +1410,26 @@ export default function UserDashboard({
                   </div>
                 </div>
 
+              </div>
+
+              {/* Free Product Package Badge / Status Banner */}
+              <div className="bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-blue-800/80 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="space-y-1 text-left">
+                  <div className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 text-[10px] font-extrabold px-3 py-1 rounded-full border border-amber-500/30 uppercase tracking-widest mb-1">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Paket Pendaftaran Hak Usaha Member
+                  </div>
+                  <h3 className="text-lg font-extrabold text-white">Gratis 1 Produk Paket Perdana Zalora Denim (Senilai Rp 550.000)</h3>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                    Saat Anda mendaftar & melakukan pembayaran pendaftaran Rp 550.000, Anda berhak memperoleh <strong>1x Produk Perdana Celana Jeans Zalora Denim (Senilai Rp 550.000)</strong> secara gratis! Seluruh produk di katalog toko di bawah difungsikan untuk <strong>Repeat Order (RO)</strong>.
+                  </p>
+                </div>
+                <div className="shrink-0 bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/20 text-center space-y-1 w-full md:w-auto">
+                  <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider block">Status Paket Perdana</span>
+                  <span className="inline-block bg-emerald-500 text-white font-extrabold text-xs px-3.5 py-1.5 rounded-full shadow-sm">
+                    ✓ Telah Termasuk & Aktif
+                  </span>
+                  <p className="text-[9px] text-slate-400 font-mono mt-1">Hak Usaha MLM: AKTIF</p>
+                </div>
               </div>
 
             </div>
