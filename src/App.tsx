@@ -610,40 +610,35 @@ async function updateFirestoreUserProfile(userId: number, updateData: { fullname
 }
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<MLMUser | null>(() => {
-    try {
-      const saved = localStorage.getItem("zalora_session_user");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [currentUser, setCurrentUser] = useState<MLMUser | null>(null);
 
-  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>(() => {
-    try {
-      const saved = localStorage.getItem("zalora_session_user");
-      return saved ? 'dashboard' : 'landing';
-    } catch {
-      return 'landing';
-    }
-  });
+  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>('landing');
 
   const currentUserRef = React.useRef<MLMUser | null>(currentUser);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
-    if (currentUser) {
-      try {
-        localStorage.setItem("zalora_session_user", JSON.stringify(currentUser));
-      } catch (e) {
-        console.warn("Failed to save session", e);
-      }
-    } else {
-      try {
-        localStorage.removeItem("zalora_session_user");
-      } catch {}
-    }
   }, [currentUser]);
+
+  // Listen for Firebase Auth state changes directly
+  useEffect(() => {
+    if (!auth) return;
+    const unsubscribe = auth.onAuthStateChanged(async (fbUser: any) => {
+      if (fbUser && !currentUserRef.current) {
+        console.log("🔥 [Firebase Auth] Active Firebase Auth session detected for:", fbUser.email);
+        const fsUsers = await fetchFirestoreUsers();
+        const foundUser = fsUsers.find(u =>
+          (u.firebase_uid && u.firebase_uid === fbUser.uid) ||
+          (u.email && fbUser.email && u.email.toLowerCase().trim() === fbUser.email.toLowerCase().trim())
+        );
+        if (foundUser) {
+          setCurrentUser(foundUser);
+          setActiveView('dashboard');
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
   
@@ -1093,7 +1088,6 @@ export default function App() {
           if (data.settings) setSystemSettings(data.settings);
           if (data.user && currentUserRef.current) {
             setCurrentUser(data.user);
-            try { localStorage.setItem("zalora_session_user", JSON.stringify(data.user)); } catch {}
           }
           apiSuccess = true;
           return;
@@ -1148,7 +1142,6 @@ export default function App() {
         const freshUser = fsUsers.find(u => Number(u.id) === Number(targetUser.id)) || targetUser;
         if (!currentUserRef.current) return;
         setCurrentUser(freshUser);
-        try { localStorage.setItem("zalora_session_user", JSON.stringify(freshUser)); } catch {}
         const binaryTree = buildClientBinaryTree(fsUsers, Number(freshUser.id), 0, 5);
         const referrals = fsUsers.filter(u => Number(u.sponsor_id) === Number(freshUser.id));
         const userWDs = fsWithdrawals.filter(w => Number(w.user_id) === Number(freshUser.id));
@@ -1814,13 +1807,8 @@ export default function App() {
 
   const handleLogout = () => {
     currentUserRef.current = null;
-    try {
-      localStorage.removeItem("zalora_session_user");
-      if (auth) {
-        signOut(auth).catch(() => {});
-      }
-    } catch (err) {
-      console.warn("Failed to clear local session:", err);
+    if (auth) {
+      signOut(auth).catch(() => {});
     }
     setCurrentUser(null);
     setUserDashboardData(null);
