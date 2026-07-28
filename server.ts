@@ -86,7 +86,7 @@ export async function syncUserToFirestore(user: MLMUser) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(user);
-    await withTimeout(setDoc(doc(firestoreDb, "users", String(user.id)), cleaned, { merge: true }), 1500, `syncUser @${user.username}`);
+    await withTimeout(setDoc(doc(firestoreDb, "users", String(user.id)), cleaned, { merge: true }), 8000, `syncUser @${user.username}`);
     console.log(`🔥 [FIRESTORE] User @${user.username} (ID: ${user.id}) successfully synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync user error:", err);
@@ -97,7 +97,7 @@ export async function syncDepositToFirestore(deposit: DepositRequest) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(deposit);
-    await withTimeout(setDoc(doc(firestoreDb, "deposits", String(deposit.id)), cleaned, { merge: true }), 1500, `syncDeposit #${deposit.id}`);
+    await withTimeout(setDoc(doc(firestoreDb, "deposits", String(deposit.id)), cleaned, { merge: true }), 8000, `syncDeposit #${deposit.id}`);
     console.log(`🔥 [FIRESTORE] Deposit #${deposit.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync deposit error:", err);
@@ -108,7 +108,7 @@ export async function syncWithdrawalToFirestore(wd: WDRequest) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(wd);
-    await withTimeout(setDoc(doc(firestoreDb, "withdrawals", String(wd.id)), cleaned, { merge: true }), 1500, `syncWithdrawal #${wd.id}`);
+    await withTimeout(setDoc(doc(firestoreDb, "withdrawals", String(wd.id)), cleaned, { merge: true }), 8000, `syncWithdrawal #${wd.id}`);
     console.log(`🔥 [FIRESTORE] Withdrawal #${wd.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync withdrawal error:", err);
@@ -119,7 +119,7 @@ export async function syncTransactionToFirestore(tx: Transaction) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(tx);
-    await withTimeout(setDoc(doc(firestoreDb, "transactions", String(tx.id)), cleaned, { merge: true }), 1500, `syncTransaction #${tx.id}`);
+    await withTimeout(setDoc(doc(firestoreDb, "transactions", String(tx.id)), cleaned, { merge: true }), 8000, `syncTransaction #${tx.id}`);
     console.log(`🔥 [FIRESTORE] Transaction #${tx.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync transaction error:", err);
@@ -130,7 +130,7 @@ export async function syncProductToFirestore(p: Product) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(p);
-    await withTimeout(setDoc(doc(firestoreDb, "products", String(p.id)), cleaned, { merge: true }), 1500, `syncProduct ${p.name}`);
+    await withTimeout(setDoc(doc(firestoreDb, "products", String(p.id)), cleaned, { merge: true }), 8000, `syncProduct ${p.name}`);
     console.log(`🔥 [FIRESTORE] Product "${p.name}" (ID: ${p.id}) successfully synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync product error:", err);
@@ -141,7 +141,7 @@ export async function syncSettingsToFirestore(s: any) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(s);
-    await withTimeout(setDoc(doc(firestoreDb, "settings", "system"), cleaned, { merge: true }), 1500, `syncSettings`);
+    await withTimeout(setDoc(doc(firestoreDb, "settings", "system"), cleaned, { merge: true }), 8000, `syncSettings`);
     console.log(`🔥 [FIRESTORE] System settings synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync settings error:", err);
@@ -152,7 +152,7 @@ export async function syncNotificationToFirestore(n: MLMNotification) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(n);
-    await withTimeout(setDoc(doc(firestoreDb, "notifications", String(n.id)), cleaned, { merge: true }), 1500, `syncNotification #${n.id}`);
+    await withTimeout(setDoc(doc(firestoreDb, "notifications", String(n.id)), cleaned, { merge: true }), 8000, `syncNotification #${n.id}`);
     console.log(`🔥 [FIRESTORE] Notification #${n.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync notification error:", err);

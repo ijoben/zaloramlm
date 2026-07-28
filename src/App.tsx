@@ -44,7 +44,7 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
 
   try {
     console.log("📡 [fetchFirestoreUsers] Reading 'users' collection from Firestore...");
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "users")), 1500, "getDocs users");
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "users")), 8000, "getDocs users");
     if (!querySnapshot) {
       console.warn("⚠️ [fetchFirestoreUsers] Firestore read timed out or failed, using DEFAULT_USERS fallback.");
       return DEFAULT_USERS;
@@ -317,7 +317,7 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
 
   try {
     console.log("📡 [fetchFirestoreProducts] Reading 'products' collection from Firestore...");
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "products")), 1500, "getDocs products");
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "products")), 8000, "getDocs products");
     if (!querySnapshot) return DEFAULT_PRODUCTS;
     console.log(`✅ [fetchFirestoreProducts] Firestore read successful! Received ${querySnapshot.size} products.`);
     const prods: Product[] = [];
@@ -338,7 +338,7 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
       console.log("ℹ️ [fetchFirestoreProducts] Collection 'products' is empty in Firestore. Seeding default products...");
       for (const defP of DEFAULT_PRODUCTS) {
         try {
-          withClientTimeout(setDoc(doc(db, "products", String(defP.id)), defP), 1000, `seedProduct ${defP.name}`);
+          withClientTimeout(setDoc(doc(db, "products", String(defP.id)), defP), 8000, `seedProduct ${defP.name}`);
         } catch {}
       }
       return DEFAULT_PRODUCTS;
@@ -383,7 +383,7 @@ async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
   if (!db) return [];
 
   try {
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "withdrawals")), 1500, "getDocs withdrawals");
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "withdrawals")), 8000, "getDocs withdrawals");
     if (!querySnapshot) return [];
     const wds: WDRequest[] = [];
     querySnapshot.forEach((docSnap: any) => {
@@ -412,7 +412,7 @@ async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
 async function createFirestoreWithdrawal(wd: WDRequest): Promise<void> {
   if (db) {
     try {
-      withClientTimeout(setDoc(doc(db, "withdrawals", String(wd.id)), wd), 1500, `createWD #${wd.id}`);
+      withClientTimeout(setDoc(doc(db, "withdrawals", String(wd.id)), wd), 8000, `createWD #${wd.id}`);
     } catch (err) {
       console.warn("Error creating withdrawal in Firestore:", err);
     }
@@ -437,7 +437,7 @@ async function updateFirestoreWithdrawalStatus(wdId: number, status: 'approved' 
 
   if (db) {
     try {
-      withClientTimeout(setDoc(doc(db, "withdrawals", String(wdId)), { status }, { merge: true }), 1500, `updateWD #${wdId}`);
+      withClientTimeout(setDoc(doc(db, "withdrawals", String(wdId)), { status }, { merge: true }), 8000, `updateWD #${wdId}`);
     } catch (err) {
       console.warn("Error updating withdrawal in Firestore:", err);
     }
@@ -448,7 +448,7 @@ async function fetchFirestoreTransactions(): Promise<Transaction[]> {
   if (!db) return [];
 
   try {
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "transactions")), 1500, "getDocs transactions");
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "transactions")), 8000, "getDocs transactions");
     if (!querySnapshot) return [];
     const txs: Transaction[] = [];
     querySnapshot.forEach((docSnap: any) => {
@@ -475,7 +475,7 @@ async function fetchFirestoreTransactions(): Promise<Transaction[]> {
 async function createFirestoreTransaction(tx: Transaction): Promise<void> {
   if (db) {
     try {
-      withClientTimeout(setDoc(doc(db, "transactions", String(tx.id)), tx), 1500, `createTx #${tx.id}`);
+      withClientTimeout(setDoc(doc(db, "transactions", String(tx.id)), tx), 8000, `createTx #${tx.id}`);
     } catch (err) {
       console.warn("Error creating transaction in Firestore:", err);
     }
@@ -486,7 +486,7 @@ async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
   if (!db) return [];
 
   try {
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "deposits")), 1500, "getDocs deposits");
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "deposits")), 8000, "getDocs deposits");
     if (!querySnapshot) return [];
     const deps: DepositRequest[] = [];
     querySnapshot.forEach((docSnap: any) => {
@@ -514,7 +514,7 @@ async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
 async function createFirestoreDeposit(dep: DepositRequest): Promise<void> {
   if (db) {
     try {
-      withClientTimeout(setDoc(doc(db, "deposits", String(dep.id)), dep), 1500, `createDeposit #${dep.id}`);
+      withClientTimeout(setDoc(doc(db, "deposits", String(dep.id)), dep), 8000, `createDeposit #${dep.id}`);
     } catch (err) {
       console.warn("Error creating deposit in Firestore:", err);
     }
