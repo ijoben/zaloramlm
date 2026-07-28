@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Product } from "../types";
 import { 
   ShoppingBag, Heart, Search, Truck, ChevronLeft, ChevronRight, 
@@ -34,6 +34,8 @@ export default function LandingPage({
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
+  const [isMemberOnlyModalOpen, setIsMemberOnlyModalOpen] = useState(false);
+  const [selectedProductForMemberModal, setSelectedProductForMemberModal] = useState<Product | null>(null);
 
   // E-Commerce Functional States
   const [searchQuery, setSearchQuery] = useState("");
@@ -41,6 +43,9 @@ export default function LandingPage({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<number[]>([]);
   
+  // Ref for product carousel horizontal scrolling
+  const carouselRef = useRef<HTMLDivElement>(null);
+
   // Track Order State
   const [trackingNumber, setTrackingNumber] = useState("");
   const [trackingResult, setTrackingResult] = useState<any>(null);
@@ -79,7 +84,7 @@ export default function LandingPage({
     }
   ];
 
-  // Auto-play slide
+  // Auto-play hero slider
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
@@ -94,23 +99,17 @@ export default function LandingPage({
   // Helper to categorize products
   const categorizeProduct = (p: Product) => {
     const nameLower = p.name.toLowerCase();
-    const descLower = p.description.toLowerCase();
-
     if (nameLower.includes("wanita") || nameLower.includes("women") || nameLower.includes("skirt") || nameLower.includes("crop")) {
       return "wanita";
     }
     if (nameLower.includes("topi") || nameLower.includes("ikat pinggang") || nameLower.includes("belt") || nameLower.includes("tas") || nameLower.includes("aksesoris")) {
       return "aksesoris";
     }
-    if (p.price > p.member_price) {
-      return "pria"; // Default men's denim if standard
-    }
     return "pria";
   };
 
   // Filter products by active Category & Search Query
   const filteredProducts = products.filter((p) => {
-    // Search filter
     if (searchQuery.trim() !== "") {
       const q = searchQuery.toLowerCase();
       const matchName = p.name.toLowerCase().includes(q);
@@ -118,7 +117,6 @@ export default function LandingPage({
       if (!matchName && !matchDesc) return false;
     }
 
-    // Category filter
     if (activeCategory === "all") return true;
     if (activeCategory === "pria") {
       return categorizeProduct(p) === "pria" || p.name.toLowerCase().includes("501") || p.name.toLowerCase().includes("slim") || p.name.toLowerCase().includes("men");
@@ -136,13 +134,24 @@ export default function LandingPage({
   });
 
   // Best Sellers (Product Carousel)
-  const bestSellerProducts = products.slice(0, 6);
+  const bestSellerProducts = products.slice(0, 8);
 
-  // New Arrivals
-  const newArrivalProducts = products.slice(0, 8);
+  // Scroll carousel left/right
+  const scrollCarousel = (direction: "left" | "right") => {
+    if (carouselRef.current) {
+      const scrollAmount = direction === "left" ? -300 : 300;
+      carouselRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
+    }
+  };
 
-  // Cart Functions
+  // Cart Functions (Enforcing Member-Only Rule)
   const addToCart = (product: Product) => {
+    if (!isLoggedIn) {
+      setSelectedProductForMemberModal(product);
+      setIsMemberOnlyModalOpen(true);
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
@@ -208,7 +217,6 @@ export default function LandingPage({
       return;
     }
 
-    // Simulate real courier shipment status lookup
     setTrackingResult({
       invoice: cleanInput,
       status: "DALAM PENGIRIMAN",
@@ -226,11 +234,11 @@ export default function LandingPage({
   };
 
   return (
-    <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 font-sans selection:bg-[#C41230] selection:text-white" id="store-landing-root">
+    <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 font-sans selection:bg-[#C41230] selection:text-white overflow-x-hidden w-full" id="store-landing-root">
       
       {/* 1. Top Announcement Bar */}
       <div className="bg-[#111111] text-white text-[11px] font-bold tracking-widest uppercase py-2 px-4 border-b border-neutral-800 flex items-center justify-center gap-3 sm:gap-6 overflow-x-auto whitespace-nowrap">
-        <span className="flex items-center gap-1.5 text-neutral-300">
+        <span className="flex items-center gap-1.5 text-neutral-300 shrink-0">
           <Truck className="w-3.5 h-3.5 text-[#C41230]" /> FREE ONGKIR SELURUH INDONESIA
         </span>
         <span className="hidden md:inline-block text-neutral-600">•</span>
@@ -238,20 +246,20 @@ export default function LandingPage({
           BAYAR DI TEMPAT (COD) TERSEDIA
         </span>
         <span className="hidden md:inline-block text-neutral-600">•</span>
-        <span className="bg-[#C41230] text-white px-2 py-0.5 font-black text-[9px] tracking-wider uppercase rounded-xs">
-          MEMBER DISCOUNT DISKONS RP 100.000/PCS
+        <span className="bg-[#C41230] text-white px-2 py-0.5 font-black text-[9px] tracking-wider uppercase rounded-xs shrink-0">
+          DISKON MEMBER RP 100.000/PCS
         </span>
       </div>
 
       {/* 2. Main E-Commerce Header Navigation */}
-      <header className="bg-white border-b border-neutral-200 sticky top-0 z-40 shadow-xs" id="main-header">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+      <header className="bg-white border-b border-neutral-200 sticky top-0 z-40 shadow-xs w-full overflow-hidden" id="main-header">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-1.5 sm:gap-4">
           
           {/* Brand Logo */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <a href="#" className="flex items-center gap-2 group">
-              <div className="bg-[#C41230] text-white font-black font-display text-xl sm:text-2xl tracking-tighter px-4 py-1.5 rounded-b-md shadow-md uppercase border-t-2 border-red-800">
-                LEVI'S® <span className="font-light text-red-200 ml-1">DENIM</span>
+              <div className="bg-[#C41230] text-white font-black font-display text-sm sm:text-2xl tracking-tighter px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-b-md shadow-md uppercase border-t-2 border-red-800 shrink-0">
+                LEVI'S® <span className="font-light text-red-200 ml-0.5 sm:ml-1">DENIM</span>
               </div>
               <div className="hidden sm:flex flex-col">
                 <span className="text-[11px] font-black tracking-widest uppercase text-neutral-800 leading-tight">
@@ -264,7 +272,7 @@ export default function LandingPage({
             </a>
           </div>
 
-          {/* Center Category Links (Pria, Wanita, Aksesoris, Diskon, Track Pesanan) */}
+          {/* Center Category Links (Desktop Only) */}
           <nav className="hidden lg:flex items-center gap-8">
             <button
               onClick={() => setActiveCategory("pria")}
@@ -315,14 +323,14 @@ export default function LandingPage({
             </button>
           </nav>
 
-          {/* Right Actions: Search, Wishlist, Cart, Member Login */}
-          <div className="flex items-center gap-3 sm:gap-5">
+          {/* Right Actions: Search, Wishlist, Cart, Member Login, Mobile Menu Toggle */}
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             
             {/* Search Trigger */}
             <button
               id="btn-trigger-search"
               onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="p-2 text-neutral-700 hover:text-[#C41230] transition relative"
+              className="p-1.5 sm:p-2 text-neutral-700 hover:text-[#C41230] transition relative"
               title="Cari Produk Denim"
             >
               <Search className="w-5 h-5" />
@@ -332,7 +340,7 @@ export default function LandingPage({
             <button
               id="btn-trigger-wishlist"
               onClick={() => setIsWishlistOpen(true)}
-              className="p-2 text-neutral-700 hover:text-[#C41230] transition relative"
+              className="p-1.5 sm:p-2 text-neutral-700 hover:text-[#C41230] transition relative"
               title="Wishlist Saya"
             >
               <Heart className="w-5 h-5" />
@@ -347,7 +355,7 @@ export default function LandingPage({
             <button
               id="btn-trigger-cart"
               onClick={() => setIsCartOpen(true)}
-              className="p-2 text-neutral-700 hover:text-[#C41230] transition relative flex items-center gap-2 bg-neutral-100 hover:bg-neutral-200 px-3 py-1.5"
+              className="p-1.5 sm:p-2 text-neutral-700 hover:text-[#C41230] transition relative flex items-center gap-1 sm:gap-2 bg-neutral-100 hover:bg-neutral-200 px-2 sm:px-3 py-1.5"
               title="Keranjang Belanja"
             >
               <ShoppingBag className="w-5 h-5 text-[#C41230]" />
@@ -366,26 +374,27 @@ export default function LandingPage({
               <button
                 id="btn-header-dashboard"
                 onClick={onDashboardClick}
-                className="bg-neutral-900 hover:bg-[#C41230] text-white px-4 py-2.5 text-xs font-black uppercase tracking-widest transition flex items-center gap-1.5 shadow-xs"
+                className="bg-neutral-900 hover:bg-[#C41230] text-white px-2.5 sm:px-4 py-1.5 sm:py-2.5 text-[11px] sm:text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs"
               >
-                <User className="w-3.5 h-3.5" /> MEMBER AREA
+                <User className="w-3.5 h-3.5" /> <span className="hidden sm:inline">MEMBER AREA</span><span className="sm:hidden">MEMBER</span>
               </button>
             ) : (
               <button
                 id="btn-header-login"
                 onClick={onLoginClick}
-                className="bg-[#C41230] hover:bg-[#A00E26] text-white px-4 py-2.5 text-xs font-black uppercase tracking-widest transition shadow-xs flex items-center gap-1.5"
+                className="bg-[#C41230] hover:bg-[#A00E26] text-white px-2.5 sm:px-4 py-1.5 sm:py-2.5 text-[11px] sm:text-xs font-black uppercase tracking-wider transition shadow-xs flex items-center gap-1"
               >
-                <User className="w-3.5 h-3.5" /> MEMBER PORTAL
+                <User className="w-3.5 h-3.5" /> <span className="hidden sm:inline">MEMBER PORTAL</span><span className="sm:hidden">MASUK</span>
               </button>
             )}
 
             {/* Mobile Menu Toggle Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 text-neutral-900 lg:hidden focus:outline-none"
+              className="p-1.5 sm:p-2 text-neutral-900 lg:hidden focus:outline-none shrink-0 border border-neutral-200 rounded-xs bg-neutral-50 hover:bg-neutral-100"
+              aria-label="Toggle Mobile Menu"
             >
-              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {isMobileMenuOpen ? <X className="w-5 h-5 sm:w-6 sm:h-6" /> : <Menu className="w-5 h-5 sm:w-6 sm:h-6" />}
             </button>
           </div>
         </div>
@@ -466,7 +475,7 @@ export default function LandingPage({
                   setActiveCategory("diskon");
                   setIsMobileMenuOpen(false);
                 }}
-                className="text-left text-xs font-black uppercase tracking-widest py-2 text-[#C41230] flex items-center gap-1.5"
+                className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100 text-[#C41230] flex items-center gap-1.5"
               >
                 <Tag className="w-3.5 h-3.5" /> PROMO DISKON EKSKLUSIF
               </button>
@@ -531,7 +540,7 @@ export default function LandingPage({
                     onClick={() => setIsTrackModalOpen(true)}
                     className="bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 px-6 py-4 text-xs font-black uppercase tracking-widest transition flex items-center gap-2"
                   >
-                    <Truck className="w-4 h-4 text-[#C41230]" /> LAACAK PESANAN
+                    <Truck className="w-4 h-4 text-[#C41230]" /> LACAK PESANAN
                   </button>
                 </div>
               </div>
@@ -595,30 +604,55 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* 5. Carousel Produk (Best Sellers Slider) */}
-      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-neutral-200">
-        <div className="flex items-end justify-between mb-8">
+      {/* 5. Carousel Produk (Best Sellers Slider - Fixed Responsive Layout & Navigation) */}
+      <section className="py-12 sm:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-neutral-200 overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-4">
           <div>
             <span className="text-[10px] font-black tracking-widest text-[#C41230] uppercase">
               TOP TRENDING DENIM
             </span>
-            <h2 className="text-2xl sm:text-3xl font-black font-display text-neutral-900 uppercase tracking-tight">
+            <h2 className="text-xl sm:text-3xl font-black font-display text-neutral-900 uppercase tracking-tight">
               PRODUK POPULER MINGGU INI
             </h2>
           </div>
-          <span className="hidden sm:block text-xs font-bold text-neutral-400 uppercase tracking-wider">
-            GESER UNTUK MEMILIH
-          </span>
+
+          {/* Carousel Scroll Controls */}
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider hidden sm:inline-block">
+              GESER / KLIK PANAH
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => scrollCarousel("left")}
+                className="p-2 sm:p-2.5 bg-white hover:bg-[#C41230] hover:text-white text-neutral-800 transition border border-neutral-300 shadow-xs active:scale-95"
+                title="Geser Kiri"
+                aria-label="Geser Kiri"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => scrollCarousel("right")}
+                className="p-2 sm:p-2.5 bg-white hover:bg-[#C41230] hover:text-white text-neutral-800 transition border border-neutral-300 shadow-xs active:scale-95"
+                title="Geser Kanan"
+                aria-label="Geser Kanan"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Horizontal Carousel Container */}
-        <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
+        <div
+          ref={carouselRef}
+          className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 pt-1 scrollbar-thin scrollbar-thumb-[#C41230]/40 scrollbar-track-neutral-100 snap-x snap-mandatory touch-pan-x scroll-smooth min-w-0 w-full"
+        >
           {bestSellerProducts.map((p) => (
             <div
               key={p.id}
-              className="min-w-[260px] sm:min-w-[300px] bg-white border border-neutral-200 snap-start flex flex-col hover:border-[#C41230] transition group shadow-xs shrink-0"
+              className="w-[220px] sm:w-[260px] md:w-[280px] bg-white border border-neutral-200 snap-start flex flex-col hover:border-[#C41230] transition group shadow-xs shrink-0"
             >
-              <div className="h-72 w-full overflow-hidden relative bg-neutral-100">
+              <div className="h-52 sm:h-64 w-full overflow-hidden relative bg-neutral-100">
                 <img
                   referrerPolicy="no-referrer"
                   src={p.image}
@@ -808,7 +842,77 @@ export default function LandingPage({
         )}
       </section>
 
-      {/* 7. Track Pesanan Modal */}
+      {/* 7. Member-Only Required Purchase Rule Modal */}
+      {isMemberOnlyModalOpen && (
+        <div className="fixed inset-0 z-50 bg-neutral-900/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white max-w-md w-full p-6 sm:p-8 shadow-2xl border-t-4 border-[#C41230] relative animate-fadeIn">
+            <button
+              onClick={() => setIsMemberOnlyModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-neutral-900"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 border-b border-neutral-100 pb-4 mb-4">
+              <div className="p-3 bg-[#C41230]/10 text-[#C41230] rounded-full">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-base uppercase tracking-wider text-neutral-900">
+                  KHUSUS MEMBER TERDAFTAR
+                </h3>
+                <p className="text-[11px] text-[#C41230] font-bold">Lisensi Keanggotaan Rp 100.000</p>
+              </div>
+            </div>
+
+            {selectedProductForMemberModal && (
+              <div className="bg-neutral-50 p-3 border border-neutral-200 flex items-center gap-3 mb-4">
+                <img src={selectedProductForMemberModal.image} alt="" className="w-12 h-12 object-cover" />
+                <div>
+                  <p className="font-black text-xs uppercase line-clamp-1 text-neutral-900">{selectedProductForMemberModal.name}</p>
+                  <p className="text-[#C41230] font-black text-xs font-display">
+                    Harga Diskon Member: Rp {selectedProductForMemberModal.member_price.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-neutral-600 leading-relaxed mb-6">
+              Sesuai peraturan sistem Zalora Denim, produk berkualitas ini <strong>hanya dapat dibeli oleh Member Terdaftar & Bayar Lisensi (Rp 100.000)</strong>. 
+              Silakan Masuk ke akun anda atau lakukan Pendaftaran Member Baru.
+            </p>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setIsMemberOnlyModalOpen(false);
+                  onLoginClick();
+                }}
+                className="w-full bg-[#C41230] hover:bg-[#a00e26] text-white py-3 text-xs font-black uppercase tracking-widest transition flex items-center justify-center gap-2"
+              >
+                <User className="w-4 h-4" /> MASUK AKUN MEMBER
+              </button>
+              <button
+                onClick={() => {
+                  setIsMemberOnlyModalOpen(false);
+                  onRegisterClick();
+                }}
+                className="w-full bg-neutral-900 hover:bg-neutral-800 text-white py-3 text-xs font-black uppercase tracking-widest transition flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" /> DAFTAR MEMBER (RP 100.000)
+              </button>
+              <button
+                onClick={() => setIsMemberOnlyModalOpen(false)}
+                className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-700 py-2.5 text-xs font-bold uppercase tracking-wider transition text-center"
+              >
+                BATAL / KEMBALI
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. Track Pesanan Modal */}
       {isTrackModalOpen && (
         <div className="fixed inset-0 z-50 bg-neutral-900/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white max-w-lg w-full p-6 sm:p-8 shadow-2xl border-t-4 border-[#C41230] relative animate-fadeIn">
@@ -825,7 +929,7 @@ export default function LandingPage({
               </div>
               <div>
                 <h3 className="font-black text-lg uppercase tracking-wider text-neutral-900">
-                  LAKAC PESANAN DENIM
+                  LACAK PESANAN DENIM
                 </h3>
                 <p className="text-xs text-neutral-500">Cek status pengiriman real-time pesanan anda</p>
               </div>
@@ -892,7 +996,7 @@ export default function LandingPage({
         </div>
       )}
 
-      {/* 8. Wishlist Drawer / Modal */}
+      {/* 9. Wishlist Drawer / Modal */}
       {isWishlistOpen && (
         <div className="fixed inset-0 z-50 bg-neutral-900/80 backdrop-blur-xs flex justify-end">
           <div className="bg-white w-full max-w-md h-full p-6 shadow-2xl flex flex-col justify-between animate-slideLeft">
@@ -953,7 +1057,7 @@ export default function LandingPage({
         </div>
       )}
 
-      {/* 9. Shopping Cart Drawer */}
+      {/* 10. Shopping Cart Drawer */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 bg-neutral-900/80 backdrop-blur-xs flex justify-end">
           <div className="bg-white w-full max-w-md h-full p-6 shadow-2xl flex flex-col justify-between animate-slideLeft">
@@ -1041,9 +1145,12 @@ export default function LandingPage({
                   </div>
                 </div>
 
-                <p className="text-[10px] text-neutral-400">
-                  *Masuk ke Member Area untuk menyelesaikan pembelian dengan harga diskon khusus.
-                </p>
+                {!isLoggedIn && (
+                  <div className="bg-red-50 border border-red-200 p-2.5 text-[11px] text-[#C41230] font-bold flex items-start gap-1.5">
+                    <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>Hanya member terdaftar yang berhak menyelesaikan pesanan dengan harga diskon member.</span>
+                  </div>
+                )}
 
                 {isLoggedIn ? (
                   <button
@@ -1059,7 +1166,7 @@ export default function LandingPage({
                   <button
                     onClick={() => {
                       setIsCartOpen(false);
-                      onLoginClick();
+                      setIsMemberOnlyModalOpen(true);
                     }}
                     className="w-full bg-[#C41230] hover:bg-[#a00e26] text-white py-3.5 text-xs font-black uppercase tracking-widest transition flex items-center justify-center gap-2"
                   >
@@ -1073,7 +1180,7 @@ export default function LandingPage({
         </div>
       )}
 
-      {/* 10. Footer - Clean E-Commerce Footer */}
+      {/* 11. Footer - Clean E-Commerce Footer */}
       <footer className="bg-[#0A0A0B] text-neutral-400 py-16 border-t-4 border-[#C41230]" id="store-footer">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           
