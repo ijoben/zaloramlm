@@ -1124,11 +1124,13 @@ export default function App() {
 
     try {
       // 1. Authenticate with Firebase Authentication SDK
-      try {
-        const userCred = await signInWithEmailAndPassword(auth, authEmail, loginPassword);
-        console.log("Firebase Auth SDK Sign In Success:", userCred.user.uid);
-      } catch (fbErr: any) {
-        console.warn("Firebase Auth SDK Sign In Notice:", fbErr?.code || fbErr?.message);
+      if (auth) {
+        try {
+          const userCred = await signInWithEmailAndPassword(auth, authEmail, loginPassword);
+          console.log("Firebase Auth SDK Sign In Success:", userCred.user.uid);
+        } catch (fbErr: any) {
+          console.warn("Firebase Auth SDK Sign In Notice:", fbErr?.code || fbErr?.message);
+        }
       }
 
       // 2. Obtain user profile & network structure from MLM API
@@ -1200,17 +1202,19 @@ export default function App() {
     try {
       // 1. Create account in Firebase Authentication SDK
       let firebaseUid = "";
-      try {
-        const userCredential = await createUserWithEmailAndPassword(auth, regEmail, regPassword);
-        firebaseUid = userCredential.user.uid;
-        console.log("Firebase Auth account created successfully:", firebaseUid);
-      } catch (fbAuthErr: any) {
-        console.warn("Firebase Auth SDK createUser notice:", fbAuthErr?.code || fbAuthErr?.message);
-        if (fbAuthErr?.code === "auth/email-already-in-use") {
-          try {
-            const cred = await signInWithEmailAndPassword(auth, regEmail, regPassword);
-            firebaseUid = cred.user.uid;
-          } catch {}
+      if (auth) {
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, regEmail, regPassword);
+          firebaseUid = userCredential.user.uid;
+          console.log("Firebase Auth account created successfully:", firebaseUid);
+        } catch (fbAuthErr: any) {
+          console.warn("Firebase Auth SDK createUser notice:", fbAuthErr?.code || fbAuthErr?.message);
+          if (fbAuthErr?.code === "auth/email-already-in-use") {
+            try {
+              const cred = await signInWithEmailAndPassword(auth, regEmail, regPassword);
+              firebaseUid = cred.user.uid;
+            } catch {}
+          }
         }
       }
 
@@ -1723,7 +1727,9 @@ export default function App() {
     currentUserRef.current = null;
     try {
       localStorage.removeItem("zalora_session_user");
-      signOut(auth).catch(() => {});
+      if (auth) {
+        signOut(auth).catch(() => {});
+      }
     } catch (err) {
       console.warn("Failed to clear local session:", err);
     }

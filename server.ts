@@ -36,17 +36,21 @@ app.use(express.json());
 // FIRESTORE DATABASE INTEGRATION
 // ==========================================
 let firestoreDb: any = null;
-try {
-  const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(resolvedServerFirebaseConfig as any);
-  const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId;
-  const isCustomDb = dbId && dbId.trim() !== '' && dbId !== "(default)" && dbId !== "default";
+if (resolvedServerFirebaseConfig.apiKey) {
+  try {
+    const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(resolvedServerFirebaseConfig as any);
+    const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId;
+    const isCustomDb = dbId && dbId.trim() !== '' && dbId !== "(default)" && dbId !== "default";
 
-  firestoreDb = isCustomDb
-    ? getFirestore(firebaseApp, dbId)
-    : getFirestore(firebaseApp);
-  console.log("🔥 Firebase Firestore connected! Project ID:", resolvedServerFirebaseConfig.projectId, "Database ID:", dbId);
-} catch (e) {
-  console.warn("⚠️ Firebase Firestore initialization warning:", e);
+    firestoreDb = isCustomDb
+      ? getFirestore(firebaseApp, dbId)
+      : getFirestore(firebaseApp);
+    console.log("🔥 Firebase Firestore connected! Project ID:", resolvedServerFirebaseConfig.projectId, "Database ID:", dbId);
+  } catch (e) {
+    console.warn("⚠️ Firebase Firestore initialization warning:", e);
+  }
+} else {
+  console.warn("⚠️ [Server] Firebase API key missing from configuration or environment variables.");
 }
 
 function cleanForFirestore(obj: any) {
@@ -1738,7 +1742,11 @@ app.post("/api/user/purchase", async (req, res) => {
 
 // Retrieve User Specific Data
 app.get("/api/user/:userId/dashboard", async (req, res) => {
-  await initFirestoreData();
+  try {
+    await initFirestoreDataOnce();
+  } catch (err) {
+    console.warn("User dashboard init warning:", err);
+  }
   const userId = Number(req.params.userId);
   const user = users.find(u => Number(u.id) === userId);
   if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
@@ -1768,7 +1776,11 @@ app.get("/api/user/:userId/dashboard", async (req, res) => {
 
 // Admin Overview Metrics and Lists
 app.get("/api/admin/dashboard", async (req, res) => {
-  await initFirestoreData();
+  try {
+    await initFirestoreDataOnce();
+  } catch (err) {
+    console.warn("Admin dashboard init warning:", err);
+  }
   const totalMembers = users.filter(u => u.role !== 'admin').length;
   const activeMembers = users.filter(u => u.is_active && u.role !== 'admin').length;
   
@@ -2770,6 +2782,17 @@ app.use("/api/*", (req, res) => {
 // MOUNT VITE MIDDLEWARE OR STATIC FILES
 // ==========================================
 
+let isFirestoreInitialized = false;
+async function initFirestoreDataOnce() {
+  if (isFirestoreInitialized || !firestoreDb) return;
+  isFirestoreInitialized = true;
+  try {
+    await initFirestoreData();
+  } catch (err) {
+    console.warn("⚠️ Firestore init warning:", err);
+  }
+}
+
 async function initFirestoreData() {
   if (!firestoreDb) return;
   try {
@@ -2962,7 +2985,7 @@ async function initFirestoreData() {
 }
 
 async function startServer() {
-  await initFirestoreData();
+  await initFirestoreDataOnce();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
