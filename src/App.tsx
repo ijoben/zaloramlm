@@ -739,28 +739,39 @@ export default function App() {
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
 
   // Dynamic branding & configuration settings
-  const [systemSettings, setSystemSettings] = useState<any>({
-    webName: "Zalora Denim Premium MLM",
-    logoText: "ZALORA.DENIM",
-    contactPhone: "081234567890",
-    contactEmail: "support@zaloradenim.com",
-    sponsorBonus: 20000,
-    pairingBonus: 10000,
-    roBonus: 5000,
-    levelBonusG1: 5000,
-    levelBonusG2: 4000,
-    levelBonusG3: 3000,
-    levelBonusG4: 1000,
-    levelBonusG5: 1000,
-    levelBonusG6: 1000,
-    levelBonusG7: 1000,
-    levelBonusG8: 1000,
-    levelBonusG9: 1000,
-    levelBonusG10: 1000,
-    rewardThresholdLeft: 5,
-    rewardThresholdRight: 5,
-    rewardName: "Honda Vario Matic Baru",
-    rewardCashEquivalent: 20000000
+  const [systemSettings, setSystemSettings] = useState<any>(() => {
+    const defaults = {
+      webName: "Zalora Denim Premium MLM",
+      logoText: "ZALORA.DENIM",
+      logoUrl: "",
+      iconUrl: "",
+      contactPhone: "081234567890",
+      contactEmail: "support@zaloradenim.com",
+      sponsorBonus: 20000,
+      pairingBonus: 10000,
+      roBonus: 5000,
+      levelBonusG1: 5000,
+      levelBonusG2: 4000,
+      levelBonusG3: 3000,
+      levelBonusG4: 1000,
+      levelBonusG5: 1000,
+      levelBonusG6: 1000,
+      levelBonusG7: 1000,
+      levelBonusG8: 1000,
+      levelBonusG9: 1000,
+      levelBonusG10: 1000,
+      rewardThresholdLeft: 5,
+      rewardThresholdRight: 5,
+      rewardName: "Honda Vario Matic Baru",
+      rewardCashEquivalent: 20000000
+    };
+    try {
+      const saved = localStorage.getItem("zalora_system_settings");
+      if (saved) {
+        return { ...defaults, ...JSON.parse(saved) };
+      }
+    } catch {}
+    return defaults;
   });
 
   // Active user data
@@ -838,27 +849,40 @@ export default function App() {
   };
 
   const fetchSettings = async () => {
+    let loadedSettings: any = {};
+
+    const fsSettings = await fetchFirestoreSettings();
+    if (fsSettings && typeof fsSettings === 'object' && Object.keys(fsSettings).length > 0) {
+      loadedSettings = { ...loadedSettings, ...fsSettings };
+    }
+
     try {
       const res = await fetch("/api/settings");
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-          setSystemSettings((prev: any) => ({ ...prev, ...data }));
-          return;
+          loadedSettings = { ...loadedSettings, ...data };
         }
       }
     } catch (err) {
-      console.warn("API settings unavailable, fetching direct from Firestore...", err);
+      console.warn("API settings unavailable:", err);
     }
 
-    const fsSettings = await fetchFirestoreSettings();
-    if (fsSettings && typeof fsSettings === 'object' && Object.keys(fsSettings).length > 0) {
-      setSystemSettings((prev: any) => ({ ...prev, ...fsSettings }));
+    if (Object.keys(loadedSettings).length > 0) {
+      setSystemSettings((prev: any) => {
+        const updated = { ...prev, ...loadedSettings };
+        try { localStorage.setItem("zalora_system_settings", JSON.stringify(updated)); } catch {}
+        return updated;
+      });
     }
   };
 
   const handleUpdateSettings = async (newSettings: any): Promise<boolean> => {
-    setSystemSettings((prev: any) => ({ ...prev, ...newSettings }));
+    setSystemSettings((prev: any) => {
+      const updated = { ...prev, ...newSettings };
+      try { localStorage.setItem("zalora_system_settings", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
 
     let apiSuccess = false;
     try {
@@ -991,7 +1015,7 @@ export default function App() {
       if (targetUser.role === 'admin') {
         console.log("📡 [fetchDashboardData] Fetching Express API: /api/admin/dashboard");
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
         const res = await fetch("/api/admin/dashboard", { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
         if (!currentUserRef.current) return;
         const contentType = res.headers.get("content-type");
@@ -1011,7 +1035,7 @@ export default function App() {
       } else {
         console.log(`📡 [fetchDashboardData] Fetching Express API: /api/user/${targetUser.id}/dashboard`);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
         const res = await fetch(`/api/user/${targetUser.id}/dashboard`, { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
         if (!currentUserRef.current) return;
         const contentType = res.headers.get("content-type");

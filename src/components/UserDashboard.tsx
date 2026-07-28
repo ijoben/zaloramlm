@@ -352,9 +352,13 @@ export default function UserDashboard({
               {/* Header with Logo & Close Button */}
               <div className="flex items-center justify-between border-b border-slate-800 pb-4">
                 <div className="flex flex-col">
-                  <span className="text-lg font-display font-black tracking-tight text-white">
-                    ZALORA<span className="text-blue-500 font-light">.PORTAL</span>
-                  </span>
+                  {settings?.logoUrl ? (
+                    <img src={settings.logoUrl} alt={settings?.webName || "Logo"} className="h-8 max-w-[160px] object-contain shrink-0" />
+                  ) : (
+                    <span className="text-lg font-display font-black tracking-tight text-white">
+                      {settings?.logoText || "ZALORA"}<span className="text-blue-500 font-light">.PORTAL</span>
+                    </span>
+                  )}
                 </div>
                 <button 
                   onClick={() => setIsMobileMenuOpen(false)}

@@ -885,12 +885,12 @@ function findVacantSpot(rootId: number, preferredPosition?: 'L' | 'R'): { upline
 // ==========================================
 
 // Get All Products
-app.get("/api/products", (req, res) => {
+app.get(["/api/products", "/products"], (req, res) => {
   res.json(products);
 });
 
 // Get Public Settings
-app.get("/api/settings", async (req, res) => {
+app.get(["/api/settings", "/settings"], async (req, res) => {
   if (firestoreDb) {
     try {
       const docSnap: any = await withTimeout(getDoc(doc(firestoreDb, "settings", "system")), 5000, "getDoc system settings endpoint");
@@ -905,7 +905,7 @@ app.get("/api/settings", async (req, res) => {
 });
 
 // Update System Settings (Admin operation)
-app.post("/api/admin/settings", async (req, res) => {
+app.post(["/api/admin/settings", "/admin/settings"], async (req, res) => {
   const newSettings = req.body;
   if (!newSettings) return res.status(400).json({ message: "Pengaturan tidak valid" });
   systemSettings = { ...systemSettings, ...newSettings };
@@ -1791,7 +1791,7 @@ app.post("/api/user/purchase", async (req, res) => {
 });
 
 // Retrieve User Specific Data
-app.get("/api/user/:userId/dashboard", async (req, res) => {
+app.get(["/api/user/:userId/dashboard", "/user/:userId/dashboard"], async (req, res) => {
   try {
     await initFirestoreDataOnce();
   } catch (err) {
@@ -1825,7 +1825,7 @@ app.get("/api/user/:userId/dashboard", async (req, res) => {
 });
 
 // Admin Overview Metrics and Lists
-app.get("/api/admin/dashboard", async (req, res) => {
+app.get(["/api/admin/dashboard", "/admin/dashboard"], async (req, res) => {
   try {
     await initFirestoreDataOnce();
   } catch (err) {
