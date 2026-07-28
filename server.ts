@@ -57,11 +57,26 @@ function cleanForFirestore(obj: any) {
   return JSON.parse(JSON.stringify(obj, (key, value) => (value === undefined ? null : value)));
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number = 2000, label = "Operation"): Promise<T | null> {
+  return Promise.race([
+    promise.catch((err) => {
+      console.warn(`⚠️ [Firestore Error] ${label}:`, err);
+      return null;
+    }),
+    new Promise<null>((resolve) => {
+      setTimeout(() => {
+        console.warn(`⏱️ [Firestore Timeout] ${label} exceeded ${ms}ms limit`);
+        resolve(null);
+      }, ms);
+    })
+  ]);
+}
+
 export async function syncUserToFirestore(user: MLMUser) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(user);
-    await setDoc(doc(firestoreDb, "users", String(user.id)), cleaned, { merge: true });
+    await withTimeout(setDoc(doc(firestoreDb, "users", String(user.id)), cleaned, { merge: true }), 1500, `syncUser @${user.username}`);
     console.log(`🔥 [FIRESTORE] User @${user.username} (ID: ${user.id}) successfully synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync user error:", err);
@@ -72,7 +87,7 @@ export async function syncDepositToFirestore(deposit: DepositRequest) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(deposit);
-    await setDoc(doc(firestoreDb, "deposits", String(deposit.id)), cleaned, { merge: true });
+    await withTimeout(setDoc(doc(firestoreDb, "deposits", String(deposit.id)), cleaned, { merge: true }), 1500, `syncDeposit #${deposit.id}`);
     console.log(`🔥 [FIRESTORE] Deposit #${deposit.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync deposit error:", err);
@@ -83,7 +98,7 @@ export async function syncWithdrawalToFirestore(wd: WDRequest) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(wd);
-    await setDoc(doc(firestoreDb, "withdrawals", String(wd.id)), cleaned, { merge: true });
+    await withTimeout(setDoc(doc(firestoreDb, "withdrawals", String(wd.id)), cleaned, { merge: true }), 1500, `syncWithdrawal #${wd.id}`);
     console.log(`🔥 [FIRESTORE] Withdrawal #${wd.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync withdrawal error:", err);
@@ -94,7 +109,7 @@ export async function syncTransactionToFirestore(tx: Transaction) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(tx);
-    await setDoc(doc(firestoreDb, "transactions", String(tx.id)), cleaned, { merge: true });
+    await withTimeout(setDoc(doc(firestoreDb, "transactions", String(tx.id)), cleaned, { merge: true }), 1500, `syncTransaction #${tx.id}`);
     console.log(`🔥 [FIRESTORE] Transaction #${tx.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync transaction error:", err);
@@ -105,7 +120,7 @@ export async function syncProductToFirestore(p: Product) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(p);
-    await setDoc(doc(firestoreDb, "products", String(p.id)), cleaned, { merge: true });
+    await withTimeout(setDoc(doc(firestoreDb, "products", String(p.id)), cleaned, { merge: true }), 1500, `syncProduct ${p.name}`);
     console.log(`🔥 [FIRESTORE] Product "${p.name}" (ID: ${p.id}) successfully synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync product error:", err);
@@ -116,7 +131,7 @@ export async function syncSettingsToFirestore(s: any) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(s);
-    await setDoc(doc(firestoreDb, "settings", "system"), cleaned, { merge: true });
+    await withTimeout(setDoc(doc(firestoreDb, "settings", "system"), cleaned, { merge: true }), 1500, `syncSettings`);
     console.log(`🔥 [FIRESTORE] System settings synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync settings error:", err);
@@ -127,7 +142,7 @@ export async function syncNotificationToFirestore(n: MLMNotification) {
   if (!firestoreDb) return;
   try {
     const cleaned = cleanForFirestore(n);
-    await setDoc(doc(firestoreDb, "notifications", String(n.id)), cleaned, { merge: true });
+    await withTimeout(setDoc(doc(firestoreDb, "notifications", String(n.id)), cleaned, { merge: true }), 1500, `syncNotification #${n.id}`);
     console.log(`🔥 [FIRESTORE] Notification #${n.id} synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync notification error:", err);
@@ -2802,7 +2817,7 @@ async function initFirestoreDataOnce() {
   if (isFirestoreInitialized || !firestoreDb) return;
   isFirestoreInitialized = true;
   try {
-    await initFirestoreData();
+    await withTimeout(initFirestoreData(), 1200, "initFirestoreDataOverall");
   } catch (err) {
     console.warn("⚠️ Firestore init warning:", err);
   }
@@ -2813,9 +2828,9 @@ async function initFirestoreData() {
   try {
     // 1. Users
     try {
-      const usersSnap = await getDocs(collection(firestoreDb, "users"));
-      if (!usersSnap.empty) {
-        usersSnap.forEach((docSnap) => {
+      const usersSnap: any = await withTimeout(getDocs(collection(firestoreDb, "users")), 1200, "getDocs users");
+      if (usersSnap && !usersSnap.empty) {
+        usersSnap.forEach((docSnap: any) => {
           try {
             const u = docSnap.data() as MLMUser;
             const rawId = u && u.id !== undefined && u.id !== null ? u.id : docSnap.id;
@@ -2861,9 +2876,9 @@ async function initFirestoreData() {
         console.log(`🔥 Loaded ${usersSnap.size} users from Firestore into memory`);
       }
 
-      // Seed any missing preseeded demo users into Firestore
+      // Seed any missing preseeded demo users into Firestore asynchronously
       for (const u of users) {
-        await syncUserToFirestore(u);
+        syncUserToFirestore(u).catch(() => {});
       }
     } catch (e) {
       console.warn("Firestore users sync error:", e);
@@ -2871,13 +2886,12 @@ async function initFirestoreData() {
 
     // 2. Settings
     try {
-      const settingsDoc = await getDoc(doc(firestoreDb, "settings", "system"));
-      if (settingsDoc.exists()) {
+      const settingsDoc: any = await withTimeout(getDoc(doc(firestoreDb, "settings", "system")), 1200, "getDoc system settings");
+      if (settingsDoc && settingsDoc.exists && settingsDoc.exists()) {
         systemSettings = { ...systemSettings, ...settingsDoc.data() };
         console.log("🔥 Loaded system settings from Firestore");
       } else {
-        await syncSettingsToFirestore(systemSettings);
-        console.log("🔥 Seeded system settings into Firestore");
+        syncSettingsToFirestore(systemSettings).catch(() => {});
       }
     } catch (e) {
       console.warn("Firestore settings load warning:", e);
@@ -2885,9 +2899,9 @@ async function initFirestoreData() {
 
     // 3. Products
     try {
-      const prodSnap = await getDocs(collection(firestoreDb, "products"));
-      if (!prodSnap.empty) {
-        prodSnap.forEach((docSnap) => {
+      const prodSnap: any = await withTimeout(getDocs(collection(firestoreDb, "products")), 1200, "getDocs products");
+      if (prodSnap && !prodSnap.empty) {
+        prodSnap.forEach((docSnap: any) => {
           const p = docSnap.data() as Product;
           if (!p) return;
           const rawId = p.id !== undefined && p.id !== null ? p.id : docSnap.id;
@@ -2899,7 +2913,7 @@ async function initFirestoreData() {
         });
       } else {
         for (const p of products) {
-          await syncProductToFirestore(p);
+          syncProductToFirestore(p).catch(() => {});
         }
       }
     } catch (e) {
@@ -2908,9 +2922,9 @@ async function initFirestoreData() {
 
     // 4. Deposits
     try {
-      const depSnap = await getDocs(collection(firestoreDb, "deposits"));
-      if (!depSnap.empty) {
-        depSnap.forEach((docSnap) => {
+      const depSnap: any = await withTimeout(getDocs(collection(firestoreDb, "deposits")), 1200, "getDocs deposits");
+      if (depSnap && !depSnap.empty) {
+        depSnap.forEach((docSnap: any) => {
           const d = docSnap.data() as DepositRequest;
           if (!d) return;
           const rawId = d.id !== undefined && d.id !== null ? d.id : docSnap.id;
@@ -2922,7 +2936,7 @@ async function initFirestoreData() {
         });
       } else {
         for (const d of deposits) {
-          await syncDepositToFirestore(d);
+          syncDepositToFirestore(d).catch(() => {});
         }
       }
     } catch (e) {
@@ -2931,9 +2945,9 @@ async function initFirestoreData() {
 
     // 5. Withdrawals
     try {
-      const wdSnap = await getDocs(collection(firestoreDb, "withdrawals"));
-      if (!wdSnap.empty) {
-        wdSnap.forEach((docSnap) => {
+      const wdSnap: any = await withTimeout(getDocs(collection(firestoreDb, "withdrawals")), 1200, "getDocs withdrawals");
+      if (wdSnap && !wdSnap.empty) {
+        wdSnap.forEach((docSnap: any) => {
           const w = docSnap.data() as WDRequest;
           if (!w) return;
           const rawId = w.id !== undefined && w.id !== null ? w.id : docSnap.id;
@@ -2945,7 +2959,7 @@ async function initFirestoreData() {
         });
       } else {
         for (const w of withdrawals) {
-          await syncWithdrawalToFirestore(w);
+          syncWithdrawalToFirestore(w).catch(() => {});
         }
       }
     } catch (e) {
@@ -2954,9 +2968,9 @@ async function initFirestoreData() {
 
     // 6. Transactions
     try {
-      const txSnap = await getDocs(collection(firestoreDb, "transactions"));
-      if (!txSnap.empty) {
-        txSnap.forEach((docSnap) => {
+      const txSnap: any = await withTimeout(getDocs(collection(firestoreDb, "transactions")), 1200, "getDocs transactions");
+      if (txSnap && !txSnap.empty) {
+        txSnap.forEach((docSnap: any) => {
           const t = docSnap.data() as Transaction;
           if (!t) return;
           const rawId = t.id !== undefined && t.id !== null ? t.id : docSnap.id;
@@ -2968,7 +2982,7 @@ async function initFirestoreData() {
         });
       } else {
         for (const t of transactions) {
-          await syncTransactionToFirestore(t);
+          syncTransactionToFirestore(t).catch(() => {});
         }
       }
     } catch (e) {
@@ -2977,9 +2991,9 @@ async function initFirestoreData() {
 
     // 7. Notifications
     try {
-      const notifSnap = await getDocs(collection(firestoreDb, "notifications"));
-      if (!notifSnap.empty) {
-        notifSnap.forEach((docSnap) => {
+      const notifSnap: any = await withTimeout(getDocs(collection(firestoreDb, "notifications")), 1200, "getDocs notifications");
+      if (notifSnap && !notifSnap.empty) {
+        notifSnap.forEach((docSnap: any) => {
           const n = docSnap.data() as MLMNotification;
           if (!n) return;
           const rawId = n.id !== undefined && n.id !== null ? n.id : docSnap.id;
@@ -2991,7 +3005,7 @@ async function initFirestoreData() {
         });
       } else {
         for (const n of notifications) {
-          await syncNotificationToFirestore(n);
+          syncNotificationToFirestore(n).catch(() => {});
         }
       }
     } catch (e) {
