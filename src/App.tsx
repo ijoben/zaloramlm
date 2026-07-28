@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, setDoc, getDoc, getDocs, collection } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, collection, onSnapshot } from "firebase/firestore";
 import { app, auth, db } from "./lib/firebase";
 import { resolvedFirebaseConfig } from "./lib/firebaseConfig";
 import LandingPage from "./components/LandingPage";
@@ -739,39 +739,30 @@ export default function App() {
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
 
   // Dynamic branding & configuration settings
-  const [systemSettings, setSystemSettings] = useState<any>(() => {
-    const defaults = {
-      webName: "Zalora Denim Premium MLM",
-      logoText: "ZALORA.DENIM",
-      logoUrl: "",
-      iconUrl: "",
-      contactPhone: "081234567890",
-      contactEmail: "support@zaloradenim.com",
-      sponsorBonus: 20000,
-      pairingBonus: 10000,
-      roBonus: 5000,
-      levelBonusG1: 5000,
-      levelBonusG2: 4000,
-      levelBonusG3: 3000,
-      levelBonusG4: 1000,
-      levelBonusG5: 1000,
-      levelBonusG6: 1000,
-      levelBonusG7: 1000,
-      levelBonusG8: 1000,
-      levelBonusG9: 1000,
-      levelBonusG10: 1000,
-      rewardThresholdLeft: 5,
-      rewardThresholdRight: 5,
-      rewardName: "Honda Vario Matic Baru",
-      rewardCashEquivalent: 20000000
-    };
-    try {
-      const saved = localStorage.getItem("zalora_system_settings");
-      if (saved) {
-        return { ...defaults, ...JSON.parse(saved) };
-      }
-    } catch {}
-    return defaults;
+  const [systemSettings, setSystemSettings] = useState<any>({
+    webName: "Zalora Denim Premium MLM",
+    logoText: "ZALORA.DENIM",
+    logoUrl: "",
+    iconUrl: "",
+    contactPhone: "081234567890",
+    contactEmail: "support@zaloradenim.com",
+    sponsorBonus: 20000,
+    pairingBonus: 10000,
+    roBonus: 5000,
+    levelBonusG1: 5000,
+    levelBonusG2: 4000,
+    levelBonusG3: 3000,
+    levelBonusG4: 1000,
+    levelBonusG5: 1000,
+    levelBonusG6: 1000,
+    levelBonusG7: 1000,
+    levelBonusG8: 1000,
+    levelBonusG9: 1000,
+    levelBonusG10: 1000,
+    rewardThresholdLeft: 5,
+    rewardThresholdRight: 5,
+    rewardName: "Honda Vario Matic Baru",
+    rewardCashEquivalent: 20000000
   });
 
   // Active user data
@@ -802,6 +793,61 @@ export default function App() {
     deposits: DepositRequest[];
     transactions: Transaction[];
   } | null>(null);
+
+  // Real-time Firestore subscription for System Settings
+  useEffect(() => {
+    if (!db) return;
+    console.log("🔥 [Firebase Realtime] Subscribing to 'settings/system' Firestore document...");
+    const unsub = onSnapshot(doc(db, "settings", "system"), (docSnap) => {
+      if (docSnap && docSnap.exists && typeof docSnap.exists === 'function' && docSnap.exists()) {
+        const data = docSnap.data();
+        console.log("🔥 [Firebase Realtime] Received live settings update from Firebase:", data);
+        setSystemSettings((prev: any) => ({ ...prev, ...data }));
+      }
+    }, (err) => {
+      console.warn("⚠️ [Firebase Realtime] Error in settings listener:", err);
+    });
+    return () => unsub();
+  }, []);
+
+  // Real-time Firestore subscriptions for Database Collections (Users, WDs, Deposits, Txs, Products)
+  useEffect(() => {
+    if (!db) return;
+    console.log("🔥 [Firebase Realtime] Subscribing to live Firestore database collections...");
+
+    const unsubUsers = onSnapshot(collection(db, "users"), () => {
+      console.log("🔥 [Firebase Realtime] Live change in 'users' collection detected!");
+      if (currentUserRef.current) fetchDashboardData();
+    });
+
+    const unsubWd = onSnapshot(collection(db, "withdrawals"), () => {
+      console.log("🔥 [Firebase Realtime] Live change in 'withdrawals' collection detected!");
+      if (currentUserRef.current) fetchDashboardData();
+    });
+
+    const unsubDep = onSnapshot(collection(db, "deposits"), () => {
+      console.log("🔥 [Firebase Realtime] Live change in 'deposits' collection detected!");
+      if (currentUserRef.current) fetchDashboardData();
+    });
+
+    const unsubTx = onSnapshot(collection(db, "transactions"), () => {
+      console.log("🔥 [Firebase Realtime] Live change in 'transactions' collection detected!");
+      if (currentUserRef.current) fetchDashboardData();
+    });
+
+    const unsubProd = onSnapshot(collection(db, "products"), () => {
+      console.log("🔥 [Firebase Realtime] Live change in 'products' collection detected!");
+      fetchProducts();
+    });
+
+    return () => {
+      unsubUsers();
+      unsubWd();
+      unsubDep();
+      unsubTx();
+      unsubProd();
+    };
+  }, []);
 
   // Read URL params on mount for referral (?ref=username)
   useEffect(() => {
@@ -869,21 +915,18 @@ export default function App() {
     }
 
     if (Object.keys(loadedSettings).length > 0) {
-      setSystemSettings((prev: any) => {
-        const updated = { ...prev, ...loadedSettings };
-        try { localStorage.setItem("zalora_system_settings", JSON.stringify(updated)); } catch {}
-        return updated;
-      });
+      setSystemSettings((prev: any) => ({ ...prev, ...loadedSettings }));
     }
   };
 
   const handleUpdateSettings = async (newSettings: any): Promise<boolean> => {
-    setSystemSettings((prev: any) => {
-      const updated = { ...prev, ...newSettings };
-      try { localStorage.setItem("zalora_system_settings", JSON.stringify(updated)); } catch {}
-      return updated;
-    });
+    // 1. Instant local state update
+    setSystemSettings((prev: any) => ({ ...prev, ...newSettings }));
 
+    // 2. Direct write to Firebase Firestore (will trigger onSnapshot for all clients instantly)
+    const fsSuccess = await saveFirestoreSettings(newSettings);
+
+    // 3. Sync to Express API
     let apiSuccess = false;
     try {
       const res = await fetch("/api/admin/settings", {
@@ -898,7 +941,6 @@ export default function App() {
       console.warn("Backend API /api/admin/settings error:", err);
     }
 
-    const fsSuccess = await saveFirestoreSettings(newSettings);
     return apiSuccess || fsSuccess;
   };
 
