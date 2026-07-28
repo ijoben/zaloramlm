@@ -17,12 +17,19 @@ try {
     db = isCustomDb
       ? getFirestore(app, dbId)
       : getFirestore(app);
+
+    console.log("🔥 [Firebase Client] Successfully initialized Firebase!", {
+      projectId: resolvedFirebaseConfig.projectId,
+      customDbId: isCustomDb ? dbId : "(default)",
+      dbConnected: !!db
+    });
   } else {
-    console.warn("⚠️ Firebase API key missing from configuration");
+    console.warn("⚠️ [Firebase Client] Firebase API Key is missing! `db` instance is NULL. On Vercel, ensure environment variables (VITE_FIREBASE_API_KEY) or firebase-applet-config.json are committed.");
   }
 } catch (e) {
-  console.error("⚠️ Error initializing Firebase in firebase.ts:", e);
+  console.error("⚠️ [Firebase Client] Error initializing Firebase in firebase.ts:", e);
 }
 
 export { app, auth, db };
+
 

@@ -14,10 +14,22 @@ import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, Refresh
 
 // Firebase Firestore Direct Data Helpers
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
-  if (!db) return DEFAULT_USERS;
+  console.log("🔍 [fetchFirestoreUsers] Checking Firestore `db` status...", {
+    dbConnected: !!db,
+    projectId: resolvedFirebaseConfig.projectId || "MISSING",
+    apiKeyConfigured: !!resolvedFirebaseConfig.apiKey,
+    isVercel: typeof window !== "undefined" && window.location.hostname.includes("vercel.app")
+  });
+
+  if (!db) {
+    console.warn("⚠️ [fetchFirestoreUsers] Firestore `db` instance is NULL! Fallback to DEFAULT_USERS. On Vercel, ensure environment variables (VITE_FIREBASE_API_KEY) or firebase-applet-config.json are provided.");
+    return DEFAULT_USERS;
+  }
 
   try {
+    console.log("📡 [fetchFirestoreUsers] Reading 'users' collection from Firestore...");
     const querySnapshot = await getDocs(collection(db, "users"));
+    console.log(`✅ [fetchFirestoreUsers] Firestore read successful! Received ${querySnapshot.size} user documents.`);
     const usersMap = new Map<number, MLMUser>();
 
     querySnapshot.forEach((docSnap) => {
@@ -57,6 +69,7 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
     });
 
     if (usersMap.size === 0) {
+      console.log("ℹ️ [fetchFirestoreUsers] Collection 'users' is empty in Firestore. Seeding default users...");
       for (const defU of DEFAULT_USERS) {
         usersMap.set(defU.id, defU);
         try {
@@ -79,8 +92,14 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
     const finalUsers = Array.from(usersMap.values());
     finalUsers.sort((a, b) => Number(a.id) - Number(b.id));
     return finalUsers;
-  } catch (err) {
-    console.warn("Error reading users from Firestore:", err);
+  } catch (err: any) {
+    console.error("❌ [fetchFirestoreUsers] Error reading 'users' from Firestore:", err);
+    if (err && err.code) {
+      console.error(`🚨 [fetchFirestoreUsers] Firestore Error Code: ${err.code} | Message: ${err.message}`);
+      if (err.code === "permission-denied") {
+        console.error("🔒 [PERMISSION DENIED] Firestore Security Rules are blocking read access to 'users'. Make sure firestore.rules allows read or publish rules in Firebase Console.");
+      }
+    }
     return DEFAULT_USERS;
   }
 }
@@ -277,10 +296,15 @@ function buildClientBinaryTree(users: MLMUser[], userId: number, depth = 0, maxD
 }
 
 async function fetchFirestoreProducts(): Promise<Product[]> {
-  if (!db) return DEFAULT_PRODUCTS;
+  if (!db) {
+    console.warn("⚠️ [fetchFirestoreProducts] `db` instance is null. Returning DEFAULT_PRODUCTS.");
+    return DEFAULT_PRODUCTS;
+  }
 
   try {
+    console.log("📡 [fetchFirestoreProducts] Reading 'products' collection from Firestore...");
     const querySnapshot = await getDocs(collection(db, "products"));
+    console.log(`✅ [fetchFirestoreProducts] Firestore read successful! Received ${querySnapshot.size} products.`);
     const prods: Product[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
@@ -296,6 +320,7 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
     });
 
     if (prods.length === 0) {
+      console.log("ℹ️ [fetchFirestoreProducts] Collection 'products' is empty in Firestore. Seeding default products...");
       for (const defP of DEFAULT_PRODUCTS) {
         try {
           await setDoc(doc(db, "products", String(defP.id)), defP);
@@ -306,8 +331,9 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
 
     prods.sort((a, b) => a.id - b.id);
     return prods;
-  } catch (err) {
-    console.warn("Error fetching products from Firestore:", err);
+  } catch (err: any) {
+    console.error("❌ [fetchFirestoreProducts] Error reading 'products' from Firestore:", err);
+    if (err && err.code) console.error(`🚨 [fetchFirestoreProducts] Firestore Error Code: ${err.code} - ${err.message}`);
     return DEFAULT_PRODUCTS;
   }
 }
@@ -321,8 +347,8 @@ async function fetchFirestoreSettings(): Promise<any> {
     if (docSnap.exists()) {
       return docSnap.data();
     }
-  } catch (err) {
-    console.warn("Error fetching settings from Firestore:", err);
+  } catch (err: any) {
+    console.warn("⚠️ [fetchFirestoreSettings] Error reading settings from Firestore:", err);
   }
   return null;
 }
@@ -332,18 +358,23 @@ async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
     try {
       await setDoc(doc(db, "settings", "system"), newSettings, { merge: true });
       return true;
-    } catch (err) {
-      console.warn("Error saving settings to Firestore:", err);
+    } catch (err: any) {
+      console.warn("⚠️ [saveFirestoreSettings] Error saving settings to Firestore:", err);
     }
   }
   return true;
 }
 
 async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
-  if (!db) return [];
+  if (!db) {
+    console.warn("⚠️ [fetchFirestoreWithdrawals] `db` instance is null. Returning empty list.");
+    return [];
+  }
 
   try {
+    console.log("📡 [fetchFirestoreWithdrawals] Reading 'withdrawals' collection from Firestore...");
     const querySnapshot = await getDocs(collection(db, "withdrawals"));
+    console.log(`✅ [fetchFirestoreWithdrawals] Firestore read successful! Received ${querySnapshot.size} withdrawals.`);
     const wds: WDRequest[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
@@ -362,8 +393,9 @@ async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
 
     wds.sort((a, b) => b.id - a.id);
     return wds;
-  } catch (err) {
-    console.warn("Error fetching withdrawals from Firestore:", err);
+  } catch (err: any) {
+    console.error("❌ [fetchFirestoreWithdrawals] Error reading 'withdrawals' from Firestore:", err);
+    if (err && err.code) console.error(`🚨 [fetchFirestoreWithdrawals] Firestore Error Code: ${err.code} - ${err.message}`);
     return [];
   }
 }
@@ -404,10 +436,15 @@ async function updateFirestoreWithdrawalStatus(wdId: number, status: 'approved' 
 }
 
 async function fetchFirestoreTransactions(): Promise<Transaction[]> {
-  if (!db) return [];
+  if (!db) {
+    console.warn("⚠️ [fetchFirestoreTransactions] `db` instance is null. Returning empty list.");
+    return [];
+  }
 
   try {
+    console.log("📡 [fetchFirestoreTransactions] Reading 'transactions' collection from Firestore...");
     const querySnapshot = await getDocs(collection(db, "transactions"));
+    console.log(`✅ [fetchFirestoreTransactions] Firestore read successful! Received ${querySnapshot.size} transactions.`);
     const txs: Transaction[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
@@ -424,8 +461,9 @@ async function fetchFirestoreTransactions(): Promise<Transaction[]> {
 
     txs.sort((a, b) => b.id - a.id);
     return txs;
-  } catch (err) {
-    console.warn("Error fetching transactions from Firestore:", err);
+  } catch (err: any) {
+    console.error("❌ [fetchFirestoreTransactions] Error reading 'transactions' from Firestore:", err);
+    if (err && err.code) console.error(`🚨 [fetchFirestoreTransactions] Firestore Error Code: ${err.code} - ${err.message}`);
     return [];
   }
 }
@@ -441,10 +479,15 @@ async function createFirestoreTransaction(tx: Transaction): Promise<void> {
 }
 
 async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
-  if (!db) return [];
+  if (!db) {
+    console.warn("⚠️ [fetchFirestoreDeposits] `db` instance is null. Returning empty list.");
+    return [];
+  }
 
   try {
+    console.log("📡 [fetchFirestoreDeposits] Reading 'deposits' collection from Firestore...");
     const querySnapshot = await getDocs(collection(db, "deposits"));
+    console.log(`✅ [fetchFirestoreDeposits] Firestore read successful! Received ${querySnapshot.size} deposits.`);
     const deps: DepositRequest[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
@@ -462,8 +505,9 @@ async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
 
     deps.sort((a, b) => b.id - a.id);
     return deps;
-  } catch (err) {
-    console.warn("Error fetching deposits from Firestore:", err);
+  } catch (err: any) {
+    console.error("❌ [fetchFirestoreDeposits] Error reading 'deposits' from Firestore:", err);
+    if (err && err.code) console.error(`🚨 [fetchFirestoreDeposits] Firestore Error Code: ${err.code} - ${err.message}`);
     return [];
   }
 }
@@ -932,13 +976,23 @@ export default function App() {
     if (!currentUserRef.current) return;
     const targetUser = currentUserRef.current;
     let apiSuccess = false;
+
+    console.log("🔍 [fetchDashboardData] Starting dashboard sync...", {
+      username: targetUser.username,
+      role: targetUser.role,
+      dbConnected: !!db,
+      isVercel: typeof window !== "undefined" && window.location.hostname.includes("vercel.app")
+    });
+
     try {
       if (targetUser.role === 'admin') {
+        console.log("📡 [fetchDashboardData] Fetching Express API: /api/admin/dashboard");
         const res = await fetch("/api/admin/dashboard");
         if (!currentUserRef.current) return;
         const contentType = res.headers.get("content-type");
         if (res.ok && contentType && contentType.includes("json")) {
           const data = await res.json();
+          console.log("✅ [fetchDashboardData] Backend API response received successfully for admin.");
           const fsTxs = await fetchFirestoreTransactions();
           if (!currentUserRef.current) return;
           const mergedTxs = data.transactions && data.transactions.length > 0 ? data.transactions : fsTxs;
@@ -946,13 +1000,17 @@ export default function App() {
           if (data.settings) setSystemSettings(data.settings);
           apiSuccess = true;
           return;
+        } else {
+          console.warn(`⚠️ [fetchDashboardData] /api/admin/dashboard returned status ${res.status} (${contentType}). Falling back to direct client-side Firestore connection.`);
         }
       } else {
+        console.log(`📡 [fetchDashboardData] Fetching Express API: /api/user/${targetUser.id}/dashboard`);
         const res = await fetch(`/api/user/${targetUser.id}/dashboard`);
         if (!currentUserRef.current) return;
         const contentType = res.headers.get("content-type");
         if (res.ok && contentType && contentType.includes("json")) {
           const data = await res.json();
+          console.log("✅ [fetchDashboardData] Backend API response received successfully for user.");
           const fsTxs = await fetchFirestoreTransactions();
           if (!currentUserRef.current) return;
           const userTxs = data.transactions && data.transactions.length > 0
@@ -966,18 +1024,28 @@ export default function App() {
           }
           apiSuccess = true;
           return;
+        } else {
+          console.warn(`⚠️ [fetchDashboardData] /api/user/${targetUser.id}/dashboard returned status ${res.status} (${contentType}). Falling back to direct client-side Firestore connection.`);
         }
       }
     } catch (err) {
-      console.warn("API unavailable, loading direct from Firestore database...", err);
+      console.warn("⚠️ [fetchDashboardData] API route unavailable or unreachable, proceeding with direct client-side Firestore database read...", err);
     }
 
     if (!apiSuccess && currentUserRef.current) {
+      console.log("🔄 [fetchDashboardData] Executing direct Firestore database fetch for dashboard...");
       // Direct Firestore sync
       const fsUsers = await fetchFirestoreUsers();
       const fsWithdrawals = await fetchFirestoreWithdrawals();
       const fsDeposits = await fetchFirestoreDeposits();
       const fsTransactions = await fetchFirestoreTransactions();
+
+      console.log("📊 [fetchDashboardData] Firestore direct read complete:", {
+        usersCount: fsUsers.length,
+        withdrawalsCount: fsWithdrawals.length,
+        depositsCount: fsDeposits.length,
+        transactionsCount: fsTransactions.length
+      });
 
       if (!currentUserRef.current) return;
 
@@ -1000,6 +1068,7 @@ export default function App() {
           deposits: fsDeposits,
           transactions: fsTransactions
         });
+        console.log("✅ [fetchDashboardData] Admin dashboard updated via direct Firestore data.");
       } else {
         const freshUser = fsUsers.find(u => Number(u.id) === Number(targetUser.id)) || targetUser;
         if (!currentUserRef.current) return;
@@ -1022,6 +1091,7 @@ export default function App() {
             { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Member Zalora Denim MLM.", read: false, time: "Baru saja" }
           ]
         });
+        console.log("✅ [fetchDashboardData] User dashboard updated via direct Firestore data for user:", freshUser.username);
       }
     }
   };
