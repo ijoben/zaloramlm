@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, setDoc, getDoc, getDocs, collection, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, collection, onSnapshot, deleteDoc } from "firebase/firestore";
 import { app, auth, db } from "./lib/firebase";
 import { resolvedFirebaseConfig } from "./lib/firebaseConfig";
 import LandingPage from "./components/LandingPage";
@@ -583,6 +583,26 @@ async function updateFirestoreProduct(productId: number, stock: number, price: n
       await setDoc(doc(db, "products", String(productId)), { stock, price, member_price: memberPrice }, { merge: true });
     } catch (e) {
       console.warn("Error updating product in Firestore:", e);
+    }
+  }
+}
+
+async function updateFirestoreProductFull(product: Product): Promise<void> {
+  if (db) {
+    try {
+      await setDoc(doc(db, "products", String(product.id)), product, { merge: true });
+    } catch (e) {
+      console.warn("Error updating full product in Firestore:", e);
+    }
+  }
+}
+
+async function deleteFirestoreProduct(productId: number): Promise<void> {
+  if (db) {
+    try {
+      await deleteDoc(doc(db, "products", String(productId)));
+    } catch (e) {
+      console.warn("Error deleting product from Firestore:", e);
     }
   }
 }
@@ -1787,6 +1807,60 @@ export default function App() {
     }
   };
 
+  const handleUpdateProductFull = async (prod: Product): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/admin/products/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(prod)
+      });
+      if (res.ok) {
+        await fetchProducts();
+        await fetchDashboardData();
+        return true;
+      }
+    } catch (err) {
+      console.warn("Update product API unreachable, updating directly in Firestore...", err);
+    }
+
+    try {
+      await updateFirestoreProductFull(prod);
+      await fetchProducts();
+      await fetchDashboardData();
+      return true;
+    } catch (fsErr) {
+      console.error("Error updating product in Firestore:", fsErr);
+      throw fsErr;
+    }
+  };
+
+  const handleDeleteProduct = async (productId: number): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/admin/products/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: productId })
+      });
+      if (res.ok) {
+        await fetchProducts();
+        await fetchDashboardData();
+        return true;
+      }
+    } catch (err) {
+      console.warn("Delete product API unreachable, deleting directly from Firestore...", err);
+    }
+
+    try {
+      await deleteFirestoreProduct(productId);
+      await fetchProducts();
+      await fetchDashboardData();
+      return true;
+    } catch (fsErr) {
+      console.error("Error deleting product from Firestore:", fsErr);
+      throw fsErr;
+    }
+  };
+
   const handleUpdateProfile = async (data: { fullname: string; email: string; phone: string; password?: string }): Promise<boolean> => {
     if (!currentUser) return false;
     try {
@@ -1908,6 +1982,8 @@ export default function App() {
                 onRefresh={fetchDashboardData}
                 onLogout={handleLogout}
                 onUpdateProductStock={handleUpdateProductStock}
+                onUpdateProduct={handleUpdateProductFull}
+                onDeleteProduct={handleDeleteProduct}
                 onProcessWithdrawal={handleProcessWithdrawal}
                 onProcessDeposit={handleProcessDeposit}
                 onAddProduct={handleAddProduct}

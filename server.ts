@@ -951,6 +951,42 @@ app.post("/api/admin/products/stock", async (req, res) => {
   res.json({ message: "Data produk dan stok berhasil diupdate di Firestore", product, products });
 });
 
+// Update product full info (Admin operation)
+app.post("/api/admin/products/update", async (req, res) => {
+  const { id, name, description, price, member_price, stock, image } = req.body;
+  const product = products.find(p => p.id === Number(id) || String(p.id) === String(id));
+  if (!product) return res.status(404).json({ message: "Produk tidak ditemukan" });
+
+  if (name !== undefined) product.name = name;
+  if (description !== undefined) product.description = description;
+  if (price !== undefined) product.price = Number(price);
+  if (member_price !== undefined) product.member_price = Number(member_price);
+  if (stock !== undefined) product.stock = Number(stock);
+  if (image !== undefined) product.image = image;
+
+  await syncProductToFirestore(product);
+  res.json({ message: "Data produk berhasil diperbarui", product, products });
+});
+
+// Delete product (Admin operation)
+app.post("/api/admin/products/delete", async (req, res) => {
+  const { id } = req.body;
+  const pId = Number(id) || 0;
+  const idx = products.findIndex(p => p.id === pId || String(p.id) === String(id));
+  if (idx !== -1) {
+    products.splice(idx, 1);
+  }
+  if (firestoreDb) {
+    try {
+      const { doc, deleteDoc } = await import("firebase/firestore");
+      await deleteDoc(doc(firestoreDb, "products", String(id)));
+    } catch (e) {
+      console.warn("Firestore delete product error:", e);
+    }
+  }
+  res.json({ message: "Produk berhasil dihapus", products });
+});
+
 // Authentication: Login
 app.post("/api/auth/login", async (req, res) => {
   try {
