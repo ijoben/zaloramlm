@@ -2797,57 +2797,61 @@ async function initFirestoreData() {
   if (!firestoreDb) return;
   try {
     // 1. Users
-    const usersSnap = await getDocs(collection(firestoreDb, "users"));
-    if (!usersSnap.empty) {
-      usersSnap.forEach((docSnap) => {
-        try {
-          const u = docSnap.data() as MLMUser;
-          const rawId = u && u.id !== undefined && u.id !== null ? u.id : docSnap.id;
-          const uId = Number(rawId);
-          if (isNaN(uId)) return;
-          const uUsername = (u.username || "").toLowerCase().trim();
+    try {
+      const usersSnap = await getDocs(collection(firestoreDb, "users"));
+      if (!usersSnap.empty) {
+        usersSnap.forEach((docSnap) => {
+          try {
+            const u = docSnap.data() as MLMUser;
+            const rawId = u && u.id !== undefined && u.id !== null ? u.id : docSnap.id;
+            const uId = Number(rawId);
+            if (isNaN(uId)) return;
+            const uUsername = (u.username || "").toLowerCase().trim();
 
-          const normalizedLoadedUser: MLMUser = {
-            ...u,
-            id: uId,
-            username: u.username || docSnap.id || `user_${uId}`,
-            fullname: u.fullname || u.username || `User ${uId}`,
-            email: u.email || "",
-            phone: u.phone || "",
-            role: u.role || (uId === 1 ? "admin" : "user"),
-            upline_id: u.upline_id !== null && u.upline_id !== undefined ? Number(u.upline_id) : null,
-            sponsor_id: u.sponsor_id !== null && u.sponsor_id !== undefined ? Number(u.sponsor_id) : null,
-            left_count: Number(u.left_count) || 0,
-            right_count: Number(u.right_count) || 0,
-            left_sales: Number(u.left_sales) || 0,
-            right_sales: Number(u.right_sales) || 0,
-            balance: Number(u.balance) || 0,
-            sponsor_bonus: Number(u.sponsor_bonus) || 0,
-            pairing_bonus: Number(u.pairing_bonus) || 0,
-            level_bonus: Number(u.level_bonus) || 0,
-            ro_bonus: Number(u.ro_bonus) || 0,
-            position: u.position || "L"
-          };
+            const normalizedLoadedUser: MLMUser = {
+              ...u,
+              id: uId,
+              username: u.username || docSnap.id || `user_${uId}`,
+              fullname: u.fullname || u.username || `User ${uId}`,
+              email: u.email || "",
+              phone: u.phone || "",
+              role: u.role || (uId === 1 ? "admin" : "user"),
+              upline_id: u.upline_id !== null && u.upline_id !== undefined ? Number(u.upline_id) : null,
+              sponsor_id: u.sponsor_id !== null && u.sponsor_id !== undefined ? Number(u.sponsor_id) : null,
+              left_count: Number(u.left_count) || 0,
+              right_count: Number(u.right_count) || 0,
+              left_sales: Number(u.left_sales) || 0,
+              right_sales: Number(u.right_sales) || 0,
+              balance: Number(u.balance) || 0,
+              sponsor_bonus: Number(u.sponsor_bonus) || 0,
+              pairing_bonus: Number(u.pairing_bonus) || 0,
+              level_bonus: Number(u.level_bonus) || 0,
+              ro_bonus: Number(u.ro_bonus) || 0,
+              position: u.position || "L"
+            };
 
-          const idx = users.findIndex(x => 
-            Number(x.id) === uId || 
-            (x.username && x.username.toLowerCase().trim() === uUsername && uUsername !== "")
-          );
-          if (idx >= 0) {
-            users[idx] = { ...users[idx], ...normalizedLoadedUser };
-          } else {
-            users.push(normalizedLoadedUser);
+            const idx = users.findIndex(x => 
+              Number(x.id) === uId || 
+              (x.username && x.username.toLowerCase().trim() === uUsername && uUsername !== "")
+            );
+            if (idx >= 0) {
+              users[idx] = { ...users[idx], ...normalizedLoadedUser };
+            } else {
+              users.push(normalizedLoadedUser);
+            }
+          } catch (e) {
+            console.warn("User parse error in Firestore sync:", e);
           }
-        } catch (e) {
-          console.warn("User parse error in Firestore sync:", e);
-        }
-      });
-      console.log(`🔥 Loaded ${usersSnap.size} users from Firestore into memory`);
-    }
+        });
+        console.log(`🔥 Loaded ${usersSnap.size} users from Firestore into memory`);
+      }
 
-    // Seed any missing preseeded demo users into Firestore
-    for (const u of users) {
-      await syncUserToFirestore(u);
+      // Seed any missing preseeded demo users into Firestore
+      for (const u of users) {
+        await syncUserToFirestore(u);
+      }
+    } catch (e) {
+      console.warn("Firestore users sync error:", e);
     }
 
     // 2. Settings
