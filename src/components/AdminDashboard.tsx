@@ -481,11 +481,18 @@ export default function AdminDashboard({
     }
   };
 
-  const filteredUsers = users.filter(u => 
-    u.username.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    u.fullname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const memberUsers = (users || []).filter(u => (u.username || '').toLowerCase() !== 'admin' && Number(u.id) !== 1);
+  const displayList = memberUsers.length > 0 ? memberUsers : (users || []);
+
+  const filteredUsers = displayList.filter(u => {
+    const q = (searchQuery || '').toLowerCase().trim();
+    if (!q) return true;
+    const un = (u.username || '').toLowerCase();
+    const fn = (u.fullname || '').toLowerCase();
+    const em = (u.email || '').toLowerCase();
+    const ph = (u.phone || '').toLowerCase();
+    return un.includes(q) || fn.includes(q) || em.includes(q) || ph.includes(q);
+  });
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900" id="admin-dashboard-root">
@@ -1091,19 +1098,19 @@ export default function AdminDashboard({
                       </tr>
                     ) : (
                       filteredUsers.map((u) => {
-                        const totalBonus = u.sponsor_bonus + u.pairing_bonus + u.level_bonus + u.ro_bonus;
-                        const uplineUser = users.find(x => Number(x.id) === Number(u.upline_id));
-                        const sponsorUser = users.find(x => Number(x.id) === Number(u.sponsor_id));
+                        const totalBonus = (u.sponsor_bonus || 0) + (u.pairing_bonus || 0) + (u.level_bonus || 0) + (u.ro_bonus || 0);
+                        const uplineUser = (users || []).find(x => Number(x.id) === Number(u.upline_id));
+                        const sponsorUser = (users || []).find(x => Number(x.id) === Number(u.sponsor_id));
                         return (
                           <tr key={u.id} className="hover:bg-slate-50/50">
                             <td className="py-3.5 px-4 font-mono text-slate-400">#{u.id}</td>
                             <td className="py-3.5 px-4 font-extrabold text-slate-900 leading-tight">
-                              {u.fullname}
-                              <span className="block text-[9px] text-slate-400 font-normal">Daftar: {new Date(u.created_at).toLocaleDateString('id-ID')}</span>
+                              {u.fullname || u.username}
+                              <span className="block text-[9px] text-slate-400 font-normal">Daftar: {u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID') : '-'}</span>
                             </td>
                             <td className="py-3.5 px-4 leading-normal">
                               <span className="font-bold text-blue-600 block">@{u.username}</span>
-                              <span className="text-[10px] text-slate-500 font-mono">{u.phone}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">{u.phone || '-'}</span>
                             </td>
                             <td className="py-3.5 px-4 leading-normal">
                               <div className="text-[10px] text-slate-700 font-medium">
@@ -1123,16 +1130,16 @@ export default function AdminDashboard({
                               </span>
                             </td>
                             <td className="py-3.5 px-4 text-center font-bold font-mono text-slate-700">
-                              {u.left_count} L / {u.right_count} R
+                              {u.left_count || 0} L / {u.right_count || 0} R
                             </td>
                             <td className="py-3.5 px-4 text-center font-black font-mono text-slate-900">
-                              {u.left_sales} L / {u.right_sales} R
+                              {u.left_sales || 0} L / {u.right_sales || 0} R
                             </td>
                             <td className="py-3.5 px-4 text-right font-black text-slate-950">
-                              Rp {u.balance.toLocaleString()}
+                              Rp {(u.balance || 0).toLocaleString('id-ID')}
                             </td>
                             <td className="py-3.5 px-4 text-right font-black text-green-600">
-                              Rp {totalBonus.toLocaleString()}
+                              Rp {totalBonus.toLocaleString('id-ID')}
                             </td>
                           </tr>
                         );

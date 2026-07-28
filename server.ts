@@ -1836,7 +1836,7 @@ app.get("/api/admin/dashboard", async (req, res) => {
       pendingWDAmount: pendingWithdrawals.reduce((acc, w) => acc + w.amount, 0),
       isAutoPayout
     },
-    users: users.filter(u => u.role !== 'admin'),
+    users: users,
     withdrawals: allWithdrawals,
     deposits: allDeposits,
     transactions: transactions,
@@ -2818,13 +2818,19 @@ async function initFirestoreData() {
       usersSnap.forEach((docSnap) => {
         try {
           const u = docSnap.data() as MLMUser;
-          if (!u || u.id === undefined || u.id === null) return;
-          const uId = Number(u.id);
+          const rawId = u && u.id !== undefined && u.id !== null ? u.id : docSnap.id;
+          const uId = Number(rawId);
+          if (isNaN(uId)) return;
           const uUsername = (u.username || "").toLowerCase().trim();
 
           const normalizedLoadedUser: MLMUser = {
             ...u,
             id: uId,
+            username: u.username || docSnap.id || `user_${uId}`,
+            fullname: u.fullname || u.username || `User ${uId}`,
+            email: u.email || "",
+            phone: u.phone || "",
+            role: u.role || (uId === 1 ? "admin" : "user"),
             upline_id: u.upline_id !== null && u.upline_id !== undefined ? Number(u.upline_id) : null,
             sponsor_id: u.sponsor_id !== null && u.sponsor_id !== undefined ? Number(u.sponsor_id) : null,
             left_count: Number(u.left_count) || 0,
@@ -2853,11 +2859,11 @@ async function initFirestoreData() {
         }
       });
       console.log(`🔥 Loaded ${usersSnap.size} users from Firestore into memory`);
-    } else {
-      for (const u of users) {
-        await syncUserToFirestore(u);
-      }
-      console.log(`🔥 Seeded ${users.length} initial users into Firestore`);
+    }
+
+    // Seed any missing preseeded demo users into Firestore
+    for (const u of users) {
+      await syncUserToFirestore(u);
     }
 
     // 2. Settings

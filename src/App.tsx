@@ -9,102 +9,65 @@ import AdminDashboard from "./components/AdminDashboard";
 import PHPSourceViewer from "./components/PHPSourceViewer";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest } from "./types";
 import { DEFAULT_PRODUCTS } from "./data/defaultProducts";
+import { DEFAULT_USERS } from "./data/defaultUsers";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
 
 // Client-side Firestore helper functions for Vercel/Static deployments and direct database sync
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
   try {
-    if (!db) return [];
+    if (!db) return DEFAULT_USERS;
     const querySnapshot = await getDocs(collection(db, "users"));
-    const users: MLMUser[] = [];
+    const usersMap = new Map<number, MLMUser>();
+
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      users.push({
-        id: Number(data.id),
-        username: data.username || "",
-        fullname: data.fullname || "",
-        email: data.email || "",
-        phone: data.phone || "",
-        password: data.password || "",
-        is_active: Boolean(data.is_active),
-        upline_id: data.upline_id !== null && data.upline_id !== undefined ? Number(data.upline_id) : null,
-        position: data.position || "L",
-        sponsor_id: data.sponsor_id !== null && data.sponsor_id !== undefined ? Number(data.sponsor_id) : null,
-        balance: Number(data.balance) || 0,
-        sponsor_bonus: Number(data.sponsor_bonus) || 0,
-        pairing_bonus: Number(data.pairing_bonus) || 0,
-        level_bonus: Number(data.level_bonus) || 0,
-        ro_bonus: Number(data.ro_bonus) || 0,
-        left_count: Number(data.left_count) || 0,
-        right_count: Number(data.right_count) || 0,
-        left_sales: Number(data.left_sales) || 0,
-        right_sales: Number(data.right_sales) || 0,
-        created_at: data.created_at || new Date().toISOString(),
-        role: data.role || "user",
-        firebase_uid: data.firebase_uid || ""
-      });
+      const parsedId = Number(data.id ?? docSnap.id);
+      if (!isNaN(parsedId)) {
+        usersMap.set(parsedId, {
+          id: parsedId,
+          username: data.username || "",
+          fullname: data.fullname || "",
+          email: data.email || "",
+          phone: data.phone || "",
+          password: data.password || "",
+          is_active: data.is_active !== undefined ? Boolean(data.is_active) : true,
+          upline_id: data.upline_id !== null && data.upline_id !== undefined ? Number(data.upline_id) : null,
+          position: data.position || "L",
+          sponsor_id: data.sponsor_id !== null && data.sponsor_id !== undefined ? Number(data.sponsor_id) : null,
+          balance: Number(data.balance) || 0,
+          sponsor_bonus: Number(data.sponsor_bonus) || 0,
+          pairing_bonus: Number(data.pairing_bonus) || 0,
+          level_bonus: Number(data.level_bonus) || 0,
+          ro_bonus: Number(data.ro_bonus) || 0,
+          left_count: Number(data.left_count) || 0,
+          right_count: Number(data.right_count) || 0,
+          left_sales: Number(data.left_sales) || 0,
+          right_sales: Number(data.right_sales) || 0,
+          created_at: data.created_at || new Date().toISOString(),
+          role: data.role || (parsedId === 1 ? "admin" : "user"),
+          firebase_uid: data.firebase_uid || ""
+        });
+      }
     });
 
-    if (users.length === 0) {
-      const initialUsers: MLMUser[] = [
-        {
-          id: 1,
-          username: "admin",
-          fullname: "Administrator Zalora Denim",
-          email: "admin@zaloradenim.com",
-          phone: "081234567890",
-          password: "admin",
-          is_active: true,
-          upline_id: null,
-          position: null,
-          sponsor_id: null,
-          balance: 5000000,
-          sponsor_bonus: 0,
-          pairing_bonus: 0,
-          level_bonus: 0,
-          ro_bonus: 0,
-          left_count: 1,
-          right_count: 0,
-          left_sales: 1,
-          right_sales: 0,
-          created_at: new Date().toISOString(),
-          role: "admin"
-        },
-        {
-          id: 2,
-          username: "budi",
-          fullname: "Budi Santoso",
-          email: "budi@gmail.com",
-          phone: "081234567891",
-          password: "user123",
-          is_active: true,
-          upline_id: 1,
-          position: "L",
-          sponsor_id: 1,
-          balance: 750000,
-          sponsor_bonus: 40000,
-          pairing_bonus: 20000,
-          level_bonus: 15000,
-          ro_bonus: 5000,
-          left_count: 0,
-          right_count: 0,
-          left_sales: 0,
-          right_sales: 0,
-          created_at: new Date().toISOString(),
-          role: "user"
+    // Seed any missing default demo members to Firestore so member list is never empty
+    for (const defU of DEFAULT_USERS) {
+      if (!usersMap.has(defU.id)) {
+        usersMap.set(defU.id, defU);
+        try {
+          await setDoc(doc(db, "users", String(defU.id)), defU, { merge: true });
+        } catch (e) {
+          console.warn(`Error seeding user ${defU.username} to Firestore:`, e);
         }
-      ];
-      for (const u of initialUsers) {
-        await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
       }
-      return initialUsers;
     }
 
-    users.sort((a, b) => Number(a.id) - Number(b.id));
-    return users;
+    const finalUsers = Array.from(usersMap.values());
+    finalUsers.sort((a, b) => Number(a.id) - Number(b.id));
+    return finalUsers;
   } catch (err) {
     console.warn("Error reading users from Firestore client-side:", err);
-    return [];
+    return DEFAULT_USERS;
   }
 }
 
@@ -903,46 +866,26 @@ export default function App() {
     };
   };
 
-  const getDefaultAdminDashboard = (user: MLMUser) => ({
-    metrics: {
-      totalMembers: 12,
-      activeMembers: 8,
-      inactiveMembers: 4,
-      totalTurnover: 15000000,
-      totalBonusesPaid: 3500000,
-      pendingWDCount: 1,
-      pendingWDAmount: 250000,
-      isAutoPayout: false
-    },
-    users: [
-      user,
-      {
-        id: 2,
-        username: "budi",
-        fullname: "Budi Santoso",
-        email: "budi@gmail.com",
-        phone: "081234567891",
-        is_active: true,
-        upline_id: 1,
-        position: "L",
-        sponsor_id: 1,
-        balance: 750000,
-        sponsor_bonus: 40000,
-        pairing_bonus: 20000,
-        level_bonus: 15000,
-        ro_bonus: 5000,
-        left_count: 2,
-        right_count: 2,
-        left_sales: 2,
-        right_sales: 2,
-        created_at: "2026-06-15T10:00:00Z",
-        role: "user"
-      }
-    ],
-    withdrawals: [],
-    deposits: [],
-    transactions: []
-  });
+  const getDefaultAdminDashboard = (user: MLMUser) => {
+    const memberUsers = DEFAULT_USERS.filter(u => u.username !== 'admin');
+    const activeCount = memberUsers.filter(u => u.is_active).length;
+    return {
+      metrics: {
+        totalMembers: memberUsers.length,
+        activeMembers: activeCount,
+        inactiveMembers: memberUsers.length - activeCount,
+        totalTurnover: 15000000,
+        totalBonusesPaid: 3500000,
+        pendingWDCount: 1,
+        pendingWDAmount: 250000,
+        isAutoPayout: false
+      },
+      users: DEFAULT_USERS,
+      withdrawals: [],
+      deposits: [],
+      transactions: []
+    };
+  };
 
   const getDefaultUserDashboard = (user: MLMUser) => ({
     user,
