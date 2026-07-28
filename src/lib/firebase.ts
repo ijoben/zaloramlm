@@ -11,8 +11,11 @@ try {
   if (resolvedFirebaseConfig.apiKey) {
     app = getApps().length > 0 ? getApp() : initializeApp(resolvedFirebaseConfig);
     auth = getAuth(app);
-    db = resolvedFirebaseConfig.firestoreDatabaseId
-      ? getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId)
+    const dbId = resolvedFirebaseConfig.firestoreDatabaseId;
+    const isCustomDb = dbId && dbId.trim() !== '' && dbId !== "(default)" && dbId !== "default";
+
+    db = isCustomDb
+      ? getFirestore(app, dbId)
       : getFirestore(app);
   } else {
     console.warn("⚠️ Firebase API key missing from configuration");

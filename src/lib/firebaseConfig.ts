@@ -3,8 +3,7 @@
 
 const configFiles = import.meta.glob([
   '/firebase-applet-config.json',
-  '../*.json',
-  '../../*.json'
+  './firebase-applet-config.json'
 ], { eager: true });
 
 let fileConfig: Record<string, any> = {};

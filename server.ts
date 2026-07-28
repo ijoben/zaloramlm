@@ -38,10 +38,13 @@ app.use(express.json());
 let firestoreDb: any = null;
 try {
   const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(resolvedServerFirebaseConfig as any);
-  firestoreDb = resolvedServerFirebaseConfig.firestoreDatabaseId
-    ? getFirestore(firebaseApp, resolvedServerFirebaseConfig.firestoreDatabaseId)
+  const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId;
+  const isCustomDb = dbId && dbId.trim() !== '' && dbId !== "(default)" && dbId !== "default";
+
+  firestoreDb = isCustomDb
+    ? getFirestore(firebaseApp, dbId)
     : getFirestore(firebaseApp);
-  console.log("🔥 Firebase Firestore connected! Project ID:", resolvedServerFirebaseConfig.projectId, "Database ID:", resolvedServerFirebaseConfig.firestoreDatabaseId);
+  console.log("🔥 Firebase Firestore connected! Project ID:", resolvedServerFirebaseConfig.projectId, "Database ID:", dbId);
 } catch (e) {
   console.warn("⚠️ Firebase Firestore initialization warning:", e);
 }
