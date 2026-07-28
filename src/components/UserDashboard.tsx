@@ -1539,7 +1539,18 @@ export default function UserDashboard({
               </div>
 
               {/* Progress Target Reward */}
-              {user.is_active ? (
+              {settings?.enableRewardBonus === false ? (
+                <div className="bg-slate-100 border border-slate-200 text-slate-600 rounded-3xl p-5 text-xs font-semibold flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <Award className="w-6 h-6 text-slate-400 shrink-0" />
+                    <div>
+                      <p className="font-extrabold text-slate-800">Skema Target Reward Jaringan (Non-Aktif)</p>
+                      <p className="text-[11px] text-slate-500">Admin sedang menonaktifkan sementara skema pencapaian target reward jaringan.</p>
+                    </div>
+                  </div>
+                  <span className="bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shrink-0">NON-AKTIF</span>
+                </div>
+              ) : user.is_active ? (
                 <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-xl border border-slate-800 space-y-6">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>

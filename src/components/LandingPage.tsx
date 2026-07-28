@@ -256,16 +256,16 @@ export default function LandingPage({
     <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 font-sans selection:bg-[#C41230] selection:text-white overflow-x-hidden w-full" id="store-landing-root">
       
       {/* 1. Top Announcement Bar */}
-      <div className="bg-[#111111] text-white text-[10px] sm:text-[11px] font-bold tracking-wider sm:tracking-widest uppercase py-2 px-2 sm:px-4 border-b border-neutral-800 flex flex-wrap items-center justify-center gap-1.5 sm:gap-6 w-full text-center">
+      <div className="bg-[#111111] text-white text-[10px] sm:text-[11px] font-bold tracking-widest uppercase py-2.5 px-4 border-b border-neutral-800 flex items-center justify-start sm:justify-center gap-6 w-full overflow-x-auto whitespace-nowrap scrollbar-none">
         <span className="flex items-center gap-1.5 text-neutral-300 shrink-0">
           <Truck className="w-3.5 h-3.5 text-[#C41230]" /> FREE ONGKIR SELURUH INDONESIA
         </span>
-        <span className="hidden sm:inline-block text-neutral-600">•</span>
+        <span className="text-neutral-600 shrink-0">•</span>
         <span className="text-neutral-300 shrink-0">
           BAYAR DI TEMPAT (COD) TERSEDIA
         </span>
-        <span className="hidden sm:inline-block text-neutral-600">•</span>
-        <span className="bg-[#C41230] text-white px-2 py-0.5 font-black text-[9px] tracking-wider uppercase rounded-xs shrink-0">
+        <span className="text-neutral-600 shrink-0">•</span>
+        <span className="bg-[#C41230] text-white px-2.5 py-0.5 font-black text-[9px] tracking-wider uppercase rounded-xs shrink-0">
           DISKON MEMBER RP 100.000/PCS
         </span>
       </div>

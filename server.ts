@@ -527,6 +527,8 @@ let systemSettings: any = {
   slogan: "OFFICIAL STORE & MLM BINARY PREMIER",
   siteDescription: "Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis MLM Binary 10 Level Terpercaya.",
   enableMlmBonus: true,
+  enableLevelBonus: true,
+  enableRewardBonus: true,
   contactPhone: "081234567890",
   contactEmail: "support@zaloradenim.com",
   sponsorBonus: 20000,
@@ -646,8 +648,8 @@ async function activateUserMLM(userId: number) {
     }
   }
 
-  // 3. Distribute Level Bonuses (Up to 10 Levels if MLM Bonus Active)
-  if (systemSettings.enableMlmBonus !== false) {
+  // 3. Distribute Level Bonuses (Up to 10 Levels if MLM & Level Bonus Active)
+  if (systemSettings.enableMlmBonus !== false && systemSettings.enableLevelBonus !== false) {
     const levelRewards = [
       systemSettings.levelBonusG1,
       systemSettings.levelBonusG2,

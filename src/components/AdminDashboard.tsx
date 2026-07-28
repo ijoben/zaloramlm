@@ -83,6 +83,8 @@ export default function AdminDashboard({
   const [formSlogan, setFormSlogan] = useState(settings?.slogan || 'OFFICIAL STORE & MLM BINARY PREMIER');
   const [formSiteDescription, setFormSiteDescription] = useState(settings?.siteDescription || 'Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis MLM Binary 10 Level Terpercaya.');
   const [formEnableMlmBonus, setFormEnableMlmBonus] = useState(settings?.enableMlmBonus ?? true);
+  const [formEnableLevelBonus, setFormEnableLevelBonus] = useState(settings?.enableLevelBonus ?? true);
+  const [formEnableRewardBonus, setFormEnableRewardBonus] = useState(settings?.enableRewardBonus ?? true);
   const [formContactPhone, setFormContactPhone] = useState(settings?.contactPhone || '');
   const [formContactEmail, setFormContactEmail] = useState(settings?.contactEmail || '');
 
@@ -151,6 +153,8 @@ export default function AdminDashboard({
       setFormSlogan(settings.slogan || 'OFFICIAL STORE & MLM BINARY PREMIER');
       setFormSiteDescription(settings.siteDescription || 'Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis MLM Binary 10 Level Terpercaya.');
       setFormEnableMlmBonus(settings.enableMlmBonus ?? true);
+      setFormEnableLevelBonus(settings.enableLevelBonus ?? true);
+      setFormEnableRewardBonus(settings.enableRewardBonus ?? true);
       setFormContactPhone(settings.contactPhone || '');
       setFormContactEmail(settings.contactEmail || '');
       setFormSponsorBonus(settings.sponsorBonus ?? 20000);
@@ -304,6 +308,8 @@ export default function AdminDashboard({
       slogan: formSlogan,
       siteDescription: formSiteDescription,
       enableMlmBonus: formEnableMlmBonus,
+      enableLevelBonus: formEnableLevelBonus,
+      enableRewardBonus: formEnableRewardBonus,
       contactPhone: formContactPhone,
       contactEmail: formContactEmail,
       sponsorBonus: Number(formSponsorBonus),
@@ -1770,8 +1776,34 @@ export default function AdminDashboard({
 
                   {/* Level Bonuses */}
                   <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Komisi Level Generasi Jaringan (10 Level)</p>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
+                      <div>
+                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Komisi Level Generasi Jaringan (10 Level)</p>
+                        <p className="text-[11px] text-slate-400">Sakelar pembagian bonus otomatis generasi 1 sampai 10</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                          formEnableLevelBonus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {formEnableLevelBonus ? 'AKTIF' : 'NON-AKTIF'}
+                        </span>
+                        <button
+                          type="button"
+                          id="btn-toggle-level-bonus"
+                          onClick={() => setFormEnableLevelBonus(!formEnableLevelBonus)}
+                          className="transition text-slate-700 hover:text-blue-600"
+                          title={formEnableLevelBonus ? "Matikan Bonus Level" : "Aktifkan Bonus Level"}
+                        >
+                          {formEnableLevelBonus ? (
+                            <ToggleRight className="w-10 h-7 text-green-600 cursor-pointer" />
+                          ) : (
+                            <ToggleLeft className="w-10 h-7 text-slate-400 cursor-pointer" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={`grid grid-cols-2 md:grid-cols-5 gap-3 transition-opacity ${!formEnableLevelBonus ? 'opacity-40 pointer-events-none' : ''}`}>
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-slate-500 block">Gen 1 (G1)</label>
                         <input
@@ -1877,8 +1909,34 @@ export default function AdminDashboard({
 
                   {/* REWARD TARGET */}
                   <div className="mt-4 p-4 bg-blue-50/50 border border-blue-100 rounded-2xl space-y-3">
-                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-blue-700">Skema Pencapaian Target Reward Jaringan</p>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="flex items-center justify-between gap-3 border-b border-blue-100 pb-2">
+                      <div>
+                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-blue-700">Skema Pencapaian Target Reward Jaringan</p>
+                        <p className="text-[11px] text-slate-500">Sakelar perhitungan & klaim reward pencapaian jaringan Kiri / Kanan</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                          formEnableRewardBonus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {formEnableRewardBonus ? 'AKTIF' : 'NON-AKTIF'}
+                        </span>
+                        <button
+                          type="button"
+                          id="btn-toggle-reward-bonus"
+                          onClick={() => setFormEnableRewardBonus(!formEnableRewardBonus)}
+                          className="transition text-slate-700 hover:text-blue-600"
+                          title={formEnableRewardBonus ? "Matikan Reward Jaringan" : "Aktifkan Reward Jaringan"}
+                        >
+                          {formEnableRewardBonus ? (
+                            <ToggleRight className="w-10 h-7 text-green-600 cursor-pointer" />
+                          ) : (
+                            <ToggleLeft className="w-10 h-7 text-slate-400 cursor-pointer" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={`grid grid-cols-1 md:grid-cols-4 gap-3 transition-opacity ${!formEnableRewardBonus ? 'opacity-40 pointer-events-none' : ''}`}>
                       <div className="space-y-1">
                         <label className="text-[9px] font-bold text-slate-500 block">Target Kiri (Unit)</label>
                         <input

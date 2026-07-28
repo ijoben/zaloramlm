@@ -110,6 +110,8 @@ export interface SystemSettings {
   rewardName?: string;
   isAutoPayout?: boolean;
   enableMlmBonus?: boolean;
+  enableLevelBonus?: boolean;
+  enableRewardBonus?: boolean;
   logoUrl?: string;
   iconUrl?: string;
   slogan?: string;
