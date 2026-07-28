@@ -867,11 +867,11 @@ app.get("/api/settings", (req, res) => {
 });
 
 // Update System Settings (Admin operation)
-app.post("/api/admin/settings", (req, res) => {
+app.post("/api/admin/settings", async (req, res) => {
   const newSettings = req.body;
   if (!newSettings) return res.status(400).json({ message: "Pengaturan tidak valid" });
   systemSettings = { ...systemSettings, ...newSettings };
-  syncSettingsToFirestore(systemSettings);
+  await syncSettingsToFirestore(systemSettings);
   res.json({ message: "Pengaturan sistem & bonus komisi berhasil disimpan ke Firestore", settings: systemSettings });
 });
 
@@ -1109,20 +1109,20 @@ app.post("/api/user/activate", async (req, res) => {
 });
 
 // API Gateway Payment Simulation for QRIS / Bank Transfer (Deposits & Activations)
-app.post("/api/payment/simulate-gateway", (req, res) => {
+app.post("/api/payment/simulate-gateway", async (req, res) => {
   const { depositId } = req.body;
   const dep = deposits.find(d => d.id === depositId);
   if (!dep) return res.status(404).json({ message: "Request deposit tidak ditemukan" });
   if (dep.status !== "pending") return res.status(400).json({ message: "Deposit sudah diproses" });
 
   dep.status = "success";
-  syncDepositToFirestore(dep);
+  await syncDepositToFirestore(dep);
   
   // Credit user's balance
   const user = users.find(u => u.id === dep.user_id);
   if (user) {
     user.balance += dep.amount;
-    syncUserToFirestore(user);
+    await syncUserToFirestore(user);
     
     // Log transaction
     const newTx: Transaction = {
@@ -1135,23 +1135,25 @@ app.post("/api/payment/simulate-gateway", (req, res) => {
       created_at: new Date().toISOString()
     };
     transactions.push(newTx);
-    syncTransactionToFirestore(newTx);
+    await syncTransactionToFirestore(newTx);
 
-    notifications.push({
+    const newNotif: MLMNotification = {
       id: notifications.length + 1,
       user_id: user.id,
       title: "Deposit Berhasil!",
       message: `Saldo Rp ${dep.amount.toLocaleString()} telah berhasil ditambahkan via payment gateway otomatis.`,
       type: "success",
       created_at: new Date().toISOString()
-    });
+    };
+    notifications.push(newNotif);
+    await syncNotificationToFirestore(newNotif);
   }
 
   res.json({ message: "Pembayaran terverifikasi sukses via Midtrans/Tripay Gateway!", deposit: dep, user });
 });
 
 // Midtrans Webhook Callback Notification Handler
-app.post("/api/payment/midtrans-webhook", (req, res) => {
+app.post("/api/payment/midtrans-webhook", async (req, res) => {
   const { order_id, transaction_status, payment_type, gross_amount } = req.body;
   
   console.log(`[Midtrans Webhook] Received notification for ${order_id}: ${transaction_status}`);
@@ -1175,14 +1177,16 @@ app.post("/api/payment/midtrans-webhook", (req, res) => {
   // Check if status is a success state (settlement or capture for card)
   if (transaction_status === "settlement" || transaction_status === "capture") {
     dep.status = "success";
+    await syncDepositToFirestore(dep);
     
     // Credit user's balance
     const user = users.find(u => u.id === dep.user_id);
     if (user) {
       user.balance += dep.amount;
+      await syncUserToFirestore(user);
       
       // Log transaction
-      transactions.push({
+      const newTx: Transaction = {
         id: transactions.length + 1,
         user_id: user.id,
         username: user.username,
@@ -1190,31 +1194,38 @@ app.post("/api/payment/midtrans-webhook", (req, res) => {
         amount: dep.amount,
         description: `Deposit via ${dep.method.toUpperCase()} (Otomatis Midtrans)`,
         created_at: new Date().toISOString()
-      });
+      };
+      transactions.push(newTx);
+      await syncTransactionToFirestore(newTx);
 
-      notifications.push({
+      const newNotif: MLMNotification = {
         id: notifications.length + 1,
         user_id: user.id,
         title: "Deposit Otomatis Berhasil!",
         message: `Saldo Rp ${dep.amount.toLocaleString()} telah berhasil ditambahkan via Midtrans QRIS/VA otomatis.`,
         type: "success",
         created_at: new Date().toISOString()
-      });
+      };
+      notifications.push(newNotif);
+      await syncNotificationToFirestore(newNotif);
       
       console.log(`[Midtrans Webhook] Successfully processed payment and credited user ${user.username}`);
     }
   } else if (transaction_status === "deny" || transaction_status === "cancel" || transaction_status === "expire") {
     dep.status = "failed";
+    await syncDepositToFirestore(dep);
     const user = users.find(u => u.id === dep.user_id);
     if (user) {
-      notifications.push({
+      const newNotif: MLMNotification = {
         id: notifications.length + 1,
         user_id: user.id,
         title: "Pembayaran Deposit Gagal / Expired",
         message: `Pembayaran deposit Rp ${dep.amount.toLocaleString()} Anda dibatalkan atau telah kedaluwarsa oleh sistem Midtrans.`,
         type: "warning",
         created_at: new Date().toISOString()
-      });
+      };
+      notifications.push(newNotif);
+      await syncNotificationToFirestore(newNotif);
     }
     console.log(`[Midtrans Webhook] Payment failed or expired for order ${order_id}`);
   }
@@ -1343,12 +1354,12 @@ app.post("/api/user/deposit", async (req, res) => {
   };
 
   deposits.push(newDep);
-  syncDepositToFirestore(newDep);
+  await syncDepositToFirestore(newDep);
   res.status(201).json({ message: "Instruksi deposit berhasil dibuat", deposit: newDep });
 });
 
 // Create WD request
-app.post("/api/user/withdraw", (req, res) => {
+app.post("/api/user/withdraw", async (req, res) => {
   const { userId, amount, bankName, accountNumber, accountHolder } = req.body;
   const user = users.find(u => u.id === userId);
   if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
@@ -1378,8 +1389,8 @@ app.post("/api/user/withdraw", (req, res) => {
   };
 
   withdrawals.push(newWD);
-  syncWithdrawalToFirestore(newWD);
-  syncUserToFirestore(user);
+  await syncWithdrawalToFirestore(newWD);
+  await syncUserToFirestore(user);
 
   // Log transaction
   const newTx: Transaction = {
@@ -1392,26 +1403,30 @@ app.post("/api/user/withdraw", (req, res) => {
     created_at: new Date().toISOString()
   };
   transactions.push(newTx);
-  syncTransactionToFirestore(newTx);
+  await syncTransactionToFirestore(newTx);
 
   if (isAutoPayout) {
-    notifications.push({
+    const newNotif: MLMNotification = {
       id: notifications.length + 1,
       user_id: user.id,
       title: "Penarikan Sukses!",
       message: `Dana Rp ${numAmount.toLocaleString()} berhasil dikirim otomatis ke rekening ${bankName} Anda.`,
       type: "success",
       created_at: new Date().toISOString()
-    });
+    };
+    notifications.push(newNotif);
+    await syncNotificationToFirestore(newNotif);
   } else {
-    notifications.push({
+    const newNotif: MLMNotification = {
       id: notifications.length + 1,
       user_id: user.id,
       title: "Penarikan Diproses",
       message: `Permintaan penarikan Rp ${numAmount.toLocaleString()} sedang antre verifikasi admin.`,
       type: "info",
       created_at: new Date().toISOString()
-    });
+    };
+    notifications.push(newNotif);
+    await syncNotificationToFirestore(newNotif);
   }
 
   res.status(201).json({ 
@@ -1424,7 +1439,7 @@ app.post("/api/user/withdraw", (req, res) => {
 });
 
 // Admin WD processing
-app.post("/api/admin/withdraw/process", (req, res) => {
+app.post("/api/admin/withdraw/process", async (req, res) => {
   const { wdId, action } = req.body; // action: 'approve' | 'reject'
   const wd = withdrawals.find(w => w.id === wdId);
   if (!wd) return res.status(404).json({ message: "Data penarikan tidak ditemukan" });
@@ -1434,23 +1449,28 @@ app.post("/api/admin/withdraw/process", (req, res) => {
 
   if (action === "approve") {
     wd.status = "success";
+    await syncWithdrawalToFirestore(wd);
     if (user) {
-      notifications.push({
+      const newNotif: MLMNotification = {
         id: notifications.length + 1,
         user_id: user.id,
         title: "Penarikan Disetujui!",
         message: `Penarikan dana Rp ${wd.amount.toLocaleString()} telah disetujui admin dan ditransfer ke rekening ${wd.bank_name}.`,
         type: "success",
         created_at: new Date().toISOString()
-      });
+      };
+      notifications.push(newNotif);
+      await syncNotificationToFirestore(newNotif);
     }
   } else {
     wd.status = "rejected";
+    await syncWithdrawalToFirestore(wd);
     // Refund balance if rejected
     if (user) {
       user.balance += wd.amount;
+      await syncUserToFirestore(user);
       
-      transactions.push({
+      const newTx: Transaction = {
         id: transactions.length + 1,
         user_id: user.id,
         username: user.username,
@@ -1458,16 +1478,20 @@ app.post("/api/admin/withdraw/process", (req, res) => {
         amount: wd.amount,
         description: `Pengembalian dana penarikan (Ditolak oleh Admin)`,
         created_at: new Date().toISOString()
-      });
+      };
+      transactions.push(newTx);
+      await syncTransactionToFirestore(newTx);
 
-      notifications.push({
+      const newNotif: MLMNotification = {
         id: notifications.length + 1,
         user_id: user.id,
         title: "Penarikan Ditolak",
         message: `Penarikan Rp ${wd.amount.toLocaleString()} ditolak admin. Saldo Anda telah dikembalikan.`,
         type: "warning",
         created_at: new Date().toISOString()
-      });
+      };
+      notifications.push(newNotif);
+      await syncNotificationToFirestore(newNotif);
     }
   }
 
@@ -1475,7 +1499,7 @@ app.post("/api/admin/withdraw/process", (req, res) => {
 });
 
 // Toggle Payout Automation Settings
-app.post("/api/admin/settings/payout", (req, res) => {
+app.post("/api/admin/settings/payout", async (req, res) => {
   const { autoPayout } = req.body;
   if (autoPayout !== undefined) {
     isAutoPayout = Boolean(autoPayout);
@@ -1487,95 +1511,8 @@ app.get("/api/admin/settings/payout", (req, res) => {
   res.json({ isAutoPayout });
 });
 
-// Update System Configuration Settings
-app.post("/api/admin/settings", (req, res) => {
-  const {
-    webName,
-    logoText,
-    logoUrl,
-    iconUrl,
-    slogan,
-    siteDescription,
-    contactPhone,
-    contactEmail,
-    sponsorBonus,
-    pairingBonus,
-    roBonus,
-    levelBonusG1,
-    levelBonusG2,
-    levelBonusG3,
-    levelBonusG4,
-    levelBonusG5,
-    levelBonusG6,
-    levelBonusG7,
-    levelBonusG8,
-    levelBonusG9,
-    levelBonusG10,
-    rewardThresholdLeft,
-    rewardThresholdRight,
-    rewardName,
-    rewardCashEquivalent,
-    midtransMerchantId,
-    midtransClientKey,
-    midtransServerKey,
-    midtransIsProduction,
-    emailNotifRegisterAdminActive,
-    emailNotifRegisterSponsorActive,
-    adminNotifEmail,
-    smtpHost,
-    smtpPort,
-    smtpUser,
-    smtpPass,
-    emailSenderName,
-    welcomeEmailTemplate
-  } = req.body;
-
-  if (webName !== undefined) systemSettings.webName = String(webName);
-  if (logoText !== undefined) systemSettings.logoText = String(logoText);
-  if (logoUrl !== undefined) systemSettings.logoUrl = String(logoUrl);
-  if (iconUrl !== undefined) systemSettings.iconUrl = String(iconUrl);
-  if (slogan !== undefined) systemSettings.slogan = String(slogan);
-  if (siteDescription !== undefined) systemSettings.siteDescription = String(siteDescription);
-  if (contactPhone !== undefined) systemSettings.contactPhone = String(contactPhone);
-  if (contactEmail !== undefined) systemSettings.contactEmail = String(contactEmail);
-  if (sponsorBonus !== undefined) systemSettings.sponsorBonus = Number(sponsorBonus);
-  if (pairingBonus !== undefined) systemSettings.pairingBonus = Number(pairingBonus);
-  if (roBonus !== undefined) systemSettings.roBonus = Number(roBonus);
-  if (levelBonusG1 !== undefined) systemSettings.levelBonusG1 = Number(levelBonusG1);
-  if (levelBonusG2 !== undefined) systemSettings.levelBonusG2 = Number(levelBonusG2);
-  if (levelBonusG3 !== undefined) systemSettings.levelBonusG3 = Number(levelBonusG3);
-  if (levelBonusG4 !== undefined) systemSettings.levelBonusG4 = Number(levelBonusG4);
-  if (levelBonusG5 !== undefined) systemSettings.levelBonusG5 = Number(levelBonusG5);
-  if (levelBonusG6 !== undefined) systemSettings.levelBonusG6 = Number(levelBonusG6);
-  if (levelBonusG7 !== undefined) systemSettings.levelBonusG7 = Number(levelBonusG7);
-  if (levelBonusG8 !== undefined) systemSettings.levelBonusG8 = Number(levelBonusG8);
-  if (levelBonusG9 !== undefined) systemSettings.levelBonusG9 = Number(levelBonusG9);
-  if (levelBonusG10 !== undefined) systemSettings.levelBonusG10 = Number(levelBonusG10);
-  if (rewardThresholdLeft !== undefined) systemSettings.rewardThresholdLeft = Number(rewardThresholdLeft);
-  if (rewardThresholdRight !== undefined) systemSettings.rewardThresholdRight = Number(rewardThresholdRight);
-  if (rewardName !== undefined) systemSettings.rewardName = String(rewardName);
-  if (rewardCashEquivalent !== undefined) systemSettings.rewardCashEquivalent = Number(rewardCashEquivalent);
-
-  if (midtransMerchantId !== undefined) systemSettings.midtransMerchantId = String(midtransMerchantId);
-  if (midtransClientKey !== undefined) systemSettings.midtransClientKey = String(midtransClientKey);
-  if (midtransServerKey !== undefined) systemSettings.midtransServerKey = String(midtransServerKey);
-  if (midtransIsProduction !== undefined) systemSettings.midtransIsProduction = Boolean(midtransIsProduction);
-
-  if (emailNotifRegisterAdminActive !== undefined) systemSettings.emailNotifRegisterAdminActive = Boolean(emailNotifRegisterAdminActive);
-  if (emailNotifRegisterSponsorActive !== undefined) systemSettings.emailNotifRegisterSponsorActive = Boolean(emailNotifRegisterSponsorActive);
-  if (adminNotifEmail !== undefined) systemSettings.adminNotifEmail = String(adminNotifEmail);
-  if (smtpHost !== undefined) systemSettings.smtpHost = String(smtpHost);
-  if (smtpPort !== undefined) systemSettings.smtpPort = Number(smtpPort);
-  if (smtpUser !== undefined) systemSettings.smtpUser = String(smtpUser);
-  if (smtpPass !== undefined) systemSettings.smtpPass = String(smtpPass);
-  if (emailSenderName !== undefined) systemSettings.emailSenderName = String(emailSenderName);
-  if (welcomeEmailTemplate !== undefined) systemSettings.welcomeEmailTemplate = String(welcomeEmailTemplate);
-
-  res.json({ message: "Sistem & Konfigurasi Bonus berhasil diperbarui!", settings: systemSettings });
-});
-
 // User Profile Update Endpoint
-app.post("/api/user/:userId/profile", (req, res) => {
+app.post("/api/user/:userId/profile", async (req, res) => {
   const userId = Number(req.params.userId);
   const { fullname, email, phone, password } = req.body;
   const user = users.find(u => u.id === userId);
@@ -1588,11 +1525,12 @@ app.post("/api/user/:userId/profile", (req, res) => {
     (user as any).password = String(password);
   }
 
+  await syncUserToFirestore(user);
   res.json({ message: "Profil berhasil diperbarui!", user });
 });
 
 // User Password Reset / Change Endpoint
-app.post("/api/user/:userId/reset-password", (req, res) => {
+app.post("/api/user/:userId/reset-password", async (req, res) => {
   const userId = Number(req.params.userId);
   const { currentPassword, newPassword } = req.body;
   const user = users.find(u => u.id === userId);
@@ -1604,11 +1542,12 @@ app.post("/api/user/:userId/reset-password", (req, res) => {
   }
 
   (user as any).password = String(newPassword);
+  await syncUserToFirestore(user);
   res.json({ message: "Kata sandi berhasil direset!", user });
 });
 
 // Admin Deposit manual verification
-app.post("/api/admin/deposit/process", (req, res) => {
+app.post("/api/admin/deposit/process", async (req, res) => {
   const { depositId, action } = req.body; // action: 'approve' | 'reject'
   const dep = deposits.find(d => d.id === Number(depositId));
   if (!dep) return res.status(404).json({ message: "Data deposit tidak ditemukan" });
@@ -1618,10 +1557,12 @@ app.post("/api/admin/deposit/process", (req, res) => {
 
   if (action === "approve") {
     dep.status = "success";
+    await syncDepositToFirestore(dep);
     if (user) {
       user.balance += dep.amount;
+      await syncUserToFirestore(user);
 
-      transactions.push({
+      const newTx: Transaction = {
         id: transactions.length + 1,
         user_id: user.id,
         username: user.username,
@@ -1629,28 +1570,35 @@ app.post("/api/admin/deposit/process", (req, res) => {
         amount: dep.amount,
         description: `Deposit Manual via ${dep.method.toUpperCase()} Disetujui Admin`,
         created_at: new Date().toISOString()
-      });
+      };
+      transactions.push(newTx);
+      await syncTransactionToFirestore(newTx);
 
-      notifications.push({
+      const newNotif: MLMNotification = {
         id: notifications.length + 1,
         user_id: user.id,
         title: "Deposit Manual Disetujui!",
         message: `Saldo Rp ${dep.amount.toLocaleString()} telah ditambahkan ke akun Anda oleh admin.`,
         type: "success",
         created_at: new Date().toISOString()
-      });
+      };
+      notifications.push(newNotif);
+      await syncNotificationToFirestore(newNotif);
     }
   } else {
     dep.status = "failed";
+    await syncDepositToFirestore(dep);
     if (user) {
-      notifications.push({
+      const newNotif: MLMNotification = {
         id: notifications.length + 1,
         user_id: user.id,
         title: "Deposit Manual Ditolak",
         message: `Transfer deposit Rp ${dep.amount.toLocaleString()} ditolak oleh admin. Pastikan nominal sesuai atau hubungi admin.`,
         type: "warning",
         created_at: new Date().toISOString()
-      });
+      };
+      notifications.push(newNotif);
+      await syncNotificationToFirestore(newNotif);
     }
   }
 
@@ -2899,10 +2847,12 @@ async function initFirestoreData() {
       if (!prodSnap.empty) {
         prodSnap.forEach((docSnap) => {
           const p = docSnap.data() as Product;
-          if (!p || p.id === undefined) return;
-          const pId = Number(p.id);
+          if (!p) return;
+          const rawId = p.id !== undefined && p.id !== null ? p.id : docSnap.id;
+          const pId = Number(rawId);
+          if (isNaN(pId)) return;
           const idx = products.findIndex(x => Number(x.id) === pId);
-          if (idx >= 0) products[idx] = { ...p, id: pId };
+          if (idx >= 0) products[idx] = { ...products[idx], ...p, id: pId };
           else products.push({ ...p, id: pId });
         });
       } else {
@@ -2920,10 +2870,12 @@ async function initFirestoreData() {
       if (!depSnap.empty) {
         depSnap.forEach((docSnap) => {
           const d = docSnap.data() as DepositRequest;
-          if (!d || d.id === undefined) return;
-          const dId = Number(d.id);
+          if (!d) return;
+          const rawId = d.id !== undefined && d.id !== null ? d.id : docSnap.id;
+          const dId = Number(rawId);
+          if (isNaN(dId)) return;
           const idx = deposits.findIndex(x => Number(x.id) === dId);
-          if (idx >= 0) deposits[idx] = { ...d, id: dId };
+          if (idx >= 0) deposits[idx] = { ...deposits[idx], ...d, id: dId };
           else deposits.push({ ...d, id: dId });
         });
       } else {
@@ -2941,10 +2893,12 @@ async function initFirestoreData() {
       if (!wdSnap.empty) {
         wdSnap.forEach((docSnap) => {
           const w = docSnap.data() as WDRequest;
-          if (!w || w.id === undefined) return;
-          const wId = Number(w.id);
+          if (!w) return;
+          const rawId = w.id !== undefined && w.id !== null ? w.id : docSnap.id;
+          const wId = Number(rawId);
+          if (isNaN(wId)) return;
           const idx = withdrawals.findIndex(x => Number(x.id) === wId);
-          if (idx >= 0) withdrawals[idx] = { ...w, id: wId };
+          if (idx >= 0) withdrawals[idx] = { ...withdrawals[idx], ...w, id: wId };
           else withdrawals.push({ ...w, id: wId });
         });
       } else {
@@ -2962,10 +2916,12 @@ async function initFirestoreData() {
       if (!txSnap.empty) {
         txSnap.forEach((docSnap) => {
           const t = docSnap.data() as Transaction;
-          if (!t || t.id === undefined) return;
-          const tId = Number(t.id);
+          if (!t) return;
+          const rawId = t.id !== undefined && t.id !== null ? t.id : docSnap.id;
+          const tId = Number(rawId);
+          if (isNaN(tId)) return;
           const idx = transactions.findIndex(x => Number(x.id) === tId);
-          if (idx >= 0) transactions[idx] = { ...t, id: tId };
+          if (idx >= 0) transactions[idx] = { ...transactions[idx], ...t, id: tId };
           else transactions.push({ ...t, id: tId });
         });
       } else {
@@ -2983,10 +2939,12 @@ async function initFirestoreData() {
       if (!notifSnap.empty) {
         notifSnap.forEach((docSnap) => {
           const n = docSnap.data() as MLMNotification;
-          if (!n || n.id === undefined) return;
-          const nId = Number(n.id);
+          if (!n) return;
+          const rawId = n.id !== undefined && n.id !== null ? n.id : docSnap.id;
+          const nId = Number(rawId);
+          if (isNaN(nId)) return;
           const idx = notifications.findIndex(x => Number(x.id) === nId);
-          if (idx >= 0) notifications[idx] = { ...n, id: nId };
+          if (idx >= 0) notifications[idx] = { ...notifications[idx], ...n, id: nId };
           else notifications.push({ ...n, id: nId });
         });
       } else {
