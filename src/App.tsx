@@ -13,7 +13,7 @@ import { DEFAULT_USERS } from "./data/defaultUsers";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
 
 // Client-side timeout helper to prevent hanging on Firestore network stalls
-function withClientTimeout<T>(promise: Promise<T>, ms: number = 1500, label = "Operation"): Promise<T | null> {
+function withClientTimeout<T>(promise: Promise<T>, ms: number = 8000, label = "Operation"): Promise<T | null> {
   return Promise.race([
     promise.catch((err) => {
       console.warn(`⚠️ [Client Firestore Error] ${label}:`, err);
@@ -357,8 +357,8 @@ async function fetchFirestoreSettings(): Promise<any> {
 
   try {
     const docRef = doc(db, "settings", "system");
-    const docSnap: any = await withClientTimeout(getDoc(docRef), 1500, "getDoc system settings");
-    if (docSnap && docSnap.exists && docSnap.exists()) {
+    const docSnap: any = await withClientTimeout(getDoc(docRef), 5000, "getDoc system settings");
+    if (docSnap && docSnap.exists && typeof docSnap.exists === 'function' && docSnap.exists()) {
       return docSnap.data();
     }
   } catch (err: any) {
@@ -370,7 +370,7 @@ async function fetchFirestoreSettings(): Promise<any> {
 async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
   if (db) {
     try {
-      withClientTimeout(setDoc(doc(db, "settings", "system"), newSettings, { merge: true }), 1500, "saveSettings");
+      await withClientTimeout(setDoc(doc(db, "settings", "system"), newSettings, { merge: true }), 5000, "saveSettings");
       return true;
     } catch (err: any) {
       console.warn("⚠️ [saveFirestoreSettings] Error saving settings to Firestore:", err);
@@ -842,20 +842,24 @@ export default function App() {
       const res = await fetch("/api/settings");
       if (res.ok) {
         const data = await res.json();
-        setSystemSettings(data);
-        return;
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          setSystemSettings((prev: any) => ({ ...prev, ...data }));
+          return;
+        }
       }
     } catch (err) {
       console.warn("API settings unavailable, fetching direct from Firestore...", err);
     }
 
     const fsSettings = await fetchFirestoreSettings();
-    if (fsSettings) {
-      setSystemSettings(fsSettings);
+    if (fsSettings && typeof fsSettings === 'object' && Object.keys(fsSettings).length > 0) {
+      setSystemSettings((prev: any) => ({ ...prev, ...fsSettings }));
     }
   };
 
   const handleUpdateSettings = async (newSettings: any): Promise<boolean> => {
+    setSystemSettings((prev: any) => ({ ...prev, ...newSettings }));
+
     let apiSuccess = false;
     try {
       const res = await fetch("/api/admin/settings", {
@@ -867,12 +871,11 @@ export default function App() {
         apiSuccess = true;
       }
     } catch (err) {
-      console.warn("Backend API /api/admin/settings unavailable, saving directly to Firestore database...", err);
+      console.warn("Backend API /api/admin/settings error:", err);
     }
 
-    const savedToFirestore = await saveFirestoreSettings(newSettings);
-    setSystemSettings((prev: any) => ({ ...prev, ...newSettings }));
-    return apiSuccess || savedToFirestore;
+    const fsSuccess = await saveFirestoreSettings(newSettings);
+    return apiSuccess || fsSuccess;
   };
 
   const getFallbackUser = (username: string): MLMUser => {
