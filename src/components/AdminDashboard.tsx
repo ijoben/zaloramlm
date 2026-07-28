@@ -499,9 +499,13 @@ export default function AdminDashboard({
       {/* Brand Header */}
       <header className="bg-[#111111] text-white h-16 px-4 sm:px-6 flex items-center justify-between shadow-lg sticky top-0 z-40 border-b border-neutral-800" id="admin-header">
         <div className="flex items-center gap-3 min-w-0 flex-1 sm:flex-initial">
-          <div className="bg-[#C41230] text-white font-black font-display text-sm sm:text-base tracking-tighter px-3 py-1 rounded-b-md shadow-md uppercase border-t-2 border-red-800 shrink-0">
-            LEVI'S® <span className="font-light text-red-200">DENIM</span>
-          </div>
+          {settings?.logoUrl ? (
+            <img src={settings.logoUrl} alt={settings?.webName || "Logo"} className="h-8 max-w-[160px] object-contain shrink-0" />
+          ) : (
+            <div className="bg-[#C41230] text-white font-black font-display text-sm sm:text-base tracking-tighter px-3 py-1 rounded-b-md shadow-md uppercase border-t-2 border-red-800 shrink-0">
+              {settings?.logoText || "ZALORA® DENIM"}
+            </div>
+          )}
           <span className="text-xs font-black uppercase tracking-widest text-neutral-300">
             ADMIN PORTAL
           </span>

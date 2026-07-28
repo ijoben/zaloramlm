@@ -1760,6 +1760,7 @@ export default function App() {
     setUserDashboardData(null);
     setAdminDashboardData(null);
     setActiveView('landing');
+    fetchSettings();
   };
 
   return (

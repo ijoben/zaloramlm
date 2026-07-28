@@ -31,14 +31,6 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Normalize Vercel serverless request URL if /api prefix is stripped
-app.use((req, res, next) => {
-  if (req.url && !req.url.startsWith('/api') && !req.url.startsWith('/_')) {
-    req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
-  }
-  next();
-});
-
 app.get(["/api", "/api/"], (req, res) => {
   res.json({ status: "ok", message: "Zalora Denim MLM Backend API is active" });
 });

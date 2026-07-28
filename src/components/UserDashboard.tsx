@@ -297,9 +297,13 @@ export default function UserDashboard({
       {/* Upper Brand bar */}
       <header className="bg-[#111111] text-white h-16 px-4 sm:px-6 flex items-center justify-between shadow-lg sticky top-0 z-40 border-b border-neutral-800" id="user-header">
         <div className="flex items-center gap-3">
-          <div className="bg-[#C41230] text-white font-black font-display text-sm sm:text-base tracking-tighter px-3 py-1 rounded-b-md shadow-md uppercase border-t-2 border-red-800">
-            LEVI'S® <span className="font-light text-red-200">DENIM</span>
-          </div>
+          {settings?.logoUrl ? (
+            <img src={settings.logoUrl} alt={settings?.webName || "Logo"} className="h-8 max-w-[150px] object-contain shrink-0" />
+          ) : (
+            <div className="bg-[#C41230] text-white font-black font-display text-sm sm:text-base tracking-tighter px-3 py-1 rounded-b-md shadow-md uppercase border-t-2 border-red-800">
+              {settings?.logoText || "ZALORA® DENIM"}
+            </div>
+          )}
           <span className="hidden sm:inline-block text-xs font-black uppercase tracking-widest text-neutral-300">
             MEMBER PORTAL
           </span>
