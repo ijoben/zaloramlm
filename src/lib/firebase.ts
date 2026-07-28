@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import { resolvedFirebaseConfig } from './firebaseConfig';
 
 let app: any = null;
@@ -14,9 +14,15 @@ try {
     const dbId = resolvedFirebaseConfig.firestoreDatabaseId;
     const isCustomDb = dbId && dbId.trim() !== '' && dbId !== "(default)" && dbId !== "default";
 
-    db = isCustomDb
-      ? getFirestore(app, dbId)
-      : getFirestore(app);
+    try {
+      db = isCustomDb
+        ? initializeFirestore(app, { experimentalForceLongPolling: true }, dbId)
+        : initializeFirestore(app, { experimentalForceLongPolling: true });
+    } catch {
+      db = isCustomDb
+        ? getFirestore(app, dbId)
+        : getFirestore(app);
+    }
 
     console.log("🔥 [Firebase Client] Successfully initialized Firebase!", {
       projectId: resolvedFirebaseConfig.projectId,

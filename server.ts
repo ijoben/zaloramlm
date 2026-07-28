@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
+import { initializeFirestore, getFirestore, collection, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode } from "./src/types";
 
 // Safe loader for firebase-applet-config.json
@@ -41,9 +41,15 @@ if (resolvedServerFirebaseConfig.apiKey) {
     const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId;
     const isCustomDb = dbId && dbId.trim() !== '' && dbId !== "(default)" && dbId !== "default";
 
-    firestoreDb = isCustomDb
-      ? getFirestore(firebaseApp, dbId)
-      : getFirestore(firebaseApp);
+    try {
+      firestoreDb = isCustomDb
+        ? initializeFirestore(firebaseApp, { experimentalForceLongPolling: true }, dbId)
+        : initializeFirestore(firebaseApp, { experimentalForceLongPolling: true });
+    } catch {
+      firestoreDb = isCustomDb
+        ? getFirestore(firebaseApp, dbId)
+        : getFirestore(firebaseApp);
+    }
     console.log("🔥 Firebase Firestore connected! Project ID:", resolvedServerFirebaseConfig.projectId, "Database ID:", dbId);
   } catch (e) {
     console.warn("⚠️ Firebase Firestore initialization warning:", e);

@@ -12,6 +12,22 @@ import { DEFAULT_PRODUCTS } from "./data/defaultProducts";
 import { DEFAULT_USERS } from "./data/defaultUsers";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
 
+// Client-side timeout helper to prevent hanging on Firestore network stalls
+function withClientTimeout<T>(promise: Promise<T>, ms: number = 1500, label = "Operation"): Promise<T | null> {
+  return Promise.race([
+    promise.catch((err) => {
+      console.warn(`⚠️ [Client Firestore Error] ${label}:`, err);
+      return null;
+    }),
+    new Promise<null>((resolve) => {
+      setTimeout(() => {
+        console.warn(`⏱️ [Client Firestore Timeout] ${label} exceeded ${ms}ms limit`);
+        resolve(null);
+      }, ms);
+    })
+  ]);
+}
+
 // Firebase Firestore Direct Data Helpers
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
   console.log("🔍 [fetchFirestoreUsers] Checking Firestore `db` status...", {
@@ -28,11 +44,15 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
 
   try {
     console.log("📡 [fetchFirestoreUsers] Reading 'users' collection from Firestore...");
-    const querySnapshot = await getDocs(collection(db, "users"));
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "users")), 1500, "getDocs users");
+    if (!querySnapshot) {
+      console.warn("⚠️ [fetchFirestoreUsers] Firestore read timed out or failed, using DEFAULT_USERS fallback.");
+      return DEFAULT_USERS;
+    }
     console.log(`✅ [fetchFirestoreUsers] Firestore read successful! Received ${querySnapshot.size} user documents.`);
     const usersMap = new Map<number, MLMUser>();
 
-    querySnapshot.forEach((docSnap) => {
+    querySnapshot.forEach((docSnap: any) => {
       const data = docSnap.data();
       const parsedId = Number(data.id ?? docSnap.id);
       if (!isNaN(parsedId)) {
@@ -73,7 +93,7 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
       for (const defU of DEFAULT_USERS) {
         usersMap.set(defU.id, defU);
         try {
-          await setDoc(doc(db, "users", String(defU.id)), defU);
+          withClientTimeout(setDoc(doc(db, "users", String(defU.id)), defU), 1000, `seedUser ${defU.username}`);
         } catch (e) {
           console.warn(`Failed seeding user ${defU.username} to Firestore:`, e);
         }
@@ -83,7 +103,7 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
         if (!usersMap.has(defU.id)) {
           usersMap.set(defU.id, defU);
           try {
-            await setDoc(doc(db, "users", String(defU.id)), defU);
+            withClientTimeout(setDoc(doc(db, "users", String(defU.id)), defU), 1000, `seedUser ${defU.username}`);
           } catch {}
         }
       }
@@ -94,12 +114,6 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
     return finalUsers;
   } catch (err: any) {
     console.error("❌ [fetchFirestoreUsers] Error reading 'users' from Firestore:", err);
-    if (err && err.code) {
-      console.error(`🚨 [fetchFirestoreUsers] Firestore Error Code: ${err.code} | Message: ${err.message}`);
-      if (err.code === "permission-denied") {
-        console.error("🔒 [PERMISSION DENIED] Firestore Security Rules are blocking read access to 'users'. Make sure firestore.rules allows read or publish rules in Firebase Console.");
-      }
-    }
     return DEFAULT_USERS;
   }
 }
@@ -303,10 +317,11 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
 
   try {
     console.log("📡 [fetchFirestoreProducts] Reading 'products' collection from Firestore...");
-    const querySnapshot = await getDocs(collection(db, "products"));
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "products")), 1500, "getDocs products");
+    if (!querySnapshot) return DEFAULT_PRODUCTS;
     console.log(`✅ [fetchFirestoreProducts] Firestore read successful! Received ${querySnapshot.size} products.`);
     const prods: Product[] = [];
-    querySnapshot.forEach((docSnap) => {
+    querySnapshot.forEach((docSnap: any) => {
       const data = docSnap.data();
       prods.push({
         id: Number(data.id ?? docSnap.id),
@@ -323,7 +338,7 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
       console.log("ℹ️ [fetchFirestoreProducts] Collection 'products' is empty in Firestore. Seeding default products...");
       for (const defP of DEFAULT_PRODUCTS) {
         try {
-          await setDoc(doc(db, "products", String(defP.id)), defP);
+          withClientTimeout(setDoc(doc(db, "products", String(defP.id)), defP), 1000, `seedProduct ${defP.name}`);
         } catch {}
       }
       return DEFAULT_PRODUCTS;
@@ -333,7 +348,6 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
     return prods;
   } catch (err: any) {
     console.error("❌ [fetchFirestoreProducts] Error reading 'products' from Firestore:", err);
-    if (err && err.code) console.error(`🚨 [fetchFirestoreProducts] Firestore Error Code: ${err.code} - ${err.message}`);
     return DEFAULT_PRODUCTS;
   }
 }
@@ -343,8 +357,8 @@ async function fetchFirestoreSettings(): Promise<any> {
 
   try {
     const docRef = doc(db, "settings", "system");
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
+    const docSnap: any = await withClientTimeout(getDoc(docRef), 1500, "getDoc system settings");
+    if (docSnap && docSnap.exists && docSnap.exists()) {
       return docSnap.data();
     }
   } catch (err: any) {
@@ -356,7 +370,7 @@ async function fetchFirestoreSettings(): Promise<any> {
 async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
   if (db) {
     try {
-      await setDoc(doc(db, "settings", "system"), newSettings, { merge: true });
+      withClientTimeout(setDoc(doc(db, "settings", "system"), newSettings, { merge: true }), 1500, "saveSettings");
       return true;
     } catch (err: any) {
       console.warn("⚠️ [saveFirestoreSettings] Error saving settings to Firestore:", err);
@@ -366,17 +380,13 @@ async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
 }
 
 async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
-  if (!db) {
-    console.warn("⚠️ [fetchFirestoreWithdrawals] `db` instance is null. Returning empty list.");
-    return [];
-  }
+  if (!db) return [];
 
   try {
-    console.log("📡 [fetchFirestoreWithdrawals] Reading 'withdrawals' collection from Firestore...");
-    const querySnapshot = await getDocs(collection(db, "withdrawals"));
-    console.log(`✅ [fetchFirestoreWithdrawals] Firestore read successful! Received ${querySnapshot.size} withdrawals.`);
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "withdrawals")), 1500, "getDocs withdrawals");
+    if (!querySnapshot) return [];
     const wds: WDRequest[] = [];
-    querySnapshot.forEach((docSnap) => {
+    querySnapshot.forEach((docSnap: any) => {
       const data = docSnap.data();
       wds.push({
         id: Number(data.id),
@@ -395,7 +405,6 @@ async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
     return wds;
   } catch (err: any) {
     console.error("❌ [fetchFirestoreWithdrawals] Error reading 'withdrawals' from Firestore:", err);
-    if (err && err.code) console.error(`🚨 [fetchFirestoreWithdrawals] Firestore Error Code: ${err.code} - ${err.message}`);
     return [];
   }
 }
@@ -403,7 +412,7 @@ async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
 async function createFirestoreWithdrawal(wd: WDRequest): Promise<void> {
   if (db) {
     try {
-      await setDoc(doc(db, "withdrawals", String(wd.id)), wd);
+      withClientTimeout(setDoc(doc(db, "withdrawals", String(wd.id)), wd), 1500, `createWD #${wd.id}`);
     } catch (err) {
       console.warn("Error creating withdrawal in Firestore:", err);
     }
@@ -428,7 +437,7 @@ async function updateFirestoreWithdrawalStatus(wdId: number, status: 'approved' 
 
   if (db) {
     try {
-      await setDoc(doc(db, "withdrawals", String(wdId)), { status }, { merge: true });
+      withClientTimeout(setDoc(doc(db, "withdrawals", String(wdId)), { status }, { merge: true }), 1500, `updateWD #${wdId}`);
     } catch (err) {
       console.warn("Error updating withdrawal in Firestore:", err);
     }
@@ -436,17 +445,13 @@ async function updateFirestoreWithdrawalStatus(wdId: number, status: 'approved' 
 }
 
 async function fetchFirestoreTransactions(): Promise<Transaction[]> {
-  if (!db) {
-    console.warn("⚠️ [fetchFirestoreTransactions] `db` instance is null. Returning empty list.");
-    return [];
-  }
+  if (!db) return [];
 
   try {
-    console.log("📡 [fetchFirestoreTransactions] Reading 'transactions' collection from Firestore...");
-    const querySnapshot = await getDocs(collection(db, "transactions"));
-    console.log(`✅ [fetchFirestoreTransactions] Firestore read successful! Received ${querySnapshot.size} transactions.`);
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "transactions")), 1500, "getDocs transactions");
+    if (!querySnapshot) return [];
     const txs: Transaction[] = [];
-    querySnapshot.forEach((docSnap) => {
+    querySnapshot.forEach((docSnap: any) => {
       const data = docSnap.data();
       txs.push({
         id: Number(data.id),
@@ -463,7 +468,6 @@ async function fetchFirestoreTransactions(): Promise<Transaction[]> {
     return txs;
   } catch (err: any) {
     console.error("❌ [fetchFirestoreTransactions] Error reading 'transactions' from Firestore:", err);
-    if (err && err.code) console.error(`🚨 [fetchFirestoreTransactions] Firestore Error Code: ${err.code} - ${err.message}`);
     return [];
   }
 }
@@ -471,7 +475,7 @@ async function fetchFirestoreTransactions(): Promise<Transaction[]> {
 async function createFirestoreTransaction(tx: Transaction): Promise<void> {
   if (db) {
     try {
-      await setDoc(doc(db, "transactions", String(tx.id)), tx);
+      withClientTimeout(setDoc(doc(db, "transactions", String(tx.id)), tx), 1500, `createTx #${tx.id}`);
     } catch (err) {
       console.warn("Error creating transaction in Firestore:", err);
     }
@@ -479,17 +483,13 @@ async function createFirestoreTransaction(tx: Transaction): Promise<void> {
 }
 
 async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
-  if (!db) {
-    console.warn("⚠️ [fetchFirestoreDeposits] `db` instance is null. Returning empty list.");
-    return [];
-  }
+  if (!db) return [];
 
   try {
-    console.log("📡 [fetchFirestoreDeposits] Reading 'deposits' collection from Firestore...");
-    const querySnapshot = await getDocs(collection(db, "deposits"));
-    console.log(`✅ [fetchFirestoreDeposits] Firestore read successful! Received ${querySnapshot.size} deposits.`);
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "deposits")), 1500, "getDocs deposits");
+    if (!querySnapshot) return [];
     const deps: DepositRequest[] = [];
-    querySnapshot.forEach((docSnap) => {
+    querySnapshot.forEach((docSnap: any) => {
       const data = docSnap.data();
       deps.push({
         id: Number(data.id),
@@ -507,7 +507,6 @@ async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
     return deps;
   } catch (err: any) {
     console.error("❌ [fetchFirestoreDeposits] Error reading 'deposits' from Firestore:", err);
-    if (err && err.code) console.error(`🚨 [fetchFirestoreDeposits] Firestore Error Code: ${err.code} - ${err.message}`);
     return [];
   }
 }
@@ -515,7 +514,7 @@ async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
 async function createFirestoreDeposit(dep: DepositRequest): Promise<void> {
   if (db) {
     try {
-      await setDoc(doc(db, "deposits", String(dep.id)), dep);
+      withClientTimeout(setDoc(doc(db, "deposits", String(dep.id)), dep), 1500, `createDeposit #${dep.id}`);
     } catch (err) {
       console.warn("Error creating deposit in Firestore:", err);
     }
@@ -656,6 +655,7 @@ export default function App() {
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('password123'); // Demo bypass
   const [loginError, setLoginError] = useState('');
+  const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
 
   // Forgot Password states
   const [forgotEmail, setForgotEmail] = useState('');
@@ -987,7 +987,9 @@ export default function App() {
     try {
       if (targetUser.role === 'admin') {
         console.log("📡 [fetchDashboardData] Fetching Express API: /api/admin/dashboard");
-        const res = await fetch("/api/admin/dashboard");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch("/api/admin/dashboard", { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
         if (!currentUserRef.current) return;
         const contentType = res.headers.get("content-type");
         if (res.ok && contentType && contentType.includes("json")) {
@@ -1005,7 +1007,9 @@ export default function App() {
         }
       } else {
         console.log(`📡 [fetchDashboardData] Fetching Express API: /api/user/${targetUser.id}/dashboard`);
-        const res = await fetch(`/api/user/${targetUser.id}/dashboard`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`/api/user/${targetUser.id}/dashboard`, { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
         if (!currentUserRef.current) return;
         const contentType = res.headers.get("content-type");
         if (res.ok && contentType && contentType.includes("json")) {
@@ -1034,11 +1038,13 @@ export default function App() {
 
     if (!apiSuccess && currentUserRef.current) {
       console.log("🔄 [fetchDashboardData] Executing direct Firestore database fetch for dashboard...");
-      // Direct Firestore sync
-      const fsUsers = await fetchFirestoreUsers();
-      const fsWithdrawals = await fetchFirestoreWithdrawals();
-      const fsDeposits = await fetchFirestoreDeposits();
-      const fsTransactions = await fetchFirestoreTransactions();
+      // Direct Firestore sync in parallel
+      const [fsUsers, fsWithdrawals, fsDeposits, fsTransactions] = await Promise.all([
+        fetchFirestoreUsers(),
+        fetchFirestoreWithdrawals(),
+        fetchFirestoreDeposits(),
+        fetchFirestoreTransactions()
+      ]);
 
       console.log("📊 [fetchDashboardData] Firestore direct read complete:", {
         usersCount: fsUsers.length,
@@ -1109,6 +1115,7 @@ export default function App() {
       return;
     }
     setLoginError('');
+    setIsSubmittingLogin(true);
 
     // Format target email for Firebase Auth SDK
     let authEmail = loginUsername.trim();
@@ -1123,62 +1130,75 @@ export default function App() {
     }
 
     try {
-      // 1. Authenticate with Firebase Authentication SDK
+      // 1. Authenticate with Firebase Authentication SDK (capped with 2s timeout)
       if (auth) {
         try {
-          const userCred = await signInWithEmailAndPassword(auth, authEmail, loginPassword);
-          console.log("Firebase Auth SDK Sign In Success:", userCred.user.uid);
+          const userCred: any = await withClientTimeout(signInWithEmailAndPassword(auth, authEmail, loginPassword), 2000, "Firebase Auth SDK");
+          if (userCred && userCred.user) {
+            console.log("Firebase Auth SDK Sign In Success:", userCred.user.uid);
+          }
         } catch (fbErr: any) {
           console.warn("Firebase Auth SDK Sign In Notice:", fbErr?.code || fbErr?.message);
         }
       }
 
-      // 2. Obtain user profile & network structure from MLM API
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: loginUsername, password: loginPassword })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentUser(data.user);
-        setShowLoginModal(false);
-        setLoginUsername('');
-        setLoginPassword('');
-        setActiveView('dashboard');
-        return;
-      } else {
-        const data = await res.json().catch(() => ({}));
-        if (data.message) {
-          setLoginError(data.message);
+      // 2. Obtain user profile from backend API with AbortController 2.5s timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: loginUsername, password: loginPassword }),
+          signal: controller.signal
+        }).finally(() => clearTimeout(timeoutId));
+
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentUser(data.user);
+          setShowLoginModal(false);
+          setLoginUsername('');
+          setLoginPassword('');
+          setIsSubmittingLogin(false);
+          setActiveView('dashboard');
           return;
+        } else if (res.status !== 500) {
+          // Explicit credential error from backend
+          const data = await res.json().catch(() => ({}));
+          if (data.message) {
+            setLoginError(data.message);
+            setIsSubmittingLogin(false);
+            return;
+          }
         }
+      } catch (fetchErr) {
+        console.warn("API Login fetch timeout or error, proceeding to client fallback...", fetchErr);
       }
     } catch (err: any) {
       console.warn("API Login unreachable, using direct Firestore fallback...", err);
     }
 
-    // Fallback if API backend is unreachable (e.g. Vercel static host)
-    const fsUsers = await fetchFirestoreUsers();
-    const uSearch = loginUsername.toLowerCase().replace(/\s+/g, "").trim();
-    const matched = fsUsers.find(u => 
-      (u.username && u.username.toLowerCase().trim() === uSearch) || 
-      (u.email && u.email.toLowerCase().trim() === uSearch)
-    );
+    // 3. Fallback if API backend is unreachable (e.g. Vercel serverless error)
+    try {
+      const fsUsers = await fetchFirestoreUsers();
+      const uSearch = loginUsername.toLowerCase().replace(/\s+/g, "").trim();
+      const matched = fsUsers.find(u => 
+        (u.username && u.username.toLowerCase().trim() === uSearch) || 
+        (u.email && u.email.toLowerCase().trim() === uSearch)
+      );
 
-    if (matched) {
-      setCurrentUser(matched);
+      if (matched) {
+        setCurrentUser(matched);
+      } else {
+        const fallbackUser = getFallbackUser(loginUsername);
+        setCurrentUser(fallbackUser);
+      }
       setShowLoginModal(false);
       setLoginUsername('');
       setLoginPassword('');
       setActiveView('dashboard');
-    } else {
-      const fallbackUser = getFallbackUser(loginUsername);
-      setCurrentUser(fallbackUser);
-      setShowLoginModal(false);
-      setLoginUsername('');
-      setLoginPassword('');
-      setActiveView('dashboard');
+    } finally {
+      setIsSubmittingLogin(false);
     }
   };
 
@@ -1920,9 +1940,20 @@ export default function App() {
               <button
                 type="submit"
                 id="btn-modal-login-submit"
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-1.5"
+                disabled={isSubmittingLogin}
+                className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-70 text-white font-bold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-1.5"
               >
-                <LogIn className="w-4 h-4 text-blue-500" /> Masuk Ke Portal
+                {isSubmittingLogin ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />
+                    <span>Memproses Masuk...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4 text-blue-500" />
+                    <span>Masuk Ke Portal</span>
+                  </>
+                )}
               </button>
             </form>
 
