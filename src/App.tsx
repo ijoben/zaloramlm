@@ -182,6 +182,11 @@ async function registerUserToFirestoreDirect(regData: {
   upline_username?: string;
   position?: 'L' | 'R';
   firebase_uid?: string;
+  ktp?: string;
+  whatsapp?: string;
+  bank_name?: string;
+  bank_account?: string;
+  bank_holder?: string;
 }): Promise<MLMUser> {
   const users = await fetchFirestoreUsers();
 
@@ -239,7 +244,12 @@ async function registerUserToFirestoreDirect(regData: {
     right_sales: 0,
     created_at: new Date().toISOString(),
     role: "user",
-    firebase_uid: regData.firebase_uid || ""
+    firebase_uid: regData.firebase_uid || "",
+    ktp: regData.ktp || "",
+    whatsapp: regData.whatsapp || regData.phone || "",
+    bank_name: regData.bank_name || "",
+    bank_account: regData.bank_account || "",
+    bank_holder: regData.bank_holder || regData.fullname || ""
   };
 
   // Save to Firestore
@@ -711,8 +721,13 @@ export default function App() {
   // Register form
   const [regUsername, setRegUsername] = useState('');
   const [regFullname, setRegFullname] = useState('');
+  const [regKtp, setRegKtp] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
+  const [regWhatsapp, setRegWhatsapp] = useState('');
+  const [regBankName, setRegBankName] = useState('BCA');
+  const [regBankAccount, setRegBankAccount] = useState('');
+  const [regBankHolder, setRegBankHolder] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regSponsor, setRegSponsor] = useState('');
@@ -1205,7 +1220,12 @@ export default function App() {
             sponsor_username: regSponsor,
             upline_username: regUpline,
             position: regPosition,
-            firebase_uid: firebaseUid
+            firebase_uid: firebaseUid,
+            ktp: regKtp,
+            whatsapp: regWhatsapp || regPhone,
+            bank_name: regBankName,
+            bank_account: regBankAccount,
+            bank_holder: regBankHolder || regFullname
           })
         });
         if (res.ok) {
@@ -1232,7 +1252,12 @@ export default function App() {
           sponsor_username: regSponsor,
           upline_username: regUpline,
           position: regPosition,
-          firebase_uid: firebaseUid
+          firebase_uid: firebaseUid,
+          ktp: regKtp,
+          whatsapp: regWhatsapp || regPhone,
+          bank_name: regBankName,
+          bank_account: regBankAccount,
+          bank_holder: regBankHolder || regFullname
         });
       }
 
@@ -1241,8 +1266,12 @@ export default function App() {
       setLoginPassword(regPassword);
       setRegUsername('');
       setRegFullname('');
+      setRegKtp('');
       setRegEmail('');
       setRegPhone('');
+      setRegWhatsapp('');
+      setRegBankAccount('');
+      setRegBankHolder('');
       setRegPassword('');
       setRegConfirmPassword('');
       setRegSponsor('');
@@ -2120,7 +2149,7 @@ export default function App() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nama Lengkap</label>
+                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nama Lengkap (Sesuai KTP)</label>
                     <input
                       type="text"
                       required
@@ -2134,27 +2163,103 @@ export default function App() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Email</label>
+                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nomor KTP / NIK (16 Digit)</label>
                     <input
-                      type="email"
+                      type="text"
                       required
-                      placeholder="Contoh: agus@gmail.com"
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
+                      placeholder="3271xxxxxxxxxxxx"
+                      value={regKtp}
+                      onChange={(e) => setRegKtp(e.target.value)}
                       className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nomor Telepon</label>
+                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Email / Gmail Aktif</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="Contoh: nama@gmail.com"
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nomor HP / Telepon</label>
                     <input
                       type="text"
                       required
                       placeholder="Contoh: 0812xxxxxxxx"
                       value={regPhone}
-                      onChange={(e) => setRegPhone(e.target.value)}
+                      onChange={(e) => {
+                        setRegPhone(e.target.value);
+                        if (!regWhatsapp) setRegWhatsapp(e.target.value);
+                      }}
                       className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
                     />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nomor WhatsApp Aktif</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: 0812xxxxxxxx"
+                      value={regWhatsapp}
+                      onChange={(e) => setRegWhatsapp(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-2 space-y-2">
+                  <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Rekening Bank Pencairan Bonus (WD)</p>
+                  
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Bank</label>
+                      <select
+                        value={regBankName}
+                        onChange={(e) => setRegBankName(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-2 py-2 text-xs font-semibold focus:outline-none bg-white"
+                      >
+                        <option value="BCA">BCA</option>
+                        <option value="MANDIRI">MANDIRI</option>
+                        <option value="BRI">BRI</option>
+                        <option value="BNI">BNI</option>
+                        <option value="BSI">BSI</option>
+                        <option value="CIMB">CIMB NIAGA</option>
+                        <option value="DANA">DANA / OVO</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">No. Rekening</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="1234567890"
+                        value={regBankAccount}
+                        onChange={(e) => setRegBankAccount(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nama Pemilik</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Atas nama..."
+                        value={regBankHolder}
+                        onChange={(e) => setRegBankHolder(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 

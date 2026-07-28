@@ -519,9 +519,14 @@ let notifications: MLMNotification[] = [
 
 let isAutoPayout = true;
 
-let systemSettings = {
+let systemSettings: any = {
   webName: "Zalora Denim Premium MLM",
   logoText: "ZALORA.DENIM",
+  logoUrl: "",
+  iconUrl: "",
+  slogan: "OFFICIAL STORE & MLM BINARY PREMIER",
+  siteDescription: "Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis MLM Binary 10 Level Terpercaya.",
+  enableMlmBonus: true,
   contactPhone: "081234567890",
   contactEmail: "support@zaloradenim.com",
   sponsorBonus: 20000,
@@ -608,8 +613,8 @@ async function activateUserMLM(userId: number) {
   transactions.push(actTx);
   await syncTransactionToFirestore(actTx);
 
-  // 2. Distribute Sponsor Bonus
-  if (user.sponsor_id) {
+  // 2. Distribute Sponsor Bonus (If MLM Bonus Active)
+  if (systemSettings.enableMlmBonus !== false && user.sponsor_id) {
     const sponsor = users.find(u => u.id === user.sponsor_id);
     if (sponsor && sponsor.is_active) {
       const bonusAmt = systemSettings.sponsorBonus;
@@ -641,50 +646,52 @@ async function activateUserMLM(userId: number) {
     }
   }
 
-  // 3. Distribute Level Bonuses (Up to 10 Levels)
-  const levelRewards = [
-    systemSettings.levelBonusG1,
-    systemSettings.levelBonusG2,
-    systemSettings.levelBonusG3,
-    systemSettings.levelBonusG4,
-    systemSettings.levelBonusG5,
-    systemSettings.levelBonusG6,
-    systemSettings.levelBonusG7,
-    systemSettings.levelBonusG8,
-    systemSettings.levelBonusG9,
-    systemSettings.levelBonusG10
-  ];
-  const uplines = getUplineChain(user.id, 10);
+  // 3. Distribute Level Bonuses (Up to 10 Levels if MLM Bonus Active)
+  if (systemSettings.enableMlmBonus !== false) {
+    const levelRewards = [
+      systemSettings.levelBonusG1,
+      systemSettings.levelBonusG2,
+      systemSettings.levelBonusG3,
+      systemSettings.levelBonusG4,
+      systemSettings.levelBonusG5,
+      systemSettings.levelBonusG6,
+      systemSettings.levelBonusG7,
+      systemSettings.levelBonusG8,
+      systemSettings.levelBonusG9,
+      systemSettings.levelBonusG10
+    ];
+    const uplines = getUplineChain(user.id, 10);
 
-  for (let idx = 0; idx < uplines.length; idx++) {
-    const upline = uplines[idx];
-    if (upline.is_active) {
-      const reward = levelRewards[idx] !== undefined ? levelRewards[idx] : 0;
-      upline.balance += reward;
-      upline.level_bonus += reward;
+    for (let idx = 0; idx < uplines.length; idx++) {
+      const upline = uplines[idx];
+      if (upline.is_active) {
+        const reward = levelRewards[idx] !== undefined ? levelRewards[idx] : 0;
+        upline.balance += reward;
+        upline.level_bonus += reward;
 
-      const lvlTx: Transaction = {
-        id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
-        user_id: upline.id,
-        username: upline.username,
-        type: "level_bonus",
-        amount: reward,
-        description: `Bonus Level ${idx + 1} dari pertumbuhan jaringan (${user.username})`,
-        created_at: new Date().toISOString()
-      };
-      transactions.push(lvlTx);
-      await syncTransactionToFirestore(lvlTx);
+        const lvlTx: Transaction = {
+          id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
+          user_id: upline.id,
+          username: upline.username,
+          type: "level_bonus",
+          amount: reward,
+          description: `Bonus Level ${idx + 1} dari pertumbuhan jaringan (${user.username})`,
+          created_at: new Date().toISOString()
+        };
+        transactions.push(lvlTx);
+        await syncTransactionToFirestore(lvlTx);
 
-      const lvlNotif: MLMNotification = {
-        id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
-        user_id: upline.id,
-        title: `Bonus Level ${idx + 1}!`,
-        message: `Mendapatkan Rp ${reward.toLocaleString()} dari aktifasi level ${idx + 1} (${user.username}).`,
-        type: "info",
-        created_at: new Date().toISOString()
-      };
-      notifications.push(lvlNotif);
-      await syncNotificationToFirestore(lvlNotif);
+        const lvlNotif: MLMNotification = {
+          id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
+          user_id: upline.id,
+          title: `Bonus Level ${idx + 1}!`,
+          message: `Mendapatkan Rp ${reward.toLocaleString()} dari aktifasi level ${idx + 1} (${user.username}).`,
+          type: "info",
+          created_at: new Date().toISOString()
+        };
+        notifications.push(lvlNotif);
+        await syncNotificationToFirestore(lvlNotif);
+      }
     }
   }
 
@@ -710,7 +717,7 @@ async function activateUserMLM(userId: number) {
     const pairingVal = systemSettings.pairingBonus || 10000;
     const pairsAlreadyPaid = Math.floor(parent.pairing_bonus / pairingVal);
 
-    if (totalPairsPossible > pairsAlreadyPaid) {
+    if (systemSettings.enableMlmBonus !== false && totalPairsPossible > pairsAlreadyPaid) {
       const newPairs = totalPairsPossible - pairsAlreadyPaid;
       // Max 10 pairs flushout per day
       const allowedPairs = Math.min(newPairs, 10);
@@ -964,7 +971,7 @@ app.post("/api/auth/reset-password", (req, res) => {
 // Authentication: Register Member
 app.post("/api/auth/register", async (req, res) => {
   await initFirestoreData();
-  const { username, fullname, email, phone, password, sponsor_username, upline_username, position } = req.body;
+  const { username, fullname, email, phone, password, sponsor_username, upline_username, position, ktp, whatsapp, bank_name, bank_account, bank_holder } = req.body;
 
   if (!username || !fullname || !email || !phone) {
     return res.status(400).json({ message: "Mohon isi semua field wajib (Username, Nama Lengkap, Email, Telepon)" });
@@ -1032,7 +1039,12 @@ app.post("/api/auth/register", async (req, res) => {
     right_sales: 0,
     created_at: new Date().toISOString(),
     role: "user",
-    password: password
+    password: password,
+    ktp: ktp || "",
+    whatsapp: whatsapp || phone || "",
+    bank_name: bank_name || "",
+    bank_account: bank_account || "",
+    bank_holder: bank_holder || fullname || ""
   };
 
   users.push(newUser);
@@ -1462,6 +1474,10 @@ app.post("/api/admin/settings", (req, res) => {
   const {
     webName,
     logoText,
+    logoUrl,
+    iconUrl,
+    slogan,
+    siteDescription,
     contactPhone,
     contactEmail,
     sponsorBonus,
@@ -1498,6 +1514,10 @@ app.post("/api/admin/settings", (req, res) => {
 
   if (webName !== undefined) systemSettings.webName = String(webName);
   if (logoText !== undefined) systemSettings.logoText = String(logoText);
+  if (logoUrl !== undefined) systemSettings.logoUrl = String(logoUrl);
+  if (iconUrl !== undefined) systemSettings.iconUrl = String(iconUrl);
+  if (slogan !== undefined) systemSettings.slogan = String(slogan);
+  if (siteDescription !== undefined) systemSettings.siteDescription = String(siteDescription);
   if (contactPhone !== undefined) systemSettings.contactPhone = String(contactPhone);
   if (contactEmail !== undefined) systemSettings.contactEmail = String(contactEmail);
   if (sponsorBonus !== undefined) systemSettings.sponsorBonus = Number(sponsorBonus);

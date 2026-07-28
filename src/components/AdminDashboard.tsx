@@ -4,7 +4,7 @@ import {
   Shield, Users, DollarSign, Package, TrendingUp, HelpCircle, 
   CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, 
   ArrowUpRight, ArrowDownLeft, RefreshCw, BarChart2, Search, Percent,
-  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock, LogOut
+  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock, LogOut, Upload
 } from "lucide-react";
 
 interface AdminDashboardProps {
@@ -78,6 +78,11 @@ export default function AdminDashboard({
   // Web and MLM configuration states
   const [formWebName, setFormWebName] = useState(settings?.webName || '');
   const [formLogoText, setFormLogoText] = useState(settings?.logoText || '');
+  const [formLogoUrl, setFormLogoUrl] = useState(settings?.logoUrl || '');
+  const [formIconUrl, setFormIconUrl] = useState(settings?.iconUrl || '');
+  const [formSlogan, setFormSlogan] = useState(settings?.slogan || 'OFFICIAL STORE & MLM BINARY PREMIER');
+  const [formSiteDescription, setFormSiteDescription] = useState(settings?.siteDescription || 'Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis MLM Binary 10 Level Terpercaya.');
+  const [formEnableMlmBonus, setFormEnableMlmBonus] = useState(settings?.enableMlmBonus ?? true);
   const [formContactPhone, setFormContactPhone] = useState(settings?.contactPhone || '');
   const [formContactEmail, setFormContactEmail] = useState(settings?.contactEmail || '');
 
@@ -141,6 +146,11 @@ export default function AdminDashboard({
     if (settings) {
       setFormWebName(settings.webName || '');
       setFormLogoText(settings.logoText || '');
+      setFormLogoUrl(settings.logoUrl || '');
+      setFormIconUrl(settings.iconUrl || '');
+      setFormSlogan(settings.slogan || 'OFFICIAL STORE & MLM BINARY PREMIER');
+      setFormSiteDescription(settings.siteDescription || 'Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis MLM Binary 10 Level Terpercaya.');
+      setFormEnableMlmBonus(settings.enableMlmBonus ?? true);
       setFormContactPhone(settings.contactPhone || '');
       setFormContactEmail(settings.contactEmail || '');
       setFormSponsorBonus(settings.sponsorBonus ?? 20000);
@@ -265,6 +275,23 @@ export default function AdminDashboard({
     }
   };
 
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 3 * 1024 * 1024) {
+        alert("Ukuran file maksimal 3MB!");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setter(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSaveSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onUpdateSettings) return;
@@ -272,6 +299,11 @@ export default function AdminDashboard({
     const success = await onUpdateSettings({
       webName: formWebName,
       logoText: formLogoText,
+      logoUrl: formLogoUrl,
+      iconUrl: formIconUrl,
+      slogan: formSlogan,
+      siteDescription: formSiteDescription,
+      enableMlmBonus: formEnableMlmBonus,
       contactPhone: formContactPhone,
       contactEmail: formContactEmail,
       sponsorBonus: Number(formSponsorBonus),
@@ -696,13 +728,13 @@ export default function AdminDashboard({
             <button
               id="admin-tab-members"
               onClick={() => setActiveTab('members')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'members' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              <Users className="w-4 h-4" />
-              <span>Manajemen Jaringan</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${activeTab === 'members' ? 'bg-blue-500/20 text-white' : 'bg-slate-100 text-slate-700'}`}>
+              <Users className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Manajemen Jaringan</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'members' ? 'bg-blue-500/20 text-white' : 'bg-slate-100 text-slate-700'}`}>
                 {metrics.totalMembers} org
               </span>
             </button>
@@ -1468,6 +1500,105 @@ export default function AdminDashboard({
                     />
                   </div>
 
+                  {/* Logo Depan Upload / URL */}
+                  <div className="space-y-1.5 md:col-span-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-600 block">Logo Depan Website (Gambar Logo)</label>
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      {formLogoUrl && (
+                        <div className="w-16 h-12 bg-white border border-slate-200 rounded-lg p-1 flex items-center justify-center shrink-0">
+                          <img src={formLogoUrl} alt="Logo Preview" className="max-h-full max-w-full object-contain" />
+                        </div>
+                      )}
+                      <input
+                        type="text"
+                        placeholder="Tempel URL Logo (https://...) atau upload file di samping"
+                        value={formLogoUrl}
+                        onChange={(e) => setFormLogoUrl(e.target.value)}
+                        className="flex-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-blue-500 bg-white"
+                      />
+                      <label className="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-xl cursor-pointer transition shrink-0 flex items-center gap-1.5">
+                        <Upload className="w-3.5 h-3.5" /> Upload File
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleImageFileChange(e, setFormLogoUrl)}
+                        />
+                      </label>
+                      {formLogoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setFormLogoUrl('')}
+                          className="text-red-500 text-xs font-bold hover:underline shrink-0"
+                        >
+                          Hapus
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Icon / Favicon Upload / URL */}
+                  <div className="space-y-1.5 md:col-span-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-600 block">Favicon / Icon Aplikasi</label>
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      {formIconUrl && (
+                        <div className="w-10 h-10 bg-white border border-slate-200 rounded-lg p-1 flex items-center justify-center shrink-0">
+                          <img src={formIconUrl} alt="Icon Preview" className="max-h-full max-w-full object-contain" />
+                        </div>
+                      )}
+                      <input
+                        type="text"
+                        placeholder="Tempel URL Icon (https://...) atau upload file di samping"
+                        value={formIconUrl}
+                        onChange={(e) => setFormIconUrl(e.target.value)}
+                        className="flex-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-blue-500 bg-white"
+                      />
+                      <label className="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-xl cursor-pointer transition shrink-0 flex items-center gap-1.5">
+                        <Upload className="w-3.5 h-3.5" /> Upload File
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleImageFileChange(e, setFormIconUrl)}
+                        />
+                      </label>
+                      {formIconUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setFormIconUrl('')}
+                          className="text-red-500 text-xs font-bold hover:underline shrink-0"
+                        >
+                          Hapus
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Slogan / Tagline */}
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Tag Slogan Depan</label>
+                    <input
+                      type="text"
+                      required
+                      value={formSlogan}
+                      onChange={(e) => setFormSlogan(e.target.value)}
+                      placeholder="Contoh: OFFICIAL STORE & MLM BINARY PREMIER"
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  {/* Site Description */}
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Deskripsi Singkat Website / Toko</label>
+                    <textarea
+                      rows={2}
+                      value={formSiteDescription}
+                      onChange={(e) => setFormSiteDescription(e.target.value)}
+                      placeholder="Jelaskan deskripsi resmi toko dan bisnis MLM Anda..."
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
                   <div className="space-y-1">
                     <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Nomor HP Kontak Admin (WA)</label>
                     <input
@@ -1563,10 +1694,44 @@ export default function AdminDashboard({
                 </div>
 
                 <div className="border-t border-slate-100 pt-6">
-                  <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-1">
-                    <Percent className="text-blue-600 w-4.5 h-4.5" /> Konfigurasi Persentase & Tarif MLM Bonus
-                  </h3>
-                  <p className="text-xs text-slate-400 mb-4">Atur tarif rupiah seluruh komisi sponsor, pasangan binary, repeat order, dan level jaringan 10 tingkat.</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                        <Percent className="text-blue-600 w-4.5 h-4.5" /> Konfigurasi Persentase & Tarif MLM Bonus
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Sakelar utama untuk Mengaktifkan / Mematikan pembagian seluruh bonus MLM (Sponsor, Pairing, Level 10 Tier).
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 self-start sm:self-center">
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                        formEnableMlmBonus ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                        {formEnableMlmBonus ? 'BONUS AKTIF' : 'BONUS NON-AKTIF'}
+                      </span>
+                      <button
+                        type="button"
+                        id="btn-toggle-mlm-bonus"
+                        onClick={() => setFormEnableMlmBonus(!formEnableMlmBonus)}
+                        className="transition text-slate-700 hover:text-blue-600"
+                        title={formEnableMlmBonus ? "Matikan Bonus MLM" : "Aktifkan Bonus MLM"}
+                      >
+                        {formEnableMlmBonus ? (
+                          <ToggleRight className="w-12 h-8 text-green-600 cursor-pointer" />
+                        ) : (
+                          <ToggleLeft className="w-12 h-8 text-slate-400 cursor-pointer" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {!formEnableMlmBonus && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                      <span>Sistem Pembagian Bonus MLM saat ini <strong>NON-AKTIF</strong>. Transaksi/aktifasi baru tidak akan menghasilkan komisi ke sponsor atau upline hingga dinyalakan kembali.</span>
+                    </div>
+                  )}
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1">

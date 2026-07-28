@@ -637,13 +637,13 @@ export default function UserDashboard({
             <button
               id="tab-shop"
               onClick={() => setActiveTab('shop')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'shop' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              <ShoppingBag className="w-4 h-4" />
-              <span>Belanja Jeans</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${activeTab === 'shop' ? 'bg-blue-500/20 text-white' : 'bg-blue-50 text-blue-700'}`}>
+              <ShoppingBag className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Belanja Jeans</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'shop' ? 'bg-blue-500/20 text-white' : 'bg-blue-50 text-blue-700'}`}>
                 Diskon Member
               </span>
             </button>
@@ -676,13 +676,13 @@ export default function UserDashboard({
             <button
               id="tab-bonuses"
               onClick={() => setActiveTab('bonuses')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'bonuses' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              <Award className="w-4 h-4 text-amber-500" />
-              <span>Laporan Transparansi Komisi</span>
-              <span className="bg-amber-100 text-amber-800 text-[9px] px-2 py-0.5 rounded-full font-extrabold uppercase">
+              <Award className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="flex-1 text-left">Laporan Transparansi Komisi</span>
+              <span className="bg-amber-100 text-amber-800 text-[9px] px-2 py-0.5 rounded-full font-extrabold uppercase shrink-0">
                 Detail
               </span>
             </button>

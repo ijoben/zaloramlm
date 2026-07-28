@@ -21,6 +21,11 @@ export interface MLMUser {
   role: 'user' | 'admin';
   password?: string;
   firebase_uid?: string;
+  ktp?: string;
+  whatsapp?: string;
+  bank_name?: string;
+  bank_account?: string;
+  bank_holder?: string;
 }
 
 export interface Product {
@@ -85,4 +90,28 @@ export interface BinaryTreeNode {
   right_count: number;
   left: BinaryTreeNode | null;
   right: BinaryTreeNode | null;
+}
+
+export interface SystemSettings {
+  sponsorBonus?: number;
+  pairingBonus?: number;
+  levelBonusG1?: number;
+  levelBonusG2?: number;
+  levelBonusG3?: number;
+  levelBonusG4?: number;
+  levelBonusG5?: number;
+  levelBonusG6?: number;
+  levelBonusG7?: number;
+  levelBonusG8?: number;
+  levelBonusG9?: number;
+  levelBonusG10?: number;
+  rewardThresholdLeft?: number;
+  rewardThresholdRight?: number;
+  rewardName?: string;
+  isAutoPayout?: boolean;
+  enableMlmBonus?: boolean;
+  logoUrl?: string;
+  iconUrl?: string;
+  slogan?: string;
+  siteDescription?: string;
 }

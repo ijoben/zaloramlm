@@ -55,6 +55,22 @@ export default function LandingPage({
   // Slide Utama (Hero Carousel) State
   const [currentSlide, setCurrentSlide] = useState(0);
 
+  // Update Document Title & Favicon dynamically if settings change
+  useEffect(() => {
+    if (settings?.webName || settings?.slogan) {
+      document.title = `${settings.webName || 'Zalora Denim Official Store'} - ${settings.slogan || 'Premium Jeans & MLM System'}`;
+    }
+    if (settings?.iconUrl) {
+      let favicon = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+      if (!favicon) {
+        favicon = document.createElement('link');
+        favicon.rel = 'shortcut icon';
+        document.head.appendChild(favicon);
+      }
+      favicon.href = settings.iconUrl;
+    }
+  }, [settings]);
+
   const slides = [
     {
       id: 1,
@@ -240,15 +256,15 @@ export default function LandingPage({
     <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 font-sans selection:bg-[#C41230] selection:text-white overflow-x-hidden w-full" id="store-landing-root">
       
       {/* 1. Top Announcement Bar */}
-      <div className="bg-[#111111] text-white text-[11px] font-bold tracking-widest uppercase py-2 px-4 border-b border-neutral-800 flex items-center justify-center gap-3 sm:gap-6 overflow-x-auto whitespace-nowrap">
+      <div className="bg-[#111111] text-white text-[10px] sm:text-[11px] font-bold tracking-wider sm:tracking-widest uppercase py-2 px-2 sm:px-4 border-b border-neutral-800 flex flex-wrap items-center justify-center gap-1.5 sm:gap-6 w-full text-center">
         <span className="flex items-center gap-1.5 text-neutral-300 shrink-0">
           <Truck className="w-3.5 h-3.5 text-[#C41230]" /> FREE ONGKIR SELURUH INDONESIA
         </span>
-        <span className="hidden md:inline-block text-neutral-600">•</span>
-        <span className="hidden md:inline-block text-neutral-300">
+        <span className="hidden sm:inline-block text-neutral-600">•</span>
+        <span className="text-neutral-300 shrink-0">
           BAYAR DI TEMPAT (COD) TERSEDIA
         </span>
-        <span className="hidden md:inline-block text-neutral-600">•</span>
+        <span className="hidden sm:inline-block text-neutral-600">•</span>
         <span className="bg-[#C41230] text-white px-2 py-0.5 font-black text-[9px] tracking-wider uppercase rounded-xs shrink-0">
           DISKON MEMBER RP 100.000/PCS
         </span>
@@ -258,69 +274,61 @@ export default function LandingPage({
       <header className="bg-white border-b border-neutral-200 sticky top-0 z-40 shadow-xs w-full" id="main-header">
         <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-1 sm:gap-4">
           
-          {/* Brand Logo */}
-          <div className="flex items-center gap-1.5 sm:gap-4 shrink-0 min-w-0">
-            <a href="#" className="flex items-center gap-1.5 group">
-              <div className="bg-[#C41230] text-white font-black font-display text-xs sm:text-2xl tracking-tighter px-2 sm:px-4 py-1 sm:py-1.5 rounded-b-md shadow-md uppercase border-t-2 border-red-800 shrink-0">
-                LEVI'S® <span className="font-light text-red-200 ml-0.5 sm:ml-1">DENIM</span>
-              </div>
-              <div className="hidden md:flex flex-col">
-                <span className="text-[11px] font-black tracking-widest uppercase text-neutral-800 leading-tight">
-                  OFFICIAL STORE
+          {/* Brand Logo - Strictly Left Aligned in PC mode */}
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0 text-left justify-start">
+            <a href="#" className="flex items-center gap-2 group text-left justify-start">
+              {settings?.logoUrl ? (
+                <img
+                  src={settings.logoUrl}
+                  alt={settings?.webName || "Logo"}
+                  className="h-8 sm:h-11 max-w-[180px] object-contain shrink-0"
+                />
+              ) : (
+                <div className="bg-[#C41230] text-white font-black font-display text-xs sm:text-2xl tracking-tighter px-2 sm:px-4 py-1 sm:py-1.5 rounded-b-md shadow-md uppercase border-t-2 border-red-800 shrink-0 text-left">
+                  {settings?.logoText || "ZALORA® DENIM"}
+                </div>
+              )}
+              <div className="hidden md:flex flex-col text-left items-start justify-start">
+                <span className="text-[11px] font-black tracking-widest uppercase text-neutral-800 leading-tight text-left">
+                  {settings?.webName || "ZALORA DENIM OFFICIAL"}
                 </span>
-                <span className="text-[9px] text-[#C41230] font-bold tracking-wider uppercase">
-                  ZALORA ONLINE MARKETPLACE
+                <span className="text-[9px] text-[#C41230] font-bold tracking-wider uppercase text-left">
+                  {settings?.slogan || "OFFICIAL STORE & MLM BINARY PREMIER"}
                 </span>
               </div>
             </a>
           </div>
 
-          {/* Center Category Links (Desktop Only) */}
-          <nav className="hidden lg:flex items-center gap-8">
+          {/* Center Category Links (Desktop Only) - Tabs scroll directly to sections */}
+          <nav className="hidden lg:flex items-center gap-6 text-left">
             <button
-              onClick={() => setActiveCategory("pria")}
-              className={`text-xs font-black uppercase tracking-widest py-1 transition border-b-2 ${
-                activeCategory === "pria"
-                  ? "border-[#C41230] text-[#C41230]"
-                  : "border-transparent text-neutral-800 hover:text-[#C41230]"
-              }`}
+              onClick={() => {
+                setActiveCategory("all");
+                document.getElementById('katalog-produk')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="text-xs font-black uppercase tracking-widest py-1 transition text-neutral-800 hover:text-[#C41230] text-left"
             >
-              PRIA
+              KATALOG PRODUK
             </button>
             <button
-              onClick={() => setActiveCategory("wanita")}
-              className={`text-xs font-black uppercase tracking-widest py-1 transition border-b-2 ${
-                activeCategory === "wanita"
-                  ? "border-[#C41230] text-[#C41230]"
-                  : "border-transparent text-neutral-800 hover:text-[#C41230]"
-              }`}
+              onClick={() => {
+                document.getElementById('best-seller')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="text-xs font-black uppercase tracking-widest py-1 transition text-neutral-800 hover:text-[#C41230] text-left"
             >
-              WANITA
+              BEST SELLER
             </button>
             <button
-              onClick={() => setActiveCategory("aksesoris")}
-              className={`text-xs font-black uppercase tracking-widest py-1 transition border-b-2 ${
-                activeCategory === "aksesoris"
-                  ? "border-[#C41230] text-[#C41230]"
-                  : "border-transparent text-neutral-800 hover:text-[#C41230]"
-              }`}
+              onClick={() => {
+                document.getElementById('tentang-kami')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="text-xs font-black uppercase tracking-widest py-1 transition text-neutral-800 hover:text-[#C41230] text-left"
             >
-              AKSESORIS
+              TENTANG KAMI
             </button>
-            <button
-              onClick={() => setActiveCategory("diskon")}
-              className={`text-xs font-black uppercase tracking-widest py-1 transition flex items-center gap-1.5 ${
-                activeCategory === "diskon"
-                  ? "bg-[#C41230] text-white px-2.5 py-1"
-                  : "text-[#C41230] hover:bg-red-50 px-2.5 py-1"
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5" /> DISKON
-            </button>
-
             <button
               onClick={() => setIsTrackModalOpen(true)}
-              className="text-xs font-black uppercase tracking-widest text-neutral-600 hover:text-neutral-900 transition flex items-center gap-1.5 border-l border-neutral-200 pl-6"
+              className="text-xs font-black uppercase tracking-widest text-neutral-600 hover:text-neutral-900 transition flex items-center gap-1.5 border-l border-neutral-200 pl-4 text-left"
             >
               <Truck className="w-4 h-4 text-[#C41230]" /> TRACK PESANAN
             </button>
@@ -430,59 +438,42 @@ export default function LandingPage({
 
         {/* Mobile Dropdown Category Menu */}
         {isMobileMenuOpen && (
-          <div className="lg:hidden bg-white border-b-2 border-[#C41230] px-6 py-4 space-y-3 shadow-xl">
-            <div className="flex flex-col space-y-2">
+          <div className="lg:hidden bg-white border-b-2 border-[#C41230] px-6 py-4 space-y-3 shadow-xl text-left">
+            <div className="flex flex-col space-y-2 text-left items-start">
               <button
                 onClick={() => {
                   setActiveCategory("all");
                   setIsMobileMenuOpen(false);
+                  document.getElementById('katalog-produk')?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100"
+                className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100 w-full"
               >
-                SEMUA KOLEKSI
+                KATALOG PRODUK
               </button>
               <button
                 onClick={() => {
-                  setActiveCategory("pria");
                   setIsMobileMenuOpen(false);
+                  document.getElementById('best-seller')?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100 text-neutral-800"
+                className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100 text-neutral-800 w-full"
               >
-                KOLEKSI PRIA
+                BEST SELLER
               </button>
               <button
                 onClick={() => {
-                  setActiveCategory("wanita");
                   setIsMobileMenuOpen(false);
+                  document.getElementById('tentang-kami')?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100 text-neutral-800"
+                className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100 text-neutral-800 w-full"
               >
-                KOLEKSI WANITA
-              </button>
-              <button
-                onClick={() => {
-                  setActiveCategory("aksesoris");
-                  setIsMobileMenuOpen(false);
-                }}
-                className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100 text-neutral-800"
-              >
-                AKSESORIS & BELT
-              </button>
-              <button
-                onClick={() => {
-                  setActiveCategory("diskon");
-                  setIsMobileMenuOpen(false);
-                }}
-                className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100 text-[#C41230] flex items-center gap-1.5"
-              >
-                <Tag className="w-3.5 h-3.5" /> PROMO DISKON EKSKLUSIF
+                TENTANG KAMI
               </button>
               <button
                 onClick={() => {
                   setIsTrackModalOpen(true);
                   setIsMobileMenuOpen(false);
                 }}
-                className="text-left text-xs font-black uppercase tracking-widest py-2 text-neutral-700 flex items-center gap-1.5"
+                className="text-left text-xs font-black uppercase tracking-widest py-2 text-neutral-700 flex items-center gap-1.5 w-full"
               >
                 <Truck className="w-4 h-4 text-[#C41230]" /> TRACK STATUS PESANAN
               </button>
@@ -576,8 +567,8 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* 4. Brand Value Props / Store Benefits */}
-      <section className="bg-white border-b border-neutral-200 py-10">
+      {/* 4. Brand Value Props / Store Benefits (Tentang Kami) */}
+      <section id="tentang-kami" className="bg-white border-b border-neutral-200 py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 lg:grid-cols-4 gap-6 text-center">
           <div className="p-4 flex flex-col items-center space-y-2 border-r border-neutral-100 last:border-none">
             <ShieldCheck className="w-7 h-7 text-[#C41230]" />
@@ -602,8 +593,10 @@ export default function LandingPage({
         </div>
       </section>
 
+
+
       {/* 5. Carousel Produk (Best Sellers Slider - Fixed Responsive Layout & Navigation) */}
-      <section className="py-12 sm:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-neutral-200 overflow-hidden">
+      <section id="best-seller" className="py-12 sm:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-neutral-200 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-4">
           <div>
             <span className="text-[10px] font-black tracking-widest text-[#C41230] uppercase">
@@ -1186,49 +1179,46 @@ export default function LandingPage({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-xs border-b border-neutral-800 pb-12">
             
             {/* Column 1: Brand Info */}
-            <div className="space-y-3">
-              <div className="bg-[#C41230] text-white font-black font-display text-lg tracking-tighter px-3 py-1 inline-block uppercase">
-                LEVI'S® <span className="font-light text-red-200">DENIM</span>
-              </div>
-              <p className="text-neutral-400 leading-relaxed">
-                Platform belanja online resmi celana jeans Levi's® Zalora dengan koleksi otentik 100% cotton raw denim.
+            <div className="space-y-3 text-left">
+              {settings?.logoUrl ? (
+                <img src={settings.logoUrl} alt={settings?.webName || "Logo"} className="h-10 object-contain" />
+              ) : (
+                <div className="bg-[#C41230] text-white font-black font-display text-lg tracking-tighter px-3 py-1 inline-block uppercase">
+                  {settings?.logoText || "ZALORA® DENIM"}
+                </div>
+              )}
+              <p className="text-neutral-400 leading-relaxed text-left">
+                {settings?.siteDescription || "Platform belanja online resmi celana jeans Zalora Denim dengan koleksi otentik 100% cotton raw denim."}
               </p>
             </div>
 
             {/* Column 2: Categories */}
-            <div className="space-y-2">
+            <div className="space-y-2 text-left">
               <h4 className="font-black text-white uppercase tracking-wider">KOLEKSI KATALOG</h4>
               <ul className="space-y-1.5">
-                <li><a href="#katalog-produk" onClick={() => setActiveCategory("pria")} className="hover:text-white transition">Celana Jeans Pria (501®)</a></li>
-                <li><a href="#katalog-produk" onClick={() => setActiveCategory("wanita")} className="hover:text-white transition">Celana Jeans Wanita</a></li>
-                <li><a href="#katalog-produk" onClick={() => setActiveCategory("pria")} className="hover:text-white transition">Jaket Trucker Denim</a></li>
-                <li><a href="#katalog-produk" onClick={() => setActiveCategory("aksesoris")} className="hover:text-white transition">Ikat Pinggang & Aksesoris</a></li>
+                <li><button onClick={() => { setActiveCategory("pria"); document.getElementById('katalog-produk')?.scrollIntoView({ behavior: 'smooth' }); }} className="hover:text-white transition">Celana Jeans Pria (501®)</button></li>
+                <li><button onClick={() => { setActiveCategory("wanita"); document.getElementById('katalog-produk')?.scrollIntoView({ behavior: 'smooth' }); }} className="hover:text-white transition">Celana Jeans Wanita</button></li>
+                <li><button onClick={() => { setActiveCategory("pria"); document.getElementById('katalog-produk')?.scrollIntoView({ behavior: 'smooth' }); }} className="hover:text-white transition">Jaket Trucker Denim</button></li>
+                <li><button onClick={() => { setActiveCategory("aksesoris"); document.getElementById('katalog-produk')?.scrollIntoView({ behavior: 'smooth' }); }} className="hover:text-white transition">Ikat Pinggang & Aksesoris</button></li>
               </ul>
             </div>
 
             {/* Column 3: Customer Care */}
-            <div className="space-y-2">
+            <div className="space-y-2 text-left">
               <h4 className="font-black text-white uppercase tracking-wider">LAYANAN PELANGGAN</h4>
               <ul className="space-y-1.5">
                 <li><button onClick={() => setIsTrackModalOpen(true)} className="hover:text-white transition">Lacak Status Pengiriman</button></li>
-                <li><a href="#" className="hover:text-white transition">Panduan Ukuran (Size Guide)</a></li>
-                <li><a href="#" className="hover:text-white transition">Syarat & Ketentuan Garansi</a></li>
-                <li><a href="#" className="hover:text-white transition">Kebijakan Privasi</a></li>
+                <li><a href="#tentang-kami" onClick={() => document.getElementById('tentang-kami')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Panduan Ukuran (Size Guide)</a></li>
+                <li><a href="#tentang-kami" onClick={() => document.getElementById('tentang-kami')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Syarat & Ketentuan Garansi</a></li>
+                <li><a href="#tentang-kami" onClick={() => document.getElementById('tentang-kami')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Kebijakan Privasi</a></li>
               </ul>
             </div>
 
-            {/* Column 4: Contact & Member Portal */}
-            <div className="space-y-3">
+            {/* Column 4: Contact Info */}
+            <div className="space-y-3 text-left">
               <h4 className="font-black text-white uppercase tracking-wider">HUBUNGI KAMI</h4>
               <p className="text-neutral-400">WhatsApp: <strong className="text-white">{phone}</strong></p>
               <p className="text-neutral-400">Email: <strong className="text-white">{email}</strong></p>
-              
-              <button
-                onClick={onLoginClick}
-                className="mt-2 bg-neutral-800 hover:bg-[#C41230] text-white px-4 py-2 text-xs font-black uppercase tracking-widest transition block w-full text-center"
-              >
-                MEMBER PORTAL
-              </button>
             </div>
 
           </div>
