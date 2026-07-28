@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { createServer as createViteServer } from "vite";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode } from "./src/types";
@@ -881,20 +880,26 @@ app.post("/api/admin/settings", async (req, res) => {
 
 // Get Firestore Info and Direct Console Link
 app.get("/api/firestore-info", (req, res) => {
-  res.json({
-    connected: Boolean(firestoreDb),
-    projectId: firebaseConfig.projectId,
-    firestoreDatabaseId: firebaseConfig.firestoreDatabaseId,
-    firebaseConsoleUrl: `https://console.firebase.google.com/u/0/project/${firebaseConfig.projectId}/firestore/databases/${firebaseConfig.firestoreDatabaseId}/data`,
-    collections: ["users", "settings", "products", "deposits", "withdrawals", "transactions", "notifications"],
-    stats: {
-      totalUsers: users.length,
-      totalDeposits: deposits.length,
-      totalWithdrawals: withdrawals.length,
-      totalTransactions: transactions.length,
-      totalNotifications: notifications.length
-    }
-  });
+  try {
+    const projId = resolvedServerFirebaseConfig.projectId || "MISSING";
+    const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId || "(default)";
+    res.json({
+      connected: Boolean(firestoreDb),
+      projectId: projId,
+      firestoreDatabaseId: dbId,
+      firebaseConsoleUrl: `https://console.firebase.google.com/u/0/project/${projId}/firestore/databases/${dbId}/data`,
+      collections: ["users", "settings", "products", "deposits", "withdrawals", "transactions", "notifications"],
+      stats: {
+        totalUsers: users.length,
+        totalDeposits: deposits.length,
+        totalWithdrawals: withdrawals.length,
+        totalTransactions: transactions.length,
+        totalNotifications: notifications.length
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message || "Error retrieving Firestore info" });
+  }
 });
 
 // Update product stock (Admin operation)
@@ -913,30 +918,35 @@ app.post("/api/admin/products/stock", async (req, res) => {
 
 // Authentication: Login
 app.post("/api/auth/login", async (req, res) => {
-  await initFirestoreData();
-  const { username, password } = req.body;
-  if (!username) return res.status(400).json({ message: "Username/Email harus diisi" });
+  try {
+    await initFirestoreDataOnce();
+    const { username, password } = req.body;
+    if (!username) return res.status(400).json({ message: "Username/Email harus diisi" });
 
-  const searchVal = String(username).toLowerCase().trim();
-  const user = users.find(u => 
-    (u.username && u.username.toLowerCase().trim() === searchVal) || 
-    (u.email && u.email.toLowerCase().trim() === searchVal)
-  );
-  if (!user) {
-    return res.status(404).json({ message: "User/Email tidak ditemukan dalam database!" });
+    const searchVal = String(username).toLowerCase().trim();
+    const user = users.find(u => 
+      (u.username && u.username.toLowerCase().trim() === searchVal) || 
+      (u.email && u.email.toLowerCase().trim() === searchVal)
+    );
+    if (!user) {
+      return res.status(404).json({ message: "User/Email tidak ditemukan dalam database!" });
+    }
+
+    // Password check against user password or default role password
+    const expectedPassword = (user as any).password || (user.role === 'admin' ? "admin123" : "user123");
+    if (!password) {
+      return res.status(400).json({ message: "Kata sandi wajib diisi!" });
+    }
+
+    if (password !== expectedPassword) {
+      return res.status(401).json({ message: "Kata sandi yang Anda masukkan salah!" });
+    }
+
+    res.json({ message: "Login berhasil", user });
+  } catch (err: any) {
+    console.error("Login route error:", err);
+    res.status(500).json({ message: "Terjadi kesalahan server saat login" });
   }
-
-  // Password check against user password or default role password
-  const expectedPassword = (user as any).password || (user.role === 'admin' ? "admin123" : "user123");
-  if (!password) {
-    return res.status(400).json({ message: "Kata sandi wajib diisi!" });
-  }
-
-  if (password !== expectedPassword) {
-    return res.status(401).json({ message: "Kata sandi yang Anda masukkan salah!" });
-  }
-
-  res.json({ message: "Login berhasil", user });
 });
 
 // Authentication: Forgot Password (Simulated Email Send)
@@ -992,7 +1002,8 @@ app.post("/api/auth/reset-password", (req, res) => {
 
 // Authentication: Register Member
 app.post("/api/auth/register", async (req, res) => {
-  await initFirestoreData();
+  try {
+    await initFirestoreDataOnce();
   const { username, fullname, email, phone, password, sponsor_username, upline_username, position, ktp, whatsapp, bank_name, bank_account, bank_holder } = req.body;
 
   if (!username || !fullname || !email || !phone) {
@@ -1091,6 +1102,10 @@ app.post("/api/auth/register", async (req, res) => {
     message: "Pendaftaran berhasil! Akun Anda berstatus TIDAK AKTIF. Lakukan pembayaran aktifasi Rp 550,000 untuk menikmati seluruh fitur dan berbelanja produk Zalora Denim.",
     user: newUser
   });
+  } catch (err: any) {
+    console.error("Register route error:", err);
+    res.status(500).json({ message: "Terjadi kesalahan server saat pendaftaran" });
+  }
 });
 
 // Member Activation Simulation
@@ -2990,12 +3005,17 @@ async function initFirestoreData() {
 
 async function startServer() {
   await initFirestoreDataOnce();
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (e) {
+      console.warn("Vite middleware load warning:", e);
+    }
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
