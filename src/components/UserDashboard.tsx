@@ -295,22 +295,27 @@ export default function UserDashboard({
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900" id="user-dashboard-root">
       {/* Upper Brand bar */}
-      <header className="bg-slate-950 text-white h-16 px-4 sm:px-6 flex items-center justify-between shadow-lg sticky top-0 z-40" id="user-header">
+      <header className="bg-[#111111] text-white h-16 px-4 sm:px-6 flex items-center justify-between shadow-lg sticky top-0 z-40 border-b border-neutral-800" id="user-header">
         <div className="flex items-center gap-3">
-          <span className="text-lg sm:text-xl font-display font-black tracking-tight text-white">ZALORA<span className="text-blue-500 font-light">.PORTAL</span></span>
+          <div className="bg-[#C41230] text-white font-black font-display text-sm sm:text-base tracking-tighter px-3 py-1 rounded-b-md shadow-md uppercase border-t-2 border-red-800">
+            LEVI'S® <span className="font-light text-red-200">DENIM</span>
+          </div>
+          <span className="hidden sm:inline-block text-xs font-black uppercase tracking-widest text-neutral-300">
+            MEMBER PORTAL
+          </span>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="hidden sm:flex items-center gap-2">
             <div className="text-right">
-              <p className="text-xs font-bold text-slate-200">{user.fullname}</p>
-              <p className="text-[10px] text-slate-400">@{user.username} • {user.is_active ? 'Premium Active' : 'Inactive'}</p>
+              <p className="text-xs font-bold text-neutral-100">{user.fullname}</p>
+              <p className="text-[10px] text-neutral-400">@{user.username} • {user.is_active ? 'Member Active' : 'Inactive'}</p>
             </div>
           </div>
           <button 
             id="btn-logout"
             onClick={onLogout} 
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-lg transition font-bold text-xs"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#C41230]/20 hover:bg-[#C41230]/30 text-red-400 border border-[#C41230]/30 rounded-none transition font-black text-xs uppercase tracking-wider"
             title="Keluar dari Aplikasi"
           >
             <LogOut className="w-3.5 h-3.5" />

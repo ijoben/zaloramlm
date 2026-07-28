@@ -10,11 +10,22 @@ import PHPSourceViewer from "./components/PHPSourceViewer";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest } from "./types";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
 
+// Resolved Firebase Config (supports both .env variables and config JSON)
+const resolvedFirebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId,
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId
+};
+
 // Initialize Firebase App, Auth SDK & Firestore DB
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const app = !getApps().length ? initializeApp(resolvedFirebaseConfig) : getApp();
 const auth = getAuth(app);
-const db = firebaseConfig.firestoreDatabaseId 
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+const db = resolvedFirebaseConfig.firestoreDatabaseId 
+  ? getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId)
   : getFirestore(app);
 
 // Client-side Firestore helper functions for Vercel/Static deployments and direct database sync

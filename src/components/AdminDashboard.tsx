@@ -452,28 +452,30 @@ export default function AdminDashboard({
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900" id="admin-dashboard-root">
       {/* Brand Header */}
-      <header className="bg-slate-950 text-white h-16 px-4 sm:px-6 flex items-center justify-between shadow-lg sticky top-0 z-40" id="admin-header">
+      <header className="bg-[#111111] text-white h-16 px-4 sm:px-6 flex items-center justify-between shadow-lg sticky top-0 z-40 border-b border-neutral-800" id="admin-header">
         <div className="flex items-center gap-3 min-w-0 flex-1 sm:flex-initial">
-          <span className="text-sm sm:text-xl font-display font-black tracking-tight text-white truncate max-w-[160px] sm:max-w-none">
-            {settings?.logoText || "ZALORA"}
-            <span className="text-blue-500 font-light">.ADMIN</span>
+          <div className="bg-[#C41230] text-white font-black font-display text-sm sm:text-base tracking-tighter px-3 py-1 rounded-b-md shadow-md uppercase border-t-2 border-red-800 shrink-0">
+            LEVI'S® <span className="font-light text-red-200">DENIM</span>
+          </div>
+          <span className="text-xs font-black uppercase tracking-widest text-neutral-300">
+            ADMIN PORTAL
           </span>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="hidden sm:flex items-center gap-2">
-            <span className="p-1 bg-blue-500/10 text-blue-400 rounded-lg">
+            <span className="p-1.5 bg-[#C41230]/20 text-red-400 border border-[#C41230]/30">
               <Shield className="w-4 h-4" />
             </span>
             <div className="text-left">
-              <p className="text-xs font-bold text-slate-200 leading-none">Sistem Admin</p>
-              <p className="text-[9px] text-slate-400 mt-1 uppercase tracking-wider font-semibold">ADMINISTRATOR PERUSAHAAN</p>
+              <p className="text-xs font-bold text-neutral-100 leading-none">Sistem Admin</p>
+              <p className="text-[9px] text-neutral-400 mt-1 uppercase tracking-wider font-semibold">ADMINISTRATOR PERUSAHAAN</p>
             </div>
           </div>
           <button 
             id="admin-btn-logout"
             onClick={onLogout} 
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-lg transition font-bold text-xs"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#C41230]/20 hover:bg-[#C41230]/30 text-red-400 border border-[#C41230]/30 rounded-none transition font-black text-xs uppercase tracking-wider"
             title="Keluar dari Aplikasi"
           >
             <LogOut className="w-3.5 h-3.5" />
