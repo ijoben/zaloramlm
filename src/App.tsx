@@ -610,14 +610,35 @@ async function updateFirestoreUserProfile(userId: number, updateData: { fullname
 }
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<MLMUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<MLMUser | null>(() => {
+    try {
+      const saved = localStorage.getItem("zalora_session_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
-  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>('landing');
+  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>(() => {
+    try {
+      const saved = localStorage.getItem("zalora_session_user");
+      return saved ? 'dashboard' : 'landing';
+    } catch {
+      return 'landing';
+    }
+  });
 
   const currentUserRef = React.useRef<MLMUser | null>(currentUser);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
+    try {
+      if (currentUser) {
+        localStorage.setItem("zalora_session_user", JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem("zalora_session_user");
+      }
+    } catch {}
   }, [currentUser]);
 
   // Listen for Firebase Auth state changes directly
@@ -640,7 +661,22 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem("zalora_products");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_PRODUCTS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("zalora_products", JSON.stringify(products));
+    } catch {}
+  }, [products]);
   
   // Auth state
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -734,31 +770,46 @@ export default function App() {
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
 
   // Dynamic branding & configuration settings
-  const [systemSettings, setSystemSettings] = useState<any>({
-    webName: "Zalora Denim Premium MLM",
-    logoText: "ZALORA.DENIM",
-    logoUrl: "",
-    iconUrl: "",
-    contactPhone: "081234567890",
-    contactEmail: "support@zaloradenim.com",
-    sponsorBonus: 20000,
-    pairingBonus: 10000,
-    roBonus: 5000,
-    levelBonusG1: 5000,
-    levelBonusG2: 4000,
-    levelBonusG3: 3000,
-    levelBonusG4: 1000,
-    levelBonusG5: 1000,
-    levelBonusG6: 1000,
-    levelBonusG7: 1000,
-    levelBonusG8: 1000,
-    levelBonusG9: 1000,
-    levelBonusG10: 1000,
-    rewardThresholdLeft: 5,
-    rewardThresholdRight: 5,
-    rewardName: "Honda Vario Matic Baru",
-    rewardCashEquivalent: 20000000
+  const [systemSettings, setSystemSettings] = useState<any>(() => {
+    const defaults = {
+      webName: "Zalora Denim Premium MLM",
+      logoText: "ZALORA.DENIM",
+      logoUrl: "",
+      iconUrl: "",
+      contactPhone: "081234567890",
+      contactEmail: "support@zaloradenim.com",
+      sponsorBonus: 20000,
+      pairingBonus: 10000,
+      roBonus: 5000,
+      levelBonusG1: 5000,
+      levelBonusG2: 4000,
+      levelBonusG3: 3000,
+      levelBonusG4: 1000,
+      levelBonusG5: 1000,
+      levelBonusG6: 1000,
+      levelBonusG7: 1000,
+      levelBonusG8: 1000,
+      levelBonusG9: 1000,
+      levelBonusG10: 1000,
+      rewardThresholdLeft: 5,
+      rewardThresholdRight: 5,
+      rewardName: "Honda Vario Matic Baru",
+      rewardCashEquivalent: 20000000
+    };
+    try {
+      const saved = localStorage.getItem("zalora_system_settings");
+      if (saved) {
+        return { ...defaults, ...JSON.parse(saved) };
+      }
+    } catch {}
+    return defaults;
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("zalora_system_settings", JSON.stringify(systemSettings));
+    } catch {}
+  }, [systemSettings]);
 
   // Active user data
   const [userDashboardData, setUserDashboardData] = useState<{
