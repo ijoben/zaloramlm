@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, getDocs, collection } from "firebase/firestore";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { doc, setDoc, getDoc, getDocs, collection } from "firebase/firestore";
+import { app, auth, db } from "./lib/firebase";
 import { resolvedFirebaseConfig } from "./lib/firebaseConfig";
 import LandingPage from "./components/LandingPage";
 import UserDashboard from "./components/UserDashboard";
@@ -10,25 +10,6 @@ import PHPSourceViewer from "./components/PHPSourceViewer";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest } from "./types";
 import { DEFAULT_PRODUCTS } from "./data/defaultProducts";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
-
-// Initialize Firebase App, Auth SDK & Firestore DB
-let app: any = null;
-let auth: any = null;
-let db: any = null;
-
-try {
-  if (resolvedFirebaseConfig.apiKey) {
-    app = !getApps().length ? initializeApp(resolvedFirebaseConfig) : getApp();
-    auth = getAuth(app);
-    db = resolvedFirebaseConfig.firestoreDatabaseId 
-      ? getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId)
-      : getFirestore(app);
-  } else {
-    console.warn("⚠️ Firebase API key missing in App.tsx config");
-  }
-} catch (e) {
-  console.error("⚠️ Error initializing Firebase in App.tsx:", e);
-}
 
 // Client-side Firestore helper functions for Vercel/Static deployments and direct database sync
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
@@ -343,7 +324,7 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
 
 async function fetchFirestoreSettings(): Promise<any> {
   try {
-    const docSnap = await getDoc(doc(db, "settings", "global"));
+    const docSnap = await getDoc(doc(db, "settings", "system"));
     if (docSnap.exists()) {
       return docSnap.data();
     }
@@ -355,7 +336,7 @@ async function fetchFirestoreSettings(): Promise<any> {
 
 async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
   try {
-    await setDoc(doc(db, "settings", "global"), newSettings, { merge: true });
+    await setDoc(doc(db, "settings", "system"), newSettings, { merge: true });
     return true;
   } catch (err) {
     console.error("Error saving settings to Firestore:", err);
@@ -1621,20 +1602,24 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(prodData)
       });
-      const contentType = res.headers.get("content-type");
-      if (res.ok && contentType && contentType.includes("json")) {
-        fetchProducts();
-        fetchDashboardData();
+      if (res.ok) {
+        await fetchProducts();
+        await fetchDashboardData();
         return true;
       }
     } catch (err) {
       console.warn("Add product API unreachable, saving directly to Firestore...", err);
     }
 
-    await addFirestoreProduct(prodData);
-    await fetchProducts();
-    await fetchDashboardData();
-    return true;
+    try {
+      await addFirestoreProduct(prodData);
+      await fetchProducts();
+      await fetchDashboardData();
+      return true;
+    } catch (fsErr) {
+      console.error("Error adding product to Firestore:", fsErr);
+      throw fsErr;
+    }
   };
 
   const handleUpdateProfile = async (data: { fullname: string; email: string; phone: string; password?: string }): Promise<boolean> => {

@@ -1643,31 +1643,44 @@ app.post("/api/admin/deposit/process", (req, res) => {
 
 // Add New Product
 app.post("/api/admin/products", async (req, res) => {
-  const { name, description, price, member_price, stock, image, ro_bonus_custom } = req.body;
+  try {
+    const { name, description, price, member_price, stock, image, ro_bonus_custom } = req.body;
 
-  if (!name || !price || !member_price || stock === undefined) {
-    return res.status(400).json({ message: "Nama, Harga, Harga Member, dan Stok wajib diisi!" });
+    if (!name) {
+      return res.status(400).json({ message: "Nama produk wajib diisi!" });
+    }
+
+    const defaultImage = "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&q=80&w=600";
+    const existingIds = products.map(p => Number(p.id) || 0);
+    const newProdId = existingIds.length > 0 ? Math.max(...existingIds, 0) + 1 : 1;
+
+    const newProduct: Product = {
+      id: newProdId,
+      name: String(name),
+      description: description ? String(description) : "Celana jeans premium berkualitas ekspor.",
+      price: Number(price) || 150000,
+      member_price: Number(member_price) || 120000,
+      stock: stock !== undefined && stock !== null ? Number(stock) : 100,
+      image: image ? String(image) : defaultImage
+    };
+
+    if (ro_bonus_custom !== undefined && ro_bonus_custom !== "") {
+      (newProduct as any).ro_bonus_custom = Number(ro_bonus_custom);
+    }
+
+    const existingIdx = products.findIndex(p => p.id === newProdId);
+    if (existingIdx >= 0) {
+      products[existingIdx] = newProduct;
+    } else {
+      products.push(newProduct);
+    }
+
+    await syncProductToFirestore(newProduct);
+    res.status(200).json({ message: "Produk jeans baru berhasil ditambahkan ke gudang & tersimpan di Firestore!", product: newProduct, products });
+  } catch (err: any) {
+    console.error("Error in /api/admin/products:", err);
+    res.status(500).json({ message: err.message || "Gagal menambahkan produk" });
   }
-
-  const defaultImage = "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&q=80&w=600";
-  const newProdId = Math.max(...products.map(p => Number(p.id) || 0), 0) + 1;
-  const newProduct: Product = {
-    id: newProdId,
-    name: String(name),
-    description: description ? String(description) : "Celana jeans premium berkualitas ekspor.",
-    price: Number(price),
-    member_price: Number(member_price),
-    stock: Number(stock),
-    image: image ? String(image) : defaultImage
-  };
-
-  if (ro_bonus_custom !== undefined && ro_bonus_custom !== "") {
-    (newProduct as any).ro_bonus_custom = Number(ro_bonus_custom);
-  }
-
-  products.push(newProduct);
-  await syncProductToFirestore(newProduct);
-  res.status(201).json({ message: "Produk jeans baru berhasil ditambahkan ke gudang & tersimpan di Firestore!", product: newProduct, products });
 });
 
 // Member Product Purchase (Repeat Order)
