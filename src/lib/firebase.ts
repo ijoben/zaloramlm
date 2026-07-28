@@ -3,10 +3,23 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { resolvedFirebaseConfig } from './firebaseConfig';
 
-const app = getApps().length > 0 ? getApp() : initializeApp(resolvedFirebaseConfig);
+let app: any = null;
+let auth: any = null;
+let db: any = null;
 
-export const auth = getAuth(app);
-export const db = resolvedFirebaseConfig.firestoreDatabaseId
-  ? getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
+try {
+  if (resolvedFirebaseConfig.apiKey) {
+    app = getApps().length > 0 ? getApp() : initializeApp(resolvedFirebaseConfig);
+    auth = getAuth(app);
+    db = resolvedFirebaseConfig.firestoreDatabaseId
+      ? getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId)
+      : getFirestore(app);
+  } else {
+    console.warn("⚠️ Firebase API key missing from configuration");
+  }
+} catch (e) {
+  console.error("⚠️ Error initializing Firebase in firebase.ts:", e);
+}
+
+export { app, auth, db };
 

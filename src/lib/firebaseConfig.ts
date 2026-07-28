@@ -1,16 +1,19 @@
 // Safe loader for Firebase config in Vite/React environment
 // Uses import.meta.glob so builds on Vercel / GitHub do not crash if firebase-applet-config.json is missing or gitignored.
 
-const configFiles = import.meta.glob('../*.json', { eager: true });
+const configFiles = import.meta.glob([
+  '/firebase-applet-config.json',
+  '../../firebase-applet-config.json',
+  '../firebase-applet-config.json'
+], { eager: true });
+
 let fileConfig: Record<string, any> = {};
 
 for (const path in configFiles) {
-  if (path.includes('firebase-applet-config.json')) {
-    const mod = configFiles[path] as any;
-    if (mod && (mod.default || mod.projectId)) {
-      fileConfig = mod.default || mod;
-      break;
-    }
+  const mod = configFiles[path] as any;
+  if (mod && (mod.default || mod.projectId || mod.apiKey)) {
+    fileConfig = mod.default || mod;
+    break;
   }
 }
 

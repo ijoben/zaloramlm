@@ -11,15 +11,28 @@ import { MLMUser, Product, Transaction, DepositRequest, WDRequest } from "./type
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
 
 // Initialize Firebase App, Auth SDK & Firestore DB
-const app = !getApps().length ? initializeApp(resolvedFirebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = resolvedFirebaseConfig.firestoreDatabaseId 
-  ? getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+
+try {
+  if (resolvedFirebaseConfig.apiKey) {
+    app = !getApps().length ? initializeApp(resolvedFirebaseConfig) : getApp();
+    auth = getAuth(app);
+    db = resolvedFirebaseConfig.firestoreDatabaseId 
+      ? getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId)
+      : getFirestore(app);
+  } else {
+    console.warn("⚠️ Firebase API key missing in App.tsx config");
+  }
+} catch (e) {
+  console.error("⚠️ Error initializing Firebase in App.tsx:", e);
+}
 
 // Client-side Firestore helper functions for Vercel/Static deployments and direct database sync
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
   try {
+    if (!db) return [];
     const querySnapshot = await getDocs(collection(db, "users"));
     const users: MLMUser[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -259,6 +272,7 @@ function buildClientBinaryTree(users: MLMUser[], userId: number, depth = 0, maxD
 
 async function fetchFirestoreProducts(): Promise<Product[]> {
   try {
+    if (!db) return [];
     const querySnapshot = await getDocs(collection(db, "products"));
     const prods: Product[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -340,6 +354,7 @@ async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
 
 async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
   try {
+    if (!db) return [];
     const querySnapshot = await getDocs(collection(db, "withdrawals"));
     const wds: WDRequest[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -381,6 +396,7 @@ async function createFirestoreWithdrawal(wd: WDRequest): Promise<void> {
 
 async function fetchFirestoreTransactions(): Promise<Transaction[]> {
   try {
+    if (!db) return [];
     const querySnapshot = await getDocs(collection(db, "transactions"));
     const txs: Transaction[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -491,6 +507,7 @@ async function updateFirestoreWithdrawalStatus(wdId: number, status: 'success' |
 
 async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
   try {
+    if (!db) return [];
     const querySnapshot = await getDocs(collection(db, "deposits"));
     const deps: DepositRequest[] = [];
     querySnapshot.forEach((docSnap) => {
