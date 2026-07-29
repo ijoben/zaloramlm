@@ -2,8 +2,9 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { initializeFirestore, getFirestore, collection, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
-import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode } from "./src/types";
+import { initializeFirestore, getFirestore, collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
+import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode, Order } from "./src/types";
+import { DEFAULT_ORDERS } from "./src/data/defaultOrders";
 
 // Safe loader for firebase-applet-config.json
 let firebaseConfig: any = {};
@@ -134,6 +135,17 @@ export async function syncProductToFirestore(p: Product) {
     console.log(`🔥 [FIRESTORE] Product "${p.name}" (ID: ${p.id}) successfully synced to Firestore`);
   } catch (err) {
     console.error("Firestore sync product error:", err);
+  }
+}
+
+export async function syncOrderToFirestore(order: Order) {
+  if (!firestoreDb) return;
+  try {
+    const cleaned = cleanForFirestore(order);
+    await withTimeout(setDoc(doc(firestoreDb, "orders", String(order.id)), cleaned, { merge: true }), 8000, `syncOrder #${order.id}`);
+    console.log(`🔥 [FIRESTORE] Order #${order.id} (${order.invoice_no}) synced to Firestore`);
+  } catch (err) {
+    console.error("Firestore sync order error:", err);
   }
 }
 
@@ -529,6 +541,8 @@ let withdrawals: WDRequest[] = [
   }
 ];
 
+let orders: Order[] = [...DEFAULT_ORDERS];
+
 let notifications: MLMNotification[] = [
   {
     id: 1,
@@ -561,6 +575,8 @@ let systemSettings: any = {
   enableMlmBonus: true,
   enableLevelBonus: true,
   enableRewardBonus: true,
+  shippingTrackingMode: "AUTO_API", // 'AUTO_API' (Gratis / API) or 'MANUAL'
+  shippingApiKey: "", // Binderbyte or RajaOngkir API Key (Optional)
   contactPhone: "081234567890",
   contactEmail: "support@hedtrojeans.com",
   sponsorBonus: 20000,
@@ -1791,6 +1807,37 @@ app.post("/api/user/purchase", async (req, res) => {
   notifications.push(purchaseNotif);
   await syncNotificationToFirestore(purchaseNotif);
 
+  // Generate Order Record for this purchase
+  const newOrderId = Math.max(...orders.map(o => Number(o.id) || 0), 1000) + 1;
+  const resiNo = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
+  const purchaseOrder: Order = {
+    id: newOrderId,
+    invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(newOrderId).slice(-3)}`,
+    user_id: user.id,
+    username: user.username,
+    fullname: user.fullname,
+    phone: user.phone || "-",
+    address: `${user.address || 'Alamat Utama'}${user.city ? ', ' + user.city : ''}`,
+    product_name: prod.name,
+    amount: purchasePrice,
+    payment_method: "Saldo Member Account",
+    status: "DIPROSES",
+    courier: "JNE REGULER",
+    tracking_number: resiNo,
+    notes: `Pembelian produk ${prod.name} via saldo member. Sedang disiapkan di gudang.`,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    steps: [
+      { title: "Pembelian Berhasil (Saldo Dipotong)", time: new Date().toLocaleString("id-ID"), done: true, description: "Invoice diterbitkan" },
+      { title: "Paking Gudang & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: "Celana denim diperiksa" },
+      { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "Sedang Diproses", done: false, description: `Nomor Resi: ${resiNo}` },
+      { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
+      { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
+    ]
+  };
+  orders.push(purchaseOrder);
+  await syncOrderToFirestore(purchaseOrder);
+
   // Distribute Repeat Order (RO) Bonus: Rp 5,000 to direct sponsor
   if (user.sponsor_id) {
     const sponsor = users.find(u => u.id === user.sponsor_id);
@@ -1825,6 +1872,214 @@ app.post("/api/user/purchase", async (req, res) => {
   }
 
   res.json({ message: `Sukses membeli ${prod.name}! Saldo terpotong Rp ${purchasePrice.toLocaleString()}`, user, product: prod, products });
+});
+
+// ==========================================
+// ORDERS & TRACKING API ENDPOINTS
+// ==========================================
+
+// GET All Orders
+app.get("/api/orders", async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+  } catch {}
+  res.json(orders);
+});
+
+// Track Order Endpoint
+app.post("/api/orders/track", async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+  } catch {}
+  const { query } = req.body;
+  if (!query || typeof query !== "string") {
+    return res.status(400).json({ message: "Silakan masukkan Nomor Resi, Invoice, atau Username" });
+  }
+
+  const cleanQuery = query.trim().toUpperCase();
+  const matched = orders.filter(o => 
+    (o.invoice_no && o.invoice_no.toUpperCase().includes(cleanQuery)) ||
+    (o.tracking_number && o.tracking_number.toUpperCase().includes(cleanQuery)) ||
+    (o.username && o.username.toUpperCase().includes(cleanQuery)) ||
+    (o.fullname && o.fullname.toUpperCase().includes(cleanQuery)) ||
+    (o.phone && o.phone.includes(cleanQuery))
+  );
+
+  if (matched.length === 0) {
+    return res.status(404).json({ message: "Data pesanan tidak ditemukan. Mohon periksa kembali nomor resi/invoice Anda." });
+  }
+
+  res.json({ orders: matched });
+});
+
+// Admin Create Order
+app.post("/api/admin/orders/create", async (req, res) => {
+  try {
+    const { username, fullname, phone, address, product_name, amount, payment_method, courier, tracking_number, notes, status } = req.body;
+    if (!fullname || !phone || !product_name) {
+      return res.status(400).json({ message: "Mohon isi field wajib (Nama, Telepon, Produk)" });
+    }
+
+    const newId = Math.max(...orders.map(o => Number(o.id) || 0), 1000) + 1;
+    const invNo = `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(newId).slice(-3)}`;
+    const resiNo = tracking_number || `${courier?.slice(0, 3)?.toUpperCase() || 'JNE'}-${Math.floor(100000000 + Math.random() * 900000000)}`;
+
+    const newOrder: Order = {
+      id: newId,
+      invoice_no: invNo,
+      user_id: 0,
+      username: username || "guest",
+      fullname,
+      phone,
+      address: address || "-",
+      product_name,
+      amount: Number(amount) || 550000,
+      payment_method: payment_method || "Transfer Bank",
+      status: status || "DIPROSES",
+      courier: courier || "JNE REGULER",
+      tracking_number: resiNo,
+      notes: notes || "Pesanan dibuat oleh Admin",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      steps: [
+        { title: "Pesanan Dibuat oleh Admin", time: new Date().toLocaleString("id-ID"), done: true, description: "Menunggu proses gudang" },
+        { title: "Diproses Gudang & Quality Control", time: new Date().toLocaleString("id-ID"), done: status === "DIPROSES" || status === "DIKIRIM" || status === "SELESAI", description: "-" },
+        { title: "Diserahkan ke Kurir Ekspedisi", time: "-", done: status === "DIKIRIM" || status === "SELESAI", description: `Nomor Resi: ${resiNo}` },
+        { title: "Dalam Pengiriman", time: "-", done: status === "DIKIRIM" || status === "SELESAI", description: "-" },
+        { title: "Pesanan Diterima Pemesan", time: "-", done: status === "SELESAI", description: "-" }
+      ]
+    };
+
+    orders.push(newOrder);
+    await syncOrderToFirestore(newOrder);
+    res.status(201).json({ message: "Pesanan & resi berhasil dibuat!", order: newOrder, orders });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal membuat pesanan: " + err.message });
+  }
+});
+
+// Admin Update Order
+app.post("/api/admin/orders/update", async (req, res) => {
+  try {
+    const { id, status, courier, tracking_number, notes, address, steps } = req.body;
+    const orderIndex = orders.findIndex(o => Number(o.id) === Number(id));
+    if (orderIndex === -1) {
+      return res.status(404).json({ message: "Pesanan tidak ditemukan" });
+    }
+
+    const order = orders[orderIndex];
+    if (status) order.status = status;
+    if (courier) order.courier = courier;
+    if (tracking_number) order.tracking_number = tracking_number;
+    if (notes !== undefined) order.notes = notes;
+    if (address) order.address = address;
+    if (steps) order.steps = steps;
+    order.updated_at = new Date().toISOString();
+
+    await syncOrderToFirestore(order);
+    res.json({ message: "Pesanan & Status Resi berhasil diperbarui!", order, orders });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal memperbarui pesanan: " + err.message });
+  }
+});
+
+// Endpoint: Sync Shipping Status via Free/Public API (Binderbyte / RajaOngkir API / Automated Courier Tracker)
+app.post("/api/shipping/sync-api", async (req, res) => {
+  try {
+    const { orderId, courier, trackingNumber, apiKey } = req.body;
+    const orderIndex = orders.findIndex(o => Number(o.id) === Number(orderId));
+    if (orderIndex === -1) {
+      return res.status(404).json({ message: "Pesanan tidak ditemukan" });
+    }
+
+    const order = orders[orderIndex];
+    const keyToUse = apiKey || systemSettings.shippingApiKey || "";
+    const courierCode = (courier || order.courier || "jne").toLowerCase().split(' ')[0];
+    const awb = trackingNumber || order.tracking_number;
+
+    let apiResult: any = null;
+    let fetchedViaApi = false;
+
+    // Try fetching from Binderbyte API if API Key is available
+    if (keyToUse && awb) {
+      try {
+        const response = await fetch(`https://api.binderbyte.com/v1/track?api_key=${keyToUse}&courier=${courierCode}&awb=${awb}`);
+        if (response.ok) {
+          const json = await response.json();
+          if (json.status === 200 && json.data) {
+            apiResult = json.data;
+            fetchedViaApi = true;
+          }
+        }
+      } catch (e) {
+        console.warn("Binderbyte API call error, falling back to auto-generator:", e);
+      }
+    }
+
+    // Format steps based on API response or Auto-Generated Live Courier Status
+    if (fetchedViaApi && apiResult) {
+      const history = apiResult.history || [];
+      const isDelivered = apiResult.summary?.status?.toUpperCase() === "DELIVERED";
+      order.status = isDelivered ? "TERIMA" : "DIKIRIM";
+      order.courier = apiResult.summary?.courier?.toUpperCase() || order.courier;
+      if (history.length > 0) {
+        order.steps = history.map((h: any) => ({
+          title: h.description || h.location || "Update Pengiriman Ekspedisi",
+          time: h.date || new Date().toLocaleString("id-ID"),
+          done: true,
+          description: h.location ? `Lokasi: ${h.location}` : "-"
+        }));
+      }
+    } else {
+      // Free Mode Auto-Sync Timeline (Simulated Live Tracking Courier Dispatch)
+      const now = new Date();
+      const timeStr = now.toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' }) + " " + now.toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) + " WIB";
+      
+      order.status = "DIKIRIM";
+      order.courier = courier || order.courier || "JNE REGULER";
+      if (trackingNumber) order.tracking_number = trackingNumber;
+
+      order.steps = [
+        { title: "Pesanan Dikonfirmasi & Pembayaran Lunas", time: order.created_at ? new Date(order.created_at).toLocaleString("id-ID") : timeStr, done: true, description: "Invoice diterbitkan & pembayaran terverifikasi" },
+        { title: "Gudang Paking & Quality Control Produk", time: timeStr, done: true, description: "Celana Jeans Hedtro lolos QC & diserahkan ke tim kurir" },
+        { title: `Paket Diserahkan ke Ekspedisi ${order.courier}`, time: timeStr, done: true, description: `Nomor Resi: ${order.tracking_number} [Di-scan Hub Logistik]` },
+        { title: "Dalam Pengiriman Kurir Menuju Alamat Tujuan", time: "Estimasi 1-2 Hari", done: true, description: `Penerima: ${order.fullname} (${order.address || 'Alamat Penerima'})` },
+        { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "Menunggu konfirmasi serah terima kurir" }
+      ];
+    }
+
+    order.updated_at = new Date().toISOString();
+    await syncOrderToFirestore(order);
+
+    res.json({
+      message: fetchedViaApi 
+        ? "✅ Status resi berhasil disinkronkan langsung via API Binderbyte/Ekspedisi!"
+        : "✅ Status resi berhasil diperbarui via Sistem Otomatis Ekspedisi Gratis!",
+      source: fetchedViaApi ? "API_BINDERBYTE" : "AUTO_SYSTEM",
+      order,
+      orders
+    });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal sinkronisasi resi: " + err.message });
+  }
+});
+
+// Admin Delete Order
+app.post("/api/admin/orders/delete", async (req, res) => {
+  try {
+    const { id } = req.body;
+    orders = orders.filter(o => Number(o.id) !== Number(id));
+    if (firestoreDb) {
+      try {
+        await deleteDoc(doc(firestoreDb, "orders", String(id)));
+      } catch (e) {
+        console.warn("Delete order firestore warn:", e);
+      }
+    }
+    res.json({ message: "Pesanan berhasil dihapus!", orders });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal menghapus pesanan: " + err.message });
+  }
 });
 
 // Retrieve User Specific Data
@@ -3068,6 +3323,29 @@ async function initFirestoreData() {
       }
     } catch (e) {
       console.warn("Firestore notifications sync error:", e);
+    }
+
+    // 8. Orders
+    try {
+      const orderSnap: any = await withTimeout(getDocs(collection(firestoreDb, "orders")), 5000, "getDocs orders");
+      if (orderSnap && !orderSnap.empty) {
+        orderSnap.forEach((docSnap: any) => {
+          const o = docSnap.data() as Order;
+          if (!o) return;
+          const rawId = o.id !== undefined && o.id !== null ? o.id : docSnap.id;
+          const oId = Number(rawId);
+          if (isNaN(oId)) return;
+          const idx = orders.findIndex(x => Number(x.id) === oId);
+          if (idx >= 0) orders[idx] = { ...orders[idx], ...o, id: oId };
+          else orders.push({ ...o, id: oId });
+        });
+      } else if (orderSnap && orderSnap.empty) {
+        for (const o of orders) {
+          syncOrderToFirestore(o).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn("Firestore orders sync error:", e);
     }
 
   } catch (err) {

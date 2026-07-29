@@ -7,9 +7,10 @@ import LandingPage from "./components/LandingPage";
 import UserDashboard from "./components/UserDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import PHPSourceViewer from "./components/PHPSourceViewer";
-import { MLMUser, Product, Transaction, DepositRequest, WDRequest, BinaryTreeNode } from "./types";
+import { MLMUser, Product, Transaction, DepositRequest, WDRequest, BinaryTreeNode, Order } from "./types";
 import { DEFAULT_PRODUCTS } from "./data/defaultProducts";
 import { DEFAULT_USERS } from "./data/defaultUsers";
+import { DEFAULT_ORDERS } from "./data/defaultOrders";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send, User, CreditCard, ShoppingBag, Users } from "lucide-react";
 
 // Client-side timeout helper to prevent hanging on Firestore network stalls
@@ -564,6 +565,60 @@ async function createFirestoreDeposit(dep: DepositRequest): Promise<void> {
   }
 }
 
+async function fetchFirestoreOrders(): Promise<Order[]> {
+  if (!db) return DEFAULT_ORDERS;
+
+  try {
+    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "orders")), 8000, "getDocs orders");
+    if (!querySnapshot || querySnapshot.empty) {
+      for (const ord of DEFAULT_ORDERS) {
+        withClientTimeout(setDoc(doc(db, "orders", String(ord.id)), ord), 8000, `seedOrder #${ord.id}`);
+      }
+      return DEFAULT_ORDERS;
+    }
+
+    const ords: Order[] = [];
+    querySnapshot.forEach((docSnap: any) => {
+      const data = docSnap.data();
+      ords.push({
+        id: Number(data.id),
+        invoice_no: data.invoice_no || `INV-${data.id}`,
+        user_id: Number(data.user_id) || 0,
+        username: data.username || "",
+        fullname: data.fullname || "",
+        phone: data.phone || "",
+        address: data.address || "",
+        product_name: data.product_name || "Produk Denim",
+        amount: Number(data.amount) || 0,
+        payment_method: data.payment_method || "Transfer Bank",
+        status: data.status || "DIPROSES",
+        courier: data.courier || "JNE REGULER",
+        tracking_number: data.tracking_number || "",
+        notes: data.notes || "",
+        created_at: data.created_at || new Date().toISOString(),
+        updated_at: data.updated_at || new Date().toISOString(),
+        steps: Array.isArray(data.steps) ? data.steps : []
+      });
+    });
+
+    ords.sort((a, b) => b.id - a.id);
+    return ords;
+  } catch (err: any) {
+    console.error("❌ [fetchFirestoreOrders] Error reading 'orders' from Firestore:", err);
+    return DEFAULT_ORDERS;
+  }
+}
+
+async function saveFirestoreOrder(ord: Order): Promise<void> {
+  if (db) {
+    try {
+      await withClientTimeout(setDoc(doc(db, "orders", String(ord.id)), ord, { merge: true }), 8000, `saveOrder #${ord.id}`);
+    } catch (err) {
+      console.warn("Error saving order in Firestore:", err);
+    }
+  }
+}
+
 async function updateFirestoreDepositStatus(depositId: number, status: 'success' | 'failed' | 'pending'): Promise<void> {
   const deps = await fetchFirestoreDeposits();
   const depData = deps.find(d => Number(d.id) === Number(depositId));
@@ -912,6 +967,106 @@ export default function App() {
     transactions: Transaction[];
   } | null>(null);
 
+  // Orders & Shipping Resi State
+  const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
+
+  const fetchOrders = async () => {
+    try {
+      const res = await fetch("/api/orders");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setOrders(data);
+          return;
+        }
+      }
+    } catch {}
+    const fsOrders = await fetchFirestoreOrders();
+    setOrders(fsOrders);
+  };
+
+  const handleUpdateOrder = async (updatedOrder: Order): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/admin/orders/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedOrder)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.orders)) setOrders(data.orders);
+      }
+    } catch {}
+
+    setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+    await saveFirestoreOrder(updatedOrder);
+    return true;
+  };
+
+  const handleCreateOrder = async (orderData: Partial<Order>): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/admin/orders/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.orders)) setOrders(data.orders);
+        return true;
+      }
+    } catch {}
+
+    const newId = Math.max(...orders.map(o => Number(o.id) || 0), 1000) + 1;
+    const newOrder: Order = {
+      id: newId,
+      invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(newId).slice(-3)}`,
+      user_id: 0,
+      username: orderData.username || "guest",
+      fullname: orderData.fullname || "Pelanggan",
+      phone: orderData.phone || "-",
+      address: orderData.address || "-",
+      product_name: orderData.product_name || "Hedtro Denim",
+      amount: Number(orderData.amount) || 550000,
+      payment_method: orderData.payment_method || "Transfer Bank",
+      status: orderData.status || "DIPROSES",
+      courier: orderData.courier || "JNE REGULER",
+      tracking_number: orderData.tracking_number || `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
+      notes: orderData.notes || "Pesanan dibuat manual",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      steps: [
+        { title: "Pesanan Dibuat", time: new Date().toLocaleString("id-ID"), done: true, description: "Menunggu proses" },
+        { title: "Diproses Gudang", time: new Date().toLocaleString("id-ID"), done: true, description: "QC & Paking" },
+        { title: "Diserahkan ke Kurir", time: "-", done: false, description: "-" },
+        { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
+        { title: "Pesanan Diterima", time: "-", done: false, description: "-" }
+      ]
+    };
+
+    setOrders(prev => [newOrder, ...prev]);
+    await saveFirestoreOrder(newOrder);
+    return true;
+  };
+
+  const handleDeleteOrder = async (orderId: number | string): Promise<boolean> => {
+    try {
+      await fetch("/api/admin/orders/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: orderId })
+      });
+    } catch {}
+
+    setOrders(prev => prev.filter(o => Number(o.id) !== Number(orderId)));
+    if (db) {
+      try {
+        await deleteDoc(doc(db, "orders", String(orderId)));
+      } catch {}
+    }
+    return true;
+  };
+
   // Real-time Firestore subscription for System Settings
   useEffect(() => {
     if (!db) return;
@@ -958,12 +1113,18 @@ export default function App() {
       fetchProducts();
     });
 
+    const unsubOrders = onSnapshot(collection(db, "orders"), () => {
+      console.log("🔥 [Firebase Realtime] Live change in 'orders' collection detected!");
+      fetchOrders();
+    });
+
     return () => {
       unsubUsers();
       unsubWd();
       unsubDep();
       unsubTx();
       unsubProd();
+      unsubOrders();
     };
   }, []);
 
@@ -978,6 +1139,7 @@ export default function App() {
     }
     fetchProducts();
     fetchSettings();
+    fetchOrders();
   }, []);
 
   // Sync data automatically every 10 seconds if logged in
@@ -1483,7 +1645,38 @@ export default function App() {
         });
       }
 
-      setRegSuccessMessage(`Pendaftaran Berhasil via Firebase & Firestore! Akun ${createdUsername} (${regEmail}) terdaftar di database.`);
+      // 4. Create initial order record for new member
+      const newOrdId = Date.now();
+      const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
+      const regOrder: Order = {
+        id: newOrdId,
+        invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
+        user_id: 0,
+        username: createdUsername,
+        fullname: regFullname,
+        phone: regPhone,
+        address: `${regAddress}${regCity ? ', ' + regCity : ''}`,
+        product_name: "Paket Perdana Member - Hedtro Jeans Raw Denim Premium",
+        amount: 550000,
+        payment_method: "Transfer Bank / QRIS",
+        status: "DIPROSES",
+        courier: "JNE REGULER",
+        tracking_number: newResi,
+        notes: "Pesanan pendaftaran member baru. Celana Jeans Perdana sedang diproses di gudang.",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        steps: [
+          { title: "Registrasi Akun & Invoice Dibuat", time: new Date().toLocaleString("id-ID"), done: true, description: "Pendaftaran member berhasil" },
+          { title: "Gudang Memproses & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: "Menyiapkan celana jeans perdana" },
+          { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "Sedang Diproses", done: false, description: `Nomor Resi: ${newResi}` },
+          { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
+          { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
+        ]
+      };
+      await saveFirestoreOrder(regOrder);
+      setOrders(prev => [regOrder, ...prev]);
+
+      setRegSuccessMessage(`Pendaftaran Berhasil! Order ID Invoice: ${regOrder.invoice_no} (Resi: ${newResi}) telah dibuat & terhubung ke sistem lacak pesanan.`);
       setLoginUsername(regEmail);
       setLoginPassword(regPassword);
       setRegUsername('');
@@ -2023,6 +2216,8 @@ export default function App() {
             }}
             onDashboardClick={() => setActiveView('dashboard')}
             settings={systemSettings}
+            orders={orders}
+            currentUser={currentUser}
           />
         )}
 
@@ -2041,6 +2236,10 @@ export default function App() {
                 deposits={adminDashboardData.deposits}
                 transactions={adminDashboardData.transactions}
                 products={products}
+                orders={orders}
+                onUpdateOrder={handleUpdateOrder}
+                onCreateOrder={handleCreateOrder}
+                onDeleteOrder={handleDeleteOrder}
                 onRefresh={fetchDashboardData}
                 onLogout={handleLogout}
                 onUpdateProductStock={handleUpdateProductStock}
@@ -2070,6 +2269,7 @@ export default function App() {
                 binaryTree={userDashboardData.binaryTree}
                 referrals={userDashboardData.referrals}
                 products={products}
+                orders={orders}
                 onLogout={handleLogout}
                 onRefresh={fetchDashboardData}
                 onBuyProduct={handleBuyProduct}

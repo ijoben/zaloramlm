@@ -138,3 +138,30 @@ export interface SystemSettings {
   faqTitle?: string;
   footerAbout?: string;
 }
+
+export interface OrderStep {
+  title: string;
+  time: string;
+  done: boolean;
+  description?: string;
+}
+
+export interface Order {
+  id: number;
+  invoice_no: string;
+  user_id: number;
+  username: string;
+  fullname: string;
+  phone: string;
+  address: string;
+  product_name: string;
+  amount: number;
+  payment_method?: string;
+  status: 'PENDING' | 'DIPROSES' | 'DIKIRIM' | 'SELESAI' | 'DIBATALKAN' | 'TERIMA' | 'BATAL';
+  courier: string;
+  tracking_number: string;
+  notes?: string;
+  created_at: string;
+  updated_at?: string;
+  steps?: OrderStep[];
+}

@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { MLMUser, Product, Transaction, DepositRequest, WDRequest, BinaryTreeNode } from "../types";
+import { MLMUser, Product, Transaction, DepositRequest, WDRequest, BinaryTreeNode, Order } from "../types";
 import { 
   DollarSign, TrendingUp, Users, TreePine, ArrowUpRight, ArrowDownLeft, 
   Copy, Check, ShoppingBag, ShieldAlert, CheckCircle, RefreshCw, 
   CreditCard, Send, LogOut, Bell, HelpCircle, Award, Percent, Menu, X,
-  User, Lock, Sparkles
+  User, Lock, Sparkles, Truck, Package, Clock
 } from "lucide-react";
 
 interface UserDashboardProps {
@@ -16,6 +16,7 @@ interface UserDashboardProps {
   binaryTree: BinaryTreeNode | null;
   referrals: MLMUser[];
   products: Product[];
+  orders?: Order[];
   onLogout: () => void;
   onRefresh: () => void;
   onBuyProduct: (productId: number) => Promise<void>;
@@ -49,6 +50,7 @@ export default function UserDashboard({
   binaryTree,
   referrals,
   products,
+  orders = [],
   onLogout,
   onRefresh,
   onBuyProduct,
@@ -62,7 +64,7 @@ export default function UserDashboard({
   settings
 }: UserDashboardProps) {
   const idPrefix = settings?.memberIdPrefix || 'HDT-';
-  const [activeTab, setActiveTab] = useState<'overview' | 'tree' | 'shop' | 'finance' | 'referrals' | 'bonuses' | 'panduan' | 'profil'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tree' | 'shop' | 'orders' | 'finance' | 'referrals' | 'bonuses' | 'panduan' | 'profil'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Form states
@@ -89,6 +91,29 @@ export default function UserDashboard({
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [syncingOrderId, setSyncingOrderId] = useState<number | string | null>(null);
+
+  const handleUserSyncTracking = async (ord: Order) => {
+    setSyncingOrderId(ord.id);
+    try {
+      const res = await fetch("/api/shipping/sync-api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: ord.id,
+          courier: ord.courier,
+          trackingNumber: ord.tracking_number
+        })
+      });
+      if (res.ok && onRefresh) {
+        await onRefresh();
+      }
+    } catch (e) {
+      console.warn("Sync error:", e);
+    } finally {
+      setSyncingOrderId(null);
+    }
+  };
 
   // Calculate dynamic volume & member counts from binary tree structure to ensure DB connectivity
   const getSubtreeStats = (node: BinaryTreeNode | null): { totalCount: number; activeSales: number } => {
@@ -531,6 +556,23 @@ export default function UserDashboard({
                 </button>
 
                 <button
+                  id="tab-orders-mobile"
+                  onClick={() => { setActiveTab('orders'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition text-left ${
+                    activeTab === 'orders' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5 text-left">
+                    <Truck className="w-4 h-4 shrink-0 text-blue-400" /> Pengiriman & Resi Saya
+                  </span>
+                  {orders && orders.filter(o => o.username === user.username || o.phone === user.phone).length > 0 && (
+                    <span className="text-[9px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-bold shrink-0">
+                      {orders.filter(o => o.username === user.username || o.phone === user.phone).length}
+                    </span>
+                  )}
+                </button>
+
+                <button
                   id="tab-finance-mobile"
                   onClick={() => { setActiveTab('finance'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition ${
@@ -748,6 +790,22 @@ export default function UserDashboard({
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'shop' ? 'bg-blue-500/20 text-white' : 'bg-blue-950 text-blue-300 border border-blue-800'}`}>
                 Diskon Member
               </span>
+            </button>
+
+            <button
+              id="tab-orders"
+              onClick={() => setActiveTab('orders')}
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
+                activeTab === 'orders' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Truck className="w-4 h-4 shrink-0 text-blue-400" />
+              <span className="flex-1 text-left">Pengiriman & Resi Saya</span>
+              {orders && orders.filter(o => o.username === user.username || o.phone === user.phone).length > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'orders' ? 'bg-blue-500/20 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                  {orders.filter(o => o.username === user.username || o.phone === user.phone).length}
+                </span>
+              )}
             </button>
  
             <button
@@ -1607,6 +1665,132 @@ export default function UserDashboard({
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* TAB: STATUS PENGIRIMAN & RESI SAYA */}
+          {activeTab === 'orders' && (
+            <div className="space-y-6 text-left" id="user-orders-tab-content">
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2 text-left">
+                    <Truck className="text-blue-600 w-5 h-5 shrink-0" /> Status Pengiriman & Nomor Resi Pesanan Saya
+                  </h3>
+                  <p className="text-xs text-slate-500 text-left">Lacak perjalanan paket produk Jeans anda dari gudang utama hingga tiba di alamat tujuan secara real-time.</p>
+                </div>
+              </div>
+
+              {(() => {
+                const userOrders = (orders || []).filter(o => 
+                  (o.username && o.username.toLowerCase() === user.username.toLowerCase()) || 
+                  (o.phone && o.phone.replace(/\D/g, '') === user.phone.replace(/\D/g, ''))
+                );
+
+                if (userOrders.length === 0) {
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
+                      <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
+                        <Package className="w-6 h-6" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-800">Belum Ada Riwayat Pesanan</p>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto">Pesanan pendaftaran member baru atau pembelian produk di menu Belanja Jeans akan muncul di sini beserta nomor resi pengiriman.</p>
+                      <button
+                        onClick={() => setActiveTab('shop')}
+                        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition"
+                      >
+                        <ShoppingBag className="w-4 h-4" /> Beli Produk Jeans
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-6 text-left">
+                    {userOrders.map((ord) => (
+                      <div key={ord.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 text-left">
+                        {/* Order Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 text-left">
+                          <div>
+                            <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">NO. INVOICE TRANSAKSI</span>
+                            <span className="text-sm font-black font-mono text-slate-900">{ord.invoice_no}</span>
+                            <span className="text-xs text-slate-500 block mt-0.5">{new Date(ord.created_at).toLocaleString('id-ID')}</span>
+                          </div>
+
+                          <div className="flex flex-col sm:items-end gap-2 text-left sm:text-right">
+                            <span className={`inline-block px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${
+                              ord.status === 'TERIMA' || ord.status === 'SELESAI' ? 'bg-green-100 text-green-800 border border-green-200' :
+                              ord.status === 'DIKIRIM' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                              ord.status === 'BATAL' || ord.status === 'DIBATALKAN' ? 'bg-red-100 text-red-800 border border-red-200' :
+                              'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}>
+                              {ord.status === 'TERIMA' || ord.status === 'SELESAI' ? 'DITERIMA / SELESAI' : ord.status === 'DIKIRIM' ? 'DALAM PENGIRIMAN' : ord.status === 'BATAL' ? 'DIBATALKAN' : 'DIPROSES GUDANG'}
+                            </span>
+                            {ord.tracking_number && (
+                              <button
+                                onClick={() => handleUserSyncTracking(ord)}
+                                disabled={syncingOrderId === ord.id}
+                                className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1 rounded-lg transition cursor-pointer self-start sm:self-auto"
+                              >
+                                <RefreshCw className={`w-3 h-3 text-blue-600 ${syncingOrderId === ord.id ? 'animate-spin' : ''}`} />
+                                {syncingOrderId === ord.id ? 'Memuat Resi API...' : 'Cek Status Live API'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Courier & Tracking Details */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-xs text-left">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">EKSPEDISI</span>
+                            <span className="font-extrabold text-slate-900 block">{ord.courier || 'JNE REGULER'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NOMOR RESI</span>
+                            <span className="font-mono font-black text-blue-600 block text-xs">{ord.tracking_number || 'Belum Diterbitkan'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NAMA PRODUK & NOMINAL</span>
+                            <span className="font-extrabold text-slate-900 block">{ord.product_name}</span>
+                            <span className="font-mono font-bold text-slate-700">Rp {(ord.amount || 0).toLocaleString('id-ID')}</span>
+                          </div>
+                        </div>
+
+                        {/* Shipping Address */}
+                        <div className="text-xs space-y-1 text-left">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">ALAMAT TUJUAN PENGIRIMAN</span>
+                          <p className="font-bold text-slate-800">{ord.fullname} ({ord.phone})</p>
+                          <p className="text-slate-600 leading-relaxed">{ord.address || 'Alamat sesuai data registrasi'}</p>
+                        </div>
+
+                        {/* Tracking Timeline Steps */}
+                        <div className="pt-4 border-t border-slate-100 text-left">
+                          <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider mb-3 flex items-center gap-1.5 text-left">
+                            <Clock className="w-4 h-4 text-blue-600" /> TAHAPAN PERJALANAN PAKET
+                          </h4>
+
+                          <div className="space-y-3 pl-3 border-l-2 border-blue-600 text-left">
+                            {(ord.steps && ord.steps.length > 0 ? ord.steps : [
+                              { title: "Pesanan Masuk & Terbayar", time: new Date(ord.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB", done: true, description: "Pesanan diproses server sistem" },
+                              { title: "Gudang Paking & QC Produk", time: "Diproses Gudang", done: ord.status !== 'PENDING', description: "Pengecekan jahitan & kerapian paking" },
+                              { title: "Penyerahan ke Ekspedisi", time: ord.tracking_number ? "Resi Terbit" : "Menunggu Resi", done: ord.status === 'DIKIRIM' || ord.status === 'TERIMA', description: `Nomor Resi: ${ord.tracking_number || 'Dalam Proses'}` },
+                              { title: "Pesanan Tiba di Alamat Tujuan", time: ord.status === 'TERIMA' ? "Selesai" : "Estimasi 2-3 Hari", done: ord.status === 'TERIMA', description: "Diterima pemesan" }
+                            ]).map((st: any, idx: number) => (
+                              <div key={idx} className="relative pl-3 text-xs text-left">
+                                <span className={`absolute -left-[19px] top-1 w-3 h-3 rounded-full border-2 border-white ${st.done ? 'bg-blue-600' : 'bg-slate-300'}`}></span>
+                                <div className="flex items-center justify-between text-left">
+                                  <span className={`font-extrabold ${st.done ? 'text-slate-900' : 'text-slate-400'}`}>{st.title}</span>
+                                  <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">{st.time}</span>
+                                </div>
+                                {st.description && <p className="text-[10px] text-slate-500 mt-0.5 text-left">{st.description}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

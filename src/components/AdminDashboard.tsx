@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { MLMUser, Product, Transaction, DepositRequest, WDRequest } from "../types";
+import { MLMUser, Product, Transaction, DepositRequest, WDRequest, Order, OrderStep } from "../types";
 import { 
   Shield, Users, DollarSign, Package, TrendingUp, HelpCircle, 
   CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, 
   ArrowUpRight, ArrowDownLeft, RefreshCw, BarChart2, Search, Percent,
-  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock, LogOut, Upload, Trash2, Eye, Sparkles
+  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck
 } from "lucide-react";
 
 interface AdminDashboardProps {
@@ -24,6 +24,10 @@ interface AdminDashboardProps {
   deposits: DepositRequest[];
   transactions: Transaction[];
   products: Product[];
+  orders?: Order[];
+  onUpdateOrder?: (order: Order) => Promise<boolean>;
+  onCreateOrder?: (orderData: Partial<Order>) => Promise<boolean>;
+  onDeleteOrder?: (id: number | string) => Promise<boolean>;
   onRefresh: () => void;
   onLogout: () => void;
   onUpdateProductStock: (productId: number, stock: number, price: number, memberPrice: number) => Promise<void>;
@@ -59,6 +63,10 @@ export default function AdminDashboard({
   deposits,
   transactions,
   products,
+  orders = [],
+  onUpdateOrder,
+  onCreateOrder,
+  onDeleteOrder,
   onRefresh,
   onLogout,
   onUpdateProductStock,
@@ -74,7 +82,7 @@ export default function AdminDashboard({
   onUpdateSettings,
   onRefreshProducts
 }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'settings' | 'landing-editor' | 'profil'>('financials');
+  const [activeTab, setActiveTab] = useState<'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'orders' | 'settings' | 'landing-editor' | 'profil'>('financials');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Product edit & modal states
@@ -82,6 +90,32 @@ export default function AdminDashboard({
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [productSearchQuery, setProductSearchQuery] = useState('');
+
+  // Order management states
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'ALL' | 'DIPROSES' | 'DIKIRIM' | 'TERIMA' | 'BATAL'>('ALL');
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false);
+  const [deletingOrderId, setDeletingOrderId] = useState<number | string | null>(null);
+
+  // New Order Form
+  const [newOrderUsername, setNewOrderUsername] = useState('');
+  const [newOrderFullname, setNewOrderFullname] = useState('');
+  const [newOrderPhone, setNewOrderPhone] = useState('');
+  const [newOrderAddress, setNewOrderAddress] = useState('');
+  const [newOrderProduct, setNewOrderProduct] = useState('Hedtro Jeans Raw Denim Premium');
+  const [newOrderAmount, setNewOrderAmount] = useState(550000);
+  const [newOrderCourier, setNewOrderCourier] = useState('JNE REGULER');
+  const [newOrderTracking, setNewOrderTracking] = useState('');
+
+  // Edit Order Form
+  const [editOrderCourier, setEditOrderCourier] = useState('JNE REGULER');
+  const [editOrderTracking, setEditOrderTracking] = useState('');
+  const [editOrderStatus, setEditOrderStatus] = useState<'DIPROSES' | 'DIKIRIM' | 'TERIMA' | 'BATAL'>('DIPROSES');
+  const [editOrderNotes, setEditOrderNotes] = useState('');
+  const [editOrderSteps, setEditOrderSteps] = useState<OrderStep[]>([]);
+  const [newStepTitle, setNewStepTitle] = useState('');
+  const [newStepDesc, setNewStepDesc] = useState('');
 
   // User search query
   const [searchQuery, setSearchQuery] = useState('');
@@ -328,6 +362,160 @@ export default function AdminDashboard({
       setLoading(false);
     }
   };
+
+  // Order Handlers
+  const handleOpenEditOrderModal = (ord: Order) => {
+    setEditingOrder(ord);
+    setEditOrderCourier(ord.courier || 'JNE REGULER');
+    setEditOrderTracking(ord.tracking_number || '');
+    setEditOrderStatus(ord.status || 'DIPROSES');
+    setEditOrderNotes(ord.notes || '');
+    setEditOrderSteps(ord.steps ? [...ord.steps] : []);
+  };
+
+  const handleSaveEditOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOrder) return;
+    setLoading(true);
+
+    const updatedOrder: Order = {
+      ...editingOrder,
+      courier: editOrderCourier,
+      tracking_number: editOrderTracking,
+      status: editOrderStatus,
+      notes: editOrderNotes,
+      updated_at: new Date().toISOString(),
+      steps: editOrderSteps
+    };
+
+    try {
+      if (onUpdateOrder) {
+        await onUpdateOrder(updatedOrder);
+      }
+      setMessage({ text: `Status & Resi order ${editingOrder.invoice_no} berhasil diperbarui!`, type: "success" });
+      setEditingOrder(null);
+    } catch (err: any) {
+      setMessage({ text: err.message || "Gagal memperbarui order", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSyncShippingApi = async (ord: Order) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/shipping/sync-api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: ord.id,
+          courier: ord.courier,
+          trackingNumber: ord.tracking_number,
+          apiKey: settings?.shippingApiKey || ""
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Gagal sinkronisasi resi");
+      
+      setMessage({ text: data.message, type: "success" });
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      setMessage({ text: err.message || "Gagal sinkronisasi resi", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveShippingMode = async (mode: 'AUTO_API' | 'MANUAL', apiKeyInput?: string) => {
+    setLoading(true);
+    try {
+      if (onSaveSettings) {
+        await onSaveSettings({
+          shippingTrackingMode: mode,
+          ...(apiKeyInput !== undefined ? { shippingApiKey: apiKeyInput } : {})
+        });
+      }
+      setMessage({ 
+        text: mode === 'AUTO_API' 
+          ? "✅ Mode Pengiriman diubah ke API Otomatis (Gratis / Binderbyte API)" 
+          : "✅ Mode Pengiriman diubah ke Mode Manual (Input Admin)", 
+        type: "success" 
+      });
+    } catch (err: any) {
+      setMessage({ text: err.message || "Gagal menyimpan mode pengiriman", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateOrderSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newOrderFullname || !newOrderPhone || !newOrderAddress) {
+      alert("Harap lengkapi nama, nomor telepon, dan alamat kirim!");
+      return;
+    }
+    setLoading(true);
+    try {
+      if (onCreateOrder) {
+        await onCreateOrder({
+          username: newOrderUsername || "guest",
+          fullname: newOrderFullname,
+          phone: newOrderPhone,
+          address: newOrderAddress,
+          product_name: newOrderProduct,
+          amount: newOrderAmount,
+          courier: newOrderCourier,
+          tracking_number: newOrderTracking || `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
+          status: "DIPROSES"
+        });
+      }
+      setMessage({ text: "Order pesanan manual baru berhasil dibuat!", type: "success" });
+      setIsAddOrderModalOpen(false);
+      setNewOrderUsername('');
+      setNewOrderFullname('');
+      setNewOrderPhone('');
+      setNewOrderAddress('');
+      setNewOrderTracking('');
+    } catch (err: any) {
+      setMessage({ text: err.message || "Gagal membuat order baru", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteOrderConfirm = async () => {
+    if (!deletingOrderId) return;
+    setLoading(true);
+    try {
+      if (onDeleteOrder) {
+        await onDeleteOrder(deletingOrderId);
+      }
+      setMessage({ text: "Order berhasil dihapus!", type: "success" });
+      setDeletingOrderId(null);
+    } catch (err: any) {
+      setMessage({ text: err.message || "Gagal menghapus order", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddStepToOrder = () => {
+    if (!newStepTitle) return;
+    const newStep: OrderStep = {
+      title: newStepTitle,
+      time: new Date().toLocaleString("id-ID"),
+      done: true,
+      description: newStepDesc || "Proses diperbarui oleh admin"
+    };
+    setEditOrderSteps(prev => [...prev, newStep]);
+    setNewStepTitle('');
+    setNewStepDesc('');
+  };
+
+  const handleToggleStepDone = (idx: number) => {
+    setEditOrderSteps(prev => prev.map((s, i) => i === idx ? { ...s, done: !s.done } : s));
+  };
+
 
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
@@ -752,6 +940,23 @@ export default function AdminDashboard({
                 </button>
 
                 <button
+                  id="admin-tab-orders-mobile"
+                  onClick={() => { setActiveTab('orders'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition text-left ${
+                    activeTab === 'orders' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5 text-left">
+                    <Truck className="w-4 h-4 shrink-0" /> Pengiriman & Resi Pesanan
+                  </span>
+                  {orders.length > 0 && (
+                    <span className="text-[9px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-bold shrink-0">
+                      {orders.length} order
+                    </span>
+                  )}
+                </button>
+
+                <button
                   id="admin-tab-landing-editor-mobile"
                   onClick={() => { setActiveTab('landing-editor'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition ${
@@ -874,6 +1079,22 @@ export default function AdminDashboard({
             >
               <Package className="w-4 h-4" />
               <span>Gudang & Stok Jeans</span>
+            </button>
+
+            <button
+              id="admin-tab-orders"
+              onClick={() => setActiveTab('orders')}
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+                activeTab === 'orders' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Truck className="w-4 h-4" />
+              <span className="flex-1 text-left">Pengiriman & Resi</span>
+              {orders.length > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'orders' ? 'bg-blue-500/20 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                  {orders.length}
+                </span>
+              )}
             </button>
 
             <button
@@ -2464,6 +2685,247 @@ export default function AdminDashboard({
             </div>
           )}
 
+          {/* TAB: ORDER MANAGEMENT & RESI TRACKING */}
+          {activeTab === 'orders' && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6 text-left" id="admin-orders-panel">
+              {/* Header & Action */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100 text-left">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 text-left">
+                    <Truck className="text-blue-600 w-5 h-5 shrink-0" /> Lacak & Kelola Resi Pesanan Pelanggan
+                  </h3>
+                  <p className="text-xs text-slate-500 text-left">Kelola pesanan dari pendaftaran member baru atau pembelian produk, update nomor resi ekspedisi, dan ubah status pengiriman secara real-time.</p>
+                </div>
+                
+                <button
+                  id="btn-open-add-order-modal"
+                  onClick={() => setIsAddOrderModalOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-md shadow-blue-600/10 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4" /> Tambah Order Manual
+                </button>
+              </div>
+
+              {/* Shipping Tracking Mode Selector (API Otomatis Gratis vs Manual) */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-left">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 text-left">
+                  <div className="text-left">
+                    <span className="text-[10px] font-black uppercase text-blue-600 tracking-wider block text-left">PILIHAN MODE OPERASIONAL PENGIRIMAN</span>
+                    <p className="text-xs font-bold text-slate-800 text-left">
+                      Mode Aktif: {settings?.shippingTrackingMode === 'MANUAL' ? '✍️ Mode Manual (Admin Input)' : '⚡ Mode API Otomatis (Gratis / Binderbyte API)'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 justify-start sm:justify-end">
+                    <button
+                      onClick={() => handleSaveShippingMode('AUTO_API')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        settings?.shippingTrackingMode !== 'MANUAL'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      ⚡ API Otomatis (Gratis)
+                    </button>
+                    <button
+                      onClick={() => handleSaveShippingMode('MANUAL')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        settings?.shippingTrackingMode === 'MANUAL'
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      ✍️ Manual Input
+                    </button>
+                  </div>
+                </div>
+
+                {settings?.shippingTrackingMode !== 'MANUAL' && (
+                  <div className="text-xs space-y-2 bg-white p-3 rounded-xl border border-slate-200/80 text-left">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-left">
+                      <p className="text-[11px] text-slate-600 text-left">
+                        <strong className="text-slate-800">Sistem API Lacak Resi:</strong> Menggunakan endpoint gratis bawaan & mendukung API Key Binderbyte (JNE, POS, J&T, SiCepat, TIKI, Wahana, Ninja, AnterAja, SPX).
+                      </p>
+                      <button
+                        onClick={async () => {
+                          setLoading(true);
+                          for (const o of orders) {
+                            if (o.tracking_number) {
+                              await handleSyncShippingApi(o);
+                            }
+                          }
+                          setLoading(false);
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition shrink-0 flex items-center gap-1 justify-center cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Sync Semua Resi
+                      </button>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center gap-2 text-left">
+                      <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap text-left">API Key Binderbyte (Opsional):</span>
+                      <input
+                        type="text"
+                        placeholder="Masukkan API Key Binderbyte jika punya (Kosongkan jika ingin sistem lacak gratis otomatis)"
+                        defaultValue={settings?.shippingApiKey || ''}
+                        onBlur={(e) => handleSaveShippingMode('AUTO_API', e.target.value)}
+                        className="flex-1 text-xs border border-slate-200 rounded-lg px-2.5 py-1 bg-slate-50 focus:bg-white focus:border-blue-500 w-full"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Filter Bar & Search */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+                  {(['ALL', 'DIPROSES', 'DIKIRIM', 'TERIMA', 'BATAL'] as const).map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setOrderStatusFilter(st)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                        orderStatusFilter === st
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {st === 'ALL' ? 'Semua Order' : st === 'DIPROSES' ? 'Diproses Gudang' : st === 'DIKIRIM' ? 'Dalam Pengiriman' : st === 'TERIMA' ? 'Selesai / Diterima' : 'Dibatalkan'}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari invoice, nama, resi, HP..."
+                    value={orderSearchQuery}
+                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                    className="w-full text-xs border border-slate-200 rounded-xl pl-9 pr-3 py-2 bg-slate-50 focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Orders Table */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs text-slate-600">
+                  <thead className="bg-slate-50 border-b border-slate-200 uppercase font-extrabold text-[10px] text-slate-500 tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3">No. Invoice & Waktu</th>
+                      <th className="px-4 py-3">Pemesan & Alamat Kirim</th>
+                      <th className="px-4 py-3">Produk & Nominal</th>
+                      <th className="px-4 py-3">Ekspedisi & Nomor Resi</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3 text-center">Aksi (CRUD)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {orders
+                      .filter(o => {
+                        if (orderStatusFilter !== 'ALL' && o.status !== orderStatusFilter) return false;
+                        if (!orderSearchQuery) return true;
+                        const q = orderSearchQuery.toLowerCase();
+                        return (
+                          (o.invoice_no && o.invoice_no.toLowerCase().includes(q)) ||
+                          (o.fullname && o.fullname.toLowerCase().includes(q)) ||
+                          (o.username && o.username.toLowerCase().includes(q)) ||
+                          (o.tracking_number && o.tracking_number.toLowerCase().includes(q)) ||
+                          (o.phone && o.phone.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((ord) => (
+                        <tr key={ord.id} className="hover:bg-slate-50/60 transition">
+                          <td className="px-4 py-3.5 align-top">
+                            <span className="font-bold text-slate-900 font-mono block">{ord.invoice_no}</span>
+                            <span className="text-[10px] text-slate-400 mt-0.5 block">{new Date(ord.created_at).toLocaleString('id-ID')}</span>
+                            <span className="inline-block mt-1 bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded">
+                              {ord.payment_method || 'Transfer Bank'}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3.5 align-top max-w-xs">
+                            <p className="font-bold text-slate-900">{ord.fullname}</p>
+                            <p className="text-[10px] text-blue-600 font-semibold font-mono">@{ord.username}</p>
+                            <p className="text-[11px] text-slate-500 mt-1">{ord.phone}</p>
+                            <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">{ord.address}</p>
+                          </td>
+
+                          <td className="px-4 py-3.5 align-top">
+                            <p className="font-bold text-slate-800 line-clamp-1">{ord.product_name}</p>
+                            <p className="font-black text-blue-600 font-mono mt-1 text-xs">Rp {(ord.amount || 0).toLocaleString('id-ID')}</p>
+                          </td>
+
+                          <td className="px-4 py-3.5 align-top">
+                            <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[10px]">
+                              <Truck className="w-3 h-3 text-blue-600" /> {ord.courier || 'JNE REGULER'}
+                            </span>
+                            <div className="mt-1">
+                              {ord.tracking_number ? (
+                                <span className="font-mono font-bold text-blue-600 text-xs bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block">
+                                  {ord.tracking_number}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-amber-600 italic">Belum ada nomor resi</span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3.5 align-top text-center">
+                            <span className={`inline-block text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                              ord.status === 'TERIMA' ? 'bg-green-100 text-green-800 border border-green-200' :
+                              ord.status === 'DIKIRIM' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                              ord.status === 'BATAL' ? 'bg-red-100 text-red-800 border border-red-200' :
+                              'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}>
+                              {ord.status === 'TERIMA' ? 'SELESAI' : ord.status === 'DIKIRIM' ? 'DIKIRIM' : ord.status === 'BATAL' ? 'BATAL' : 'DIPROSES'}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3.5 align-top text-center">
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5">
+                              {settings?.shippingTrackingMode !== 'MANUAL' && (
+                                <button
+                                  onClick={() => handleSyncShippingApi(ord)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2 py-1.5 rounded-lg transition shadow-sm flex items-center gap-1 cursor-pointer w-full sm:w-auto justify-center"
+                                  title="Sinkronisasi Live API"
+                                >
+                                  <RefreshCw className="w-3 h-3" /> Auto-Sync
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenEditOrderModal(ord)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition shadow-sm flex items-center gap-1 cursor-pointer w-full sm:w-auto justify-center"
+                                title="Update Resi & Status"
+                              >
+                                <Edit className="w-3 h-3" /> Edit Manual
+                              </button>
+                              <button
+                                onClick={() => setDeletingOrderId(ord.id)}
+                                className="bg-red-50 hover:bg-red-100 text-red-600 p-1.5 rounded-lg transition cursor-pointer"
+                                title="Hapus Order"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+
+                    {orders.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="text-center py-12 text-slate-400">
+                          <Truck className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                          <p className="font-bold text-slate-600">Belum Ada Data Order Pesanan</p>
+                          <p className="text-xs">Klik tombol "Tambah Order Manual" di atas untuk membuat order baru.</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* TAB: LANDING PAGE CMS EDITOR */}
           {activeTab === 'landing-editor' && (
             <div className="space-y-6">
@@ -2940,6 +3402,321 @@ export default function AdminDashboard({
                 className="px-5 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-600/10 cursor-pointer"
               >
                 {loading ? "Menghapus..." : "Ya, Hapus Produk"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL POPUP 4: EDIT ORDER, RESI, STATUS & STEPS */}
+      {editingOrder && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 shadow-2xl p-6 space-y-5 animate-in fade-in zoom-in duration-150 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-blue-600" /> Update Resi & Status Order: <span className="font-mono text-blue-600">{editingOrder.invoice_no}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Pemesan: <strong>{editingOrder.fullname}</strong> (@{editingOrder.username})</p>
+              </div>
+              <button onClick={() => setEditingOrder(null)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditOrder} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Pilih Kurir Ekspedisi</label>
+                  <select
+                    value={editOrderCourier}
+                    onChange={(e) => setEditOrderCourier(e.target.value)}
+                    className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-50"
+                  >
+                    <option value="JNE REGULER">JNE REGULER</option>
+                    <option value="JNE YES">JNE YES</option>
+                    <option value="J&T EXPRESS">J&T EXPRESS</option>
+                    <option value="SICEPAT REG">SICEPAT REG</option>
+                    <option value="POS INDONESIA">POS INDONESIA</option>
+                    <option value="TIKI REG">TIKI REG</option>
+                    <option value="ANTERAJA">ANTERAJA</option>
+                    <option value="GOSEND / GRAB">GOSEND / GRAB</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-blue-600 block mb-1">Nomor Resi Pengiriman</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: JNE-882739182"
+                    value={editOrderTracking}
+                    onChange={(e) => setEditOrderTracking(e.target.value)}
+                    className="w-full text-xs font-mono font-bold border border-blue-300 text-blue-700 bg-blue-50/50 rounded-xl px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Status Pengiriman Order</label>
+                <select
+                  value={editOrderStatus}
+                  onChange={(e) => setEditOrderStatus(e.target.value as any)}
+                  className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2"
+                >
+                  <option value="DIPROSES">DIPROSES (Gudang sedang menyiapkan produk)</option>
+                  <option value="DIKIRIM">DIKIRIM (Sudah diserahkan ke kurir & jalan)</option>
+                  <option value="TERIMA">TERIMA (Pesanan selesai & diterima pelanggan)</option>
+                  <option value="BATAL">BATAL (Pesanan dibatalkan / direfund)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Catatan Tambahan Pengiriman</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Paket di-drop di JNE Cabang Utama Pukul 14:00 WIB"
+                  value={editOrderNotes}
+                  onChange={(e) => setEditOrderNotes(e.target.value)}
+                  className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2"
+                />
+              </div>
+
+              {/* TIMELINE STEPS EDITOR */}
+              <div className="pt-3 border-t border-slate-100">
+                <label className="text-[10px] font-bold uppercase text-slate-500 block mb-2">Riwayat Tahapan Lacak Pesanan (Timeline)</label>
+                
+                <div className="space-y-2 mb-3 max-h-40 overflow-y-auto pr-1">
+                  {editOrderSteps.map((st, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={st.done}
+                          onChange={() => handleToggleStepDone(idx)}
+                          className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+                        />
+                        <div>
+                          <p className={`font-bold ${st.done ? 'text-slate-900' : 'text-slate-400 line-through'}`}>{st.title}</p>
+                          <p className="text-[10px] text-slate-500">{st.time} — {st.description || '-'}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditOrderSteps(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-red-500 hover:text-red-700 p-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ADD NEW STEP FORM */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    placeholder="Judul Step (cth: Tiba di Sorting Hub Jakarta)"
+                    value={newStepTitle}
+                    onChange={(e) => setNewStepTitle(e.target.value)}
+                    className="flex-1 text-xs border border-slate-200 rounded-xl px-3 py-1.5"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Keterangan singkat"
+                    value={newStepDesc}
+                    onChange={(e) => setNewStepDesc(e.target.value)}
+                    className="flex-1 text-xs border border-slate-200 rounded-xl px-3 py-1.5"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddStepToOrder}
+                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs shrink-0 cursor-pointer"
+                  >
+                    + Step
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingOrder(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/10 cursor-pointer"
+                >
+                  {loading ? "Menyimpan..." : "Simpan Resi & Status"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL POPUP 5: ADD MANUAL ORDER */}
+      {isAddOrderModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                <PlusCircle className="w-5 h-5 text-blue-600" /> Buat Order Pesanan Manual
+              </h3>
+              <button onClick={() => setIsAddOrderModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateOrderSubmit} className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Nama Lengkap Pemesan</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Budi Santoso"
+                  value={newOrderFullname}
+                  onChange={(e) => setNewOrderFullname(e.target.value)}
+                  className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Username Member (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: budi"
+                    value={newOrderUsername}
+                    onChange={(e) => setNewOrderUsername(e.target.value)}
+                    className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">No. WhatsApp / HP</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="08123456789"
+                    value={newOrderPhone}
+                    onChange={(e) => setNewOrderPhone(e.target.value)}
+                    className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Alamat Lengkap Pengiriman</label>
+                <textarea
+                  rows={2}
+                  required
+                  placeholder="Jl. Merdeka No. 45, Kota Surabaya, Jawa Timur"
+                  value={newOrderAddress}
+                  onChange={(e) => setNewOrderAddress(e.target.value)}
+                  className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Nama Produk / Paket</label>
+                <input
+                  type="text"
+                  required
+                  value={newOrderProduct}
+                  onChange={(e) => setNewOrderProduct(e.target.value)}
+                  className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Total Bayar (Rp)</label>
+                  <input
+                    type="number"
+                    required
+                    value={newOrderAmount}
+                    onChange={(e) => setNewOrderAmount(Number(e.target.value))}
+                    className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Kurir</label>
+                  <select
+                    value={newOrderCourier}
+                    onChange={(e) => setNewOrderCourier(e.target.value)}
+                    className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2"
+                  >
+                    <option value="JNE REGULER">JNE REGULER</option>
+                    <option value="J&T EXPRESS">J&T EXPRESS</option>
+                    <option value="SICEPAT REG">SICEPAT REG</option>
+                    <option value="POS INDONESIA">POS INDONESIA</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-blue-600 block mb-1">Nomor Resi (Boleh Dikosongkan Dulu)</label>
+                <input
+                  type="text"
+                  placeholder="Otomatis dibuat jika kosong"
+                  value={newOrderTracking}
+                  onChange={(e) => setNewOrderTracking(e.target.value)}
+                  className="w-full text-xs font-mono border border-blue-200 rounded-xl px-3 py-2"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddOrderModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/10 cursor-pointer"
+                >
+                  {loading ? "Membuat..." : "Buat Order"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL POPUP 6: CONFIRM DELETE ORDER */}
+      {deletingOrderId && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full border border-slate-200 shadow-2xl p-6 text-center space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-base">Hapus Order Ini?</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Apakah Anda yakin ingin menghapus data order ini dari sistem?
+              </p>
+            </div>
+
+            <div className="flex gap-2 justify-center pt-2">
+              <button
+                onClick={() => setDeletingOrderId(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleDeleteOrderConfirm}
+                disabled={loading}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-600/10 cursor-pointer"
+              >
+                {loading ? "Menghapus..." : "Ya, Hapus Order"}
               </button>
             </div>
           </div>
