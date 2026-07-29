@@ -7,7 +7,7 @@ import LandingPage from "./components/LandingPage";
 import UserDashboard from "./components/UserDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import PHPSourceViewer from "./components/PHPSourceViewer";
-import { MLMUser, Product, Transaction, DepositRequest, WDRequest } from "./types";
+import { MLMUser, Product, Transaction, DepositRequest, WDRequest, BinaryTreeNode } from "./types";
 import { DEFAULT_PRODUCTS } from "./data/defaultProducts";
 import { DEFAULT_USERS } from "./data/defaultUsers";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send, User, CreditCard, ShoppingBag, Users } from "lucide-react";
@@ -280,7 +280,7 @@ async function registerUserToFirestoreDirect(regData: {
             username: sponsor.username,
             type: "sponsor_bonus",
             amount: 40000,
-            description: `Bonus Sponsor Pendaftaran Member Baru @${normalizedUsername} (+Rp 40.000)`,
+            description: `Bonus Sponsor Pendaftaran Member Baru ${normalizedUsername} (+Rp 40.000)`,
             created_at: new Date().toISOString()
           });
         }
@@ -293,23 +293,62 @@ async function registerUserToFirestoreDirect(regData: {
   return newUser;
 }
 
-function buildClientBinaryTree(users: MLMUser[], userId: number, depth = 0, maxDepth = 5): any {
+function buildClientBinaryTree(users: MLMUser[], userId: number, depth = 0, maxDepth = 30): BinaryTreeNode | null {
   if (depth > maxDepth) return null;
   const user = users.find(u => Number(u.id) === Number(userId));
   if (!user) return null;
 
-  const leftChild = users.find(u => Number(u.upline_id) === Number(userId) && u.position === "L");
-  const rightChild = users.find(u => Number(u.upline_id) === Number(userId) && u.position === "R");
+  const children = users.filter(u => {
+    const uUpline = u.upline_id !== null && u.upline_id !== undefined ? Number(u.upline_id) : null;
+    const uSponsor = u.sponsor_id !== null && u.sponsor_id !== undefined ? Number(u.sponsor_id) : null;
+    return uUpline === Number(userId) || (uUpline === null && uSponsor === Number(userId));
+  });
+
+  let leftChild = children.find(u => u.position === "L" || String(u.position).toUpperCase() === "L" || String(u.position).toUpperCase() === "LEFT");
+  let rightChild = children.find(u => u.position === "R" || String(u.position).toUpperCase() === "R" || String(u.position).toUpperCase() === "RIGHT");
+
+  // Fallbacks if children exist without explicit or standard position
+  if (!leftChild && !rightChild && children.length > 0) {
+    leftChild = children[0];
+    if (children.length > 1) rightChild = children[1];
+  } else if (leftChild && !rightChild && children.length > 1) {
+    const remaining = children.filter(u => Number(u.id) !== Number(leftChild!.id));
+    if (remaining.length > 0) rightChild = remaining[0];
+  } else if (!leftChild && rightChild && children.length > 1) {
+    const remaining = children.filter(u => Number(u.id) !== Number(rightChild!.id));
+    if (remaining.length > 0) leftChild = remaining[0];
+  }
+
+  const leftNode = leftChild ? buildClientBinaryTree(users, Number(leftChild.id), depth + 1, maxDepth) : null;
+  const rightNode = rightChild ? buildClientBinaryTree(users, Number(rightChild.id), depth + 1, maxDepth) : null;
+
+  // Compute dynamic stats from actual subtree structure
+  const countSubtreeMembers = (node: BinaryTreeNode | null): number => {
+    if (!node) return 0;
+    return 1 + countSubtreeMembers(node.left) + countSubtreeMembers(node.right);
+  };
+
+  const countSubtreeSales = (node: BinaryTreeNode | null): number => {
+    if (!node) return 0;
+    return (node.is_active ? 1 : 0) + countSubtreeSales(node.left) + countSubtreeSales(node.right);
+  };
+
+  const dynLeftCount = countSubtreeMembers(leftNode);
+  const dynRightCount = countSubtreeMembers(rightNode);
+  const dynLeftSales = countSubtreeSales(leftNode);
+  const dynRightSales = countSubtreeSales(rightNode);
 
   return {
     id: Number(user.id),
     username: user.username,
     fullname: user.fullname,
     is_active: Boolean(user.is_active),
-    left_count: Number(user.left_count) || 0,
-    right_count: Number(user.right_count) || 0,
-    left: leftChild ? buildClientBinaryTree(users, Number(leftChild.id), depth + 1, maxDepth) : null,
-    right: rightChild ? buildClientBinaryTree(users, Number(rightChild.id), depth + 1, maxDepth) : null
+    left_count: Math.max(Number(user.left_count) || 0, dynLeftCount),
+    right_count: Math.max(Number(user.right_count) || 0, dynRightCount),
+    left_sales: Math.max(Number(user.left_sales) || 0, dynLeftSales),
+    right_sales: Math.max(Number(user.right_sales) || 0, dynRightSales),
+    left: leftNode,
+    right: rightNode
   };
 }
 
@@ -1226,7 +1265,7 @@ export default function App() {
         const freshUser = fsUsers.find(u => Number(u.id) === Number(targetUser.id)) || targetUser;
         if (!currentUserRef.current) return;
         setCurrentUser(freshUser);
-        const binaryTree = buildClientBinaryTree(fsUsers, Number(freshUser.id), 0, 5);
+        const binaryTree = buildClientBinaryTree(fsUsers, Number(freshUser.id), 0, 30);
         const referrals = fsUsers.filter(u => Number(u.sponsor_id) === Number(freshUser.id));
         const userWDs = fsWithdrawals.filter(w => Number(w.user_id) === Number(freshUser.id));
         const userDeps = fsDeposits.filter(d => Number(d.user_id) === Number(freshUser.id));
@@ -2085,7 +2124,7 @@ export default function App() {
                   className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold transition text-left flex flex-col justify-between shadow-sm hover:border-blue-500"
                 >
                   <span className="text-blue-600">👤 Demo Member</span>
-                  <strong className="block mt-1 font-extrabold text-slate-900">@budi</strong>
+                  <strong className="block mt-1 font-extrabold text-slate-900">budi</strong>
                 </button>
                 <button
                   type="button"
@@ -2094,7 +2133,7 @@ export default function App() {
                   className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold transition text-left flex flex-col justify-between shadow-sm hover:border-blue-500"
                 >
                   <span className="text-red-600">⚙️ Administrator</span>
-                  <strong className="block mt-1 font-extrabold text-slate-900">@admin</strong>
+                  <strong className="block mt-1 font-extrabold text-slate-900">admin</strong>
                 </button>
               </div>
             </div>

@@ -131,12 +131,36 @@ export default function UserDashboard({
   const [loadingAction, setLoadingAction] = useState(false);
   const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
 
-  // Reset Tree Root when backend tree updates
+  // Tree view mode for Mobile / HP responsiveness
+  const [treeViewMode, setTreeViewMode] = useState<'diagram' | 'list'>('diagram');
+  const [treeZoomScale, setTreeZoomScale] = useState<number>(1.0);
+
+  // Helper to compute stats for a specific node in the tree (handles 0/null fallback and dynamic subtree counting)
+  const getNodePoints = (node: BinaryTreeNode | null, side: 'left' | 'right'): { sales: number; count: number } => {
+    if (!node) return { sales: 0, count: 0 };
+    const child = side === 'left' ? node.left : node.right;
+    
+    const childSubtree = child ? getSubtreeStats(child) : { totalCount: 0, activeSales: 0 };
+    const explicitSales = side === 'left' ? (node.left_sales ?? 0) : (node.right_sales ?? 0);
+    const explicitCount = side === 'left' ? (node.left_count ?? 0) : (node.right_count ?? 0);
+
+    const finalSales = Math.max(explicitSales, childSubtree.activeSales);
+    const finalCount = Math.max(explicitCount, childSubtree.totalCount);
+
+    return { sales: finalSales, count: finalCount };
+  };
+
+  // Reset / Sync Tree Root when backend tree updates
   React.useEffect(() => {
-    if (binaryTree && (!treeRootNode || treeRootNode.id === user.id)) {
-      setTreeRootNode(binaryTree);
+    if (binaryTree) {
+      if (!treeRootNode || treeRootNode.id === user.id) {
+        setTreeRootNode(binaryTree);
+      } else {
+        const updatedTarget = findNodeInTree(binaryTree, treeRootNode.id);
+        setTreeRootNode(updatedTarget || binaryTree);
+      }
     }
-  }, [binaryTree]);
+  }, [binaryTree, user.id]);
 
   const copyReferralLink = () => {
     const link = `${window.location.origin}/?ref=${user.username}`;
@@ -370,7 +394,7 @@ export default function UserDashboard({
           <div className="hidden sm:flex items-center gap-2">
             <div className="text-right">
               <p className="text-xs font-bold text-neutral-100">{user.fullname}</p>
-              <p className="text-[10px] text-neutral-400 font-mono">ID: {idPrefix}{String(user.id).padStart(6, '0')} • @{user.username} • {user.is_active ? 'Member Premium' : 'Inactive'}</p>
+              <p className="text-[10px] text-neutral-400 font-mono">ID: {idPrefix}{String(user.id).padStart(6, '0')} • {user.username.replace(/^@/, '')} • {user.is_active ? 'Member Premium' : 'Inactive'}</p>
             </div>
           </div>
           <button 
@@ -433,7 +457,7 @@ export default function UserDashboard({
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-white truncate">{user.fullname}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5 truncate font-mono">
-                    ID: {idPrefix}{String(user.id).padStart(6, '0')} • @{user.username}
+                    ID: {idPrefix}{String(user.id).padStart(6, '0')} • {user.username.replace(/^@/, '')}
                   </p>
                   <span className="text-[9px] font-bold text-blue-400 block mt-0.5">
                     {user.is_active ? 'Member Premium Active' : 'Lisensi Belum Aktif'}
@@ -610,43 +634,43 @@ export default function UserDashboard({
         <aside className="hidden lg:block lg:w-64 flex-shrink-0 space-y-4" id="user-sidebar">
           
           {/* User Status Profile */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.02)] space-y-4">
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-xl space-y-4 text-slate-100">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-blue-600 text-white font-display font-black flex items-center justify-center text-lg shadow-md shadow-blue-600/10">
-                {user.username.slice(0, 2).toUpperCase()}
+                {user.username.replace(/^@/, '').slice(0, 2).toUpperCase()}
               </div>
               <div>
-                <h4 className="font-display font-bold text-slate-900 leading-tight">{user.fullname}</h4>
-                <p className="text-xs text-slate-400 font-medium">@{user.username}</p>
-                <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-mono font-extrabold text-slate-700">
+                <h4 className="font-display font-bold text-white leading-tight">{user.fullname}</h4>
+                <p className="text-xs text-slate-400 font-medium">{user.username.replace(/^@/, '')}</p>
+                <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[10px] font-mono font-extrabold text-slate-300">
                   <span>ID:</span>
-                  <span className="text-blue-600">{idPrefix}{String(user.id).padStart(6, '0')}</span>
+                  <span className="text-blue-400">{idPrefix}{String(user.id).padStart(6, '0')}</span>
                 </div>
               </div>
             </div>
 
             {/* License Active badge */}
             {user.is_active ? (
-              <div className="bg-green-50/60 border border-green-100 text-green-800 rounded-xl p-3.5 flex items-start gap-2.5">
-                <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+              <div className="bg-emerald-950/60 border border-emerald-800/80 text-emerald-200 rounded-xl p-3.5 flex items-start gap-2.5">
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                 <div className="text-xs leading-normal font-medium">
-                  <span className="font-extrabold block text-green-950 text-sm">Member Premium Active</span>
-                  <span className="inline-block my-1 px-2 py-0.5 rounded bg-green-200/60 text-green-900 font-mono font-bold text-[10px] border border-green-300/50">
+                  <span className="font-extrabold block text-white text-sm">Member Premium Active</span>
+                  <span className="inline-block my-1 px-2 py-0.5 rounded bg-emerald-900/80 text-emerald-300 font-mono font-bold text-[10px] border border-emerald-700/50">
                     ID MEMBER: {idPrefix}{String(user.id).padStart(6, '0')}
                   </span>
-                  <p className="text-[11px] text-green-800/90 mt-0.5 font-semibold">Status Afiliasi Reseller Terverifikasi!</p>
+                  <p className="text-[11px] text-emerald-300/90 mt-0.5 font-semibold">Status Afiliasi Reseller Terverifikasi!</p>
                 </div>
               </div>
             ) : (
-              <div className="bg-amber-50/50 border border-amber-100 text-amber-900 rounded-xl p-3.5 flex flex-col gap-2.5">
+              <div className="bg-amber-950/60 border border-amber-800/80 text-amber-200 rounded-xl p-3.5 flex flex-col gap-2.5">
                 <div className="flex items-start gap-2">
-                  <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                   <div className="text-xs leading-normal font-medium">
-                    <span className="font-extrabold block text-amber-950 text-sm">Lisensi Belum Aktif</span>
-                    <span className="inline-block my-1 px-2 py-0.5 rounded bg-amber-200/60 text-amber-900 font-mono font-bold text-[10px] border border-amber-300/50">
+                    <span className="font-extrabold block text-white text-sm">Lisensi Belum Aktif</span>
+                    <span className="inline-block my-1 px-2 py-0.5 rounded bg-amber-900/80 text-amber-300 font-mono font-bold text-[10px] border border-amber-700/50">
                       ID MEMBER: {idPrefix}{String(user.id).padStart(6, '0')}
                     </span>
-                    <p className="text-[11px] text-amber-800/90 mt-0.5">Wajib aktifasi Rp 550.000 untuk bonus komisi & belanja.</p>
+                    <p className="text-[11px] text-amber-300/90 mt-0.5">Wajib aktifasi Rp 550.000 untuk bonus komisi & belanja.</p>
                   </div>
                 </div>
                 <button
@@ -655,8 +679,8 @@ export default function UserDashboard({
                   disabled={user.balance < 550000 || loadingAction}
                   className={`w-full text-xs font-bold py-2.5 rounded-xl transition text-center shadow-sm ${
                     user.balance >= 550000 
-                      ? 'bg-amber-600 text-white hover:bg-amber-700' 
-                      : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/50'
+                      ? 'bg-amber-600 text-white hover:bg-amber-500' 
+                      : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
                   }`}
                 >
                   {user.balance >= 550000 ? "Aktifkan Akun (Dipotong Saldo)" : "Isi Saldo Rp 550k untuk Aktifasi"}
@@ -665,33 +689,33 @@ export default function UserDashboard({
             )}
 
             {/* Referral Link */}
-            <div className="space-y-1.5 pt-3 border-t border-slate-100">
+            <div className="space-y-1.5 pt-3 border-t border-slate-800">
               <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Link Referal Anda</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   readOnly
-                  value={`${window.location.origin}/?ref=${user.username}`}
-                  className="bg-slate-50 text-[10px] text-slate-600 border border-slate-200/80 rounded-xl px-2.5 py-1.5 flex-1 font-mono focus:outline-none"
+                  value={`${window.location.origin}/?ref=${user.username.replace(/^@/, '')}`}
+                  className="bg-slate-950 text-[10px] text-slate-300 border border-slate-800 rounded-xl px-2.5 py-1.5 flex-1 font-mono focus:outline-none"
                 />
                 <button
                   id="btn-copy-ref"
                   onClick={copyReferralLink}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-1.5 rounded-lg border border-slate-200 transition"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-1.5 rounded-lg border border-slate-700 transition cursor-pointer"
                   title="Copy Link"
                 >
-                  {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
           </div>
           {/* Nav Navigation */}
-          <nav className="bg-white rounded-2xl border border-slate-200/80 p-2 shadow-[0_8px_30px_rgb(0,0,0,0.01)] space-y-1">
+          <nav className="bg-slate-900 rounded-2xl border border-slate-800 p-2 shadow-xl space-y-1">
             <button
               id="tab-overview"
               onClick={() => setActiveTab('overview')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'overview' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'overview' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <TrendingUp className="w-4 h-4" />
@@ -702,12 +726,12 @@ export default function UserDashboard({
               id="tab-tree"
               onClick={() => setActiveTab('tree')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'tree' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'tree' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <TreePine className="w-4 h-4" />
               <span>Pohon Jaringan</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${activeTab === 'tree' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-700'}`}>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${activeTab === 'tree' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-300'}`}>
                 Binary
               </span>
             </button>
@@ -716,12 +740,12 @@ export default function UserDashboard({
               id="tab-shop"
               onClick={() => setActiveTab('shop')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
-                activeTab === 'shop' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'shop' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <ShoppingBag className="w-4 h-4 shrink-0" />
               <span className="flex-1 text-left">Belanja Jeans</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'shop' ? 'bg-blue-500/20 text-white' : 'bg-blue-50 text-blue-700'}`}>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'shop' ? 'bg-blue-500/20 text-white' : 'bg-blue-950 text-blue-300 border border-blue-800'}`}>
                 Diskon Member
               </span>
             </button>
@@ -730,7 +754,7 @@ export default function UserDashboard({
               id="tab-finance"
               onClick={() => setActiveTab('finance')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'finance' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'finance' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <CreditCard className="w-4 h-4" />
@@ -741,12 +765,12 @@ export default function UserDashboard({
               id="tab-referrals"
               onClick={() => setActiveTab('referrals')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'referrals' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'referrals' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <Users className="w-4 h-4" />
               <span>Sponsor Saya</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${activeTab === 'referrals' ? 'bg-blue-500/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${activeTab === 'referrals' ? 'bg-blue-500/20 text-white' : 'bg-slate-800 text-slate-300'}`}>
                 {referrals.length} org
               </span>
             </button>
@@ -755,12 +779,12 @@ export default function UserDashboard({
               id="tab-bonuses"
               onClick={() => setActiveTab('bonuses')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
-                activeTab === 'bonuses' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'bonuses' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <Award className="w-4 h-4 text-amber-500 shrink-0" />
               <span className="flex-1 text-left">Laporan Transparansi Komisi</span>
-              <span className="bg-amber-100 text-amber-800 text-[9px] px-2 py-0.5 rounded-full font-extrabold uppercase shrink-0">
+              <span className="bg-amber-900/60 border border-amber-700/50 text-amber-300 text-[9px] px-2 py-0.5 rounded-full font-extrabold uppercase shrink-0">
                 Detail
               </span>
             </button>
@@ -769,10 +793,10 @@ export default function UserDashboard({
               id="tab-panduan"
               onClick={() => setActiveTab('panduan')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'panduan' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'panduan' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <HelpCircle className="w-4 h-4 text-blue-500" />
+              <HelpCircle className="w-4 h-4 text-blue-400" />
               <span>Panduan & Syarat Bonus</span>
             </button>
  
@@ -780,20 +804,20 @@ export default function UserDashboard({
               id="tab-profil"
               onClick={() => setActiveTab('profil')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'profil' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'profil' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <User className="w-4 h-4 text-blue-500" />
+              <User className="w-4 h-4 text-blue-400" />
               <span>Profil Saya</span>
             </button>
 
-            <div className="pt-2 border-t border-slate-100">
+            <div className="pt-2 border-t border-slate-800">
               <button
                 id="sidebar-btn-logout"
                 onClick={onLogout}
-                className="w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition"
+                className="w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-950/50 hover:text-red-300 transition"
               >
-                <LogOut className="w-4 h-4 text-red-500" />
+                <LogOut className="w-4 h-4 text-red-400" />
                 <span>Keluar (Logout)</span>
               </button>
             </div>
@@ -844,32 +868,45 @@ export default function UserDashboard({
                 </div>
 
                 {/* Left & Right Legs Sales */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between hover:shadow-md transition">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block">Omset Volume Grup</span>
-                      <div className="flex gap-4 mt-3">
-                        <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex-1">
-                          <p className="text-[9px] text-blue-600 font-extrabold uppercase">👈 Tim Kiri</p>
-                          <p className="text-xl font-black text-slate-900 mt-0.5">{displayLeftSales} pt</p>
-                          <p className="text-[10px] text-slate-500 font-medium">{displayLeftCount} member</p>
-                        </div>
-                        <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex-1">
-                          <p className="text-[9px] text-blue-600 font-extrabold uppercase">Tim Kanan 👉</p>
-                          <p className="text-xl font-black text-slate-900 mt-0.5">{displayRightSales} pt</p>
-                          <p className="text-[10px] text-slate-500 font-medium">{displayRightCount} member</p>
-                        </div>
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+                  <div>
+                    {/* Card Header */}
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block">Omset Volume Grup</span>
+                        <p className="text-[10px] text-slate-400 font-medium mt-0.5">Jaringan Tim Kiri & Kanan (Binary)</p>
+                      </div>
+                      <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
+                        <TreePine className="w-5 h-5" />
                       </div>
                     </div>
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl shrink-0">
-                      <TreePine className="w-5 h-5" />
+
+                    {/* Volume Grid */}
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <div className="bg-slate-50/90 rounded-xl p-3 border border-slate-100">
+                        <span className="text-[9px] text-blue-600 font-extrabold uppercase tracking-wider block">👈 Tim Kiri</span>
+                        <p className="text-2xl font-black text-slate-900 mt-1">{displayLeftSales} <span className="text-xs font-bold text-slate-500">pt</span></p>
+                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">{displayLeftCount} member</p>
+                      </div>
+                      <div className="bg-slate-50/90 rounded-xl p-3 border border-slate-100">
+                        <span className="text-[9px] text-blue-600 font-extrabold uppercase tracking-wider block">Tim Kanan 👉</span>
+                        <p className="text-2xl font-black text-slate-900 mt-1">{displayRightSales} <span className="text-xs font-bold text-slate-500">pt</span></p>
+                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">{displayRightCount} member</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="border-t border-slate-100 pt-3 mt-4 text-[10px] text-slate-500 font-medium leading-relaxed flex items-center justify-between">
-                    <span>Aktivasi member tim baru menambah +1 pt omset.</span>
-                    <span className="inline-flex items-center gap-1 font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[9px]">
-                      ● Terhubung DB
-                    </span>
+
+                  {/* Sync info & Sponsor summary */}
+                  <div className="border-t border-slate-100 pt-3 mt-3 space-y-1.5 text-[10px]">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-500">Sponsor / Referal Langsung:</span>
+                      <span className="font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                        {referrals.length} orang ({referrals.filter(r => r.is_active).length} aktif)
+                      </span>
+                    </div>
+                    <p className="text-[9.5px] text-slate-400 font-medium leading-relaxed">
+                      Aktivasi member di jaringan tim menambah +1 pt omset.
+                    </p>
                   </div>
                 </div>
 
@@ -990,208 +1027,499 @@ export default function UserDashboard({
 
           {/* TAB 2: POHON JARINGAN (BINARY TREE GRAPH) */}
           {activeTab === 'tree' && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6" id="tree-tab-content">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-5" id="tree-tab-content">
+              {/* Header & Controls */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                     <TreePine className="text-blue-600 w-5 h-5" /> Pohon Jaringan Silsilah Binary
                   </h3>
-                  <p className="text-xs text-slate-500">Traversasi silsilah tim binary 10 level Anda. Klik node downline untuk memusatkan grafik.</p>
+                  <p className="text-xs text-slate-500">Silsilah tim binary 10 level Anda. Bebas fokuskan downline atau ganti ke mode HP.</p>
                 </div>
-                {treeRootNode && treeRootNode.id !== user.id && (
-                  <button
-                    id="btn-reset-tree"
-                    onClick={resetTreeFocus}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 border border-slate-200 shadow-sm"
-                  >
-                    Kembali Ke Atas (Saya)
-                  </button>
-                )}
-              </div>
 
-              {/* Graphical Visual Render */}
-              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-6 overflow-x-auto flex justify-center min-h-[480px]">
-                {treeRootNode ? (
-                  <div className="flex flex-col items-center select-none w-[800px] shrink-0 pt-6">
-                    
-                    {/* ROOT LEVEL 1 */}
-                    <div className="flex flex-col items-center">
-                      <div className={`p-4 rounded-xl border w-40 text-center shadow-md relative ${
-                        treeRootNode.id === user.id ? 'bg-gradient-to-b from-blue-600 to-blue-700 text-white border-blue-500' : 'bg-white border-slate-200'
-                      }`}>
-                        <p className="text-[10px] opacity-80 uppercase tracking-widest font-extrabold">Upline Fokus</p>
-                        <p className="font-bold text-sm truncate mt-0.5">{treeRootNode.fullname}</p>
-                        <p className={`text-[10px] mt-0.5 font-bold ${treeRootNode.id === user.id ? 'text-blue-100' : 'text-slate-400'}`}>@{treeRootNode.username}</p>
-                        
-                        <div className="grid grid-cols-2 gap-1 mt-2.5 pt-2 border-t border-slate-200/20 text-[9px] font-extrabold">
-                          <div className="border-r border-slate-200/20">
-                            <p className="opacity-80">L (Kiri)</p>
-                            <p className="text-xs font-black">{treeRootNode.left_count} pt</p>
-                          </div>
-                          <div>
-                            <p className="opacity-80">R (Kanan)</p>
-                            <p className="text-xs font-black">{treeRootNode.right_count} pt</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Tree Branch connectors (vertical line) */}
-                      <div className="h-8 w-0.5 bg-slate-300"></div>
-                      {/* Horizontal line */}
-                      <div className="w-[300px] h-0.5 bg-slate-300 flex justify-between">
-                        <div className="w-0.5 h-4 bg-slate-300"></div>
-                        <div className="w-0.5 h-4 bg-slate-300"></div>
-                      </div>
-                    </div>
-
-                    {/* ROOT LEVEL 2 (Left & Right Child) */}
-                    <div className="flex justify-between w-[640px] pt-4">
-                      
-                      {/* LEFT LEG */}
-                      <div className="flex flex-col items-center w-[300px]">
-                        {treeRootNode.left ? (
-                          <div 
-                            onClick={() => handleTreeNodeClick(treeRootNode.left!.id)}
-                            className={`p-3 rounded-xl border w-36 text-center cursor-pointer shadow-sm hover:shadow-lg hover:border-blue-500 hover:-translate-y-0.5 transition duration-200 ${
-                              treeRootNode.left.is_active ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-100 border-dashed border-slate-300 text-slate-400'
-                            }`}
-                          >
-                            <p className="text-[8px] font-bold text-blue-600 uppercase tracking-wider">Kiri (L)</p>
-                            <p className="font-bold text-xs truncate mt-0.5">{treeRootNode.left.fullname}</p>
-                            <p className="text-[9px] text-slate-400 font-mono">@{treeRootNode.left.username}</p>
-                            <div className="flex justify-between text-[8px] mt-1.5 pt-1.5 border-t border-slate-100 font-bold">
-                              <span>L: {treeRootNode.left.left_count}</span>
-                              <span>R: {treeRootNode.left.right_count}</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div 
-                            onClick={() => setActiveTab('referrals')}
-                            className="p-3 rounded-xl border border-dashed border-slate-300 w-36 text-center text-[10px] text-slate-400 bg-slate-50/50 py-6"
-                          >
-                            <p className="font-extrabold text-blue-500">+ Tambah</p>
-                            <p className="text-[8px] opacity-75 mt-0.5">Sponsori Kiri</p>
-                          </div>
-                        )}
-
-                        {/* Connector down to level 3 left */}
-                        <div className="h-6 w-0.5 bg-slate-300"></div>
-                        <div className="w-[140px] h-0.5 bg-slate-300 flex justify-between">
-                          <div className="w-0.5 h-4 bg-slate-300"></div>
-                          <div className="w-0.5 h-4 bg-slate-300"></div>
-                        </div>
-
-                        {/* LEVEL 3 Under Left Leg (L-L, L-R) */}
-                        <div className="flex justify-between w-[180px] pt-4">
-                          {treeRootNode.left?.left ? (
-                            <div 
-                              onClick={() => handleTreeNodeClick(treeRootNode.left!.left!.id)}
-                              className="p-2 rounded-xl border border-slate-200 w-20 text-center cursor-pointer shadow-sm bg-white hover:border-blue-500 text-slate-800 text-[10px]"
-                            >
-                              <p className="font-bold truncate">@{treeRootNode.left.left.username}</p>
-                              <p className="text-[8px] text-slate-400 mt-0.5">L-L</p>
-                            </div>
-                          ) : (
-                            <div className="p-2 rounded-xl border border-dashed border-slate-200 w-20 text-center text-[9px] text-slate-400 bg-slate-50 py-3">
-                              Kosong
-                            </div>
-                          )}
-
-                          {treeRootNode.left?.right ? (
-                            <div 
-                              onClick={() => handleTreeNodeClick(treeRootNode.left!.right!.id)}
-                              className="p-2 rounded-xl border border-slate-200 w-20 text-center cursor-pointer shadow-sm bg-white hover:border-blue-500 text-slate-800 text-[10px]"
-                            >
-                              <p className="font-bold truncate">@{treeRootNode.left.right.username}</p>
-                              <p className="text-[8px] text-slate-400 mt-0.5">L-R</p>
-                            </div>
-                          ) : (
-                            <div className="p-2 rounded-xl border border-dashed border-slate-200 w-20 text-center text-[9px] text-slate-400 bg-slate-50 py-3">
-                              Kosong
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* RIGHT LEG */}
-                      <div className="flex flex-col items-center w-[300px]">
-                        {treeRootNode.right ? (
-                          <div 
-                            onClick={() => handleTreeNodeClick(treeRootNode.right!.id)}
-                            className={`p-3 rounded-xl border w-36 text-center cursor-pointer shadow-sm hover:shadow-lg hover:border-blue-500 hover:-translate-y-0.5 transition duration-200 ${
-                              treeRootNode.right.is_active ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-100 border-dashed border-slate-300 text-slate-400'
-                            }`}
-                          >
-                            <p className="text-[8px] font-bold text-amber-600 uppercase tracking-wider">Kanan (R)</p>
-                            <p className="font-bold text-xs truncate mt-0.5">{treeRootNode.right.fullname}</p>
-                            <p className="text-[9px] text-slate-400 font-mono">@{treeRootNode.right.username}</p>
-                            <div className="flex justify-between text-[8px] mt-1.5 pt-1.5 border-t border-slate-100 font-bold">
-                              <span>L: {treeRootNode.right.left_count}</span>
-                              <span>R: {treeRootNode.right.right_count}</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div 
-                            onClick={() => setActiveTab('referrals')}
-                            className="p-3 rounded-xl border border-dashed border-slate-300 w-36 text-center text-[10px] text-slate-400 bg-slate-50/50 py-6"
-                          >
-                            <p className="font-extrabold text-amber-500">+ Tambah</p>
-                            <p className="text-[8px] opacity-75 mt-0.5">Sponsori Kanan</p>
-                          </div>
-                        )}
-
-                        {/* Connector down to level 3 right */}
-                        <div className="h-6 w-0.5 bg-slate-300"></div>
-                        <div className="w-[140px] h-0.5 bg-slate-300 flex justify-between">
-                          <div className="w-0.5 h-4 bg-slate-300"></div>
-                          <div className="w-0.5 h-4 bg-slate-300"></div>
-                        </div>
-
-                        {/* LEVEL 3 Under Right Leg (R-L, R-R) */}
-                        <div className="flex justify-between w-[180px] pt-4">
-                          {treeRootNode.right?.left ? (
-                            <div 
-                              onClick={() => handleTreeNodeClick(treeRootNode.right!.left!.id)}
-                              className="p-2 rounded-xl border border-slate-200 w-20 text-center cursor-pointer shadow-sm bg-white hover:border-blue-500 text-slate-800 text-[10px]"
-                            >
-                              <p className="font-bold truncate">@{treeRootNode.right.left.username}</p>
-                              <p className="text-[8px] text-slate-400 mt-0.5">R-L</p>
-                            </div>
-                          ) : (
-                            <div className="p-2 rounded-xl border border-dashed border-slate-200 w-20 text-center text-[9px] text-slate-400 bg-slate-50 py-3">
-                              Kosong
-                            </div>
-                          )}
-
-                          {treeRootNode.right?.right ? (
-                            <div 
-                              onClick={() => handleTreeNodeClick(treeRootNode.right!.right!.id)}
-                              className="p-2 rounded-xl border border-slate-200 w-20 text-center cursor-pointer shadow-sm bg-white hover:border-blue-500 text-slate-800 text-[10px]"
-                            >
-                              <p className="font-bold truncate">@{treeRootNode.right.right.username}</p>
-                              <p className="text-[8px] text-slate-400 mt-0.5">R-R</p>
-                            </div>
-                          ) : (
-                            <div className="p-2 rounded-xl border border-dashed border-slate-200 w-20 text-center text-[9px] text-slate-400 bg-slate-50 py-3">
-                              Kosong
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                    </div>
-
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* View Mode Switcher */}
+                  <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs font-bold">
+                    <button
+                      onClick={() => setTreeViewMode('diagram')}
+                      className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                        treeViewMode === 'diagram' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <TreePine className="w-3.5 h-3.5" /> Diagram
+                    </button>
+                    <button
+                      onClick={() => setTreeViewMode('list')}
+                      className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                        treeViewMode === 'list' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" /> 📱 Mode HP (List)
+                    </button>
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-400 py-12">Pohon Jaringan Kosong</p>
-                )}
+
+                  {treeRootNode && treeRootNode.id !== user.id && (
+                    <button
+                      id="btn-reset-tree"
+                      onClick={resetTreeFocus}
+                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1 border border-blue-200 shadow-2xs"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Ke Atas (Saya)
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-xs text-slate-500 leading-relaxed">
-                <span className="font-extrabold text-slate-700 block mb-1">💡 Tips Penelusuran Pohon Jaringan:</span>
-                - Anda dapat mengklik nama kotak downline yang berwarna (aktif) untuk memfokuskan silsilah dan melihat tim di bawah mereka. <br />
-                - Gunakan tombol <span className="font-extrabold">"Kembali Ke Atas"</span> untuk mereset fokus visual ke akun Anda kembali.
-              </div>
+              {/* VIEW MODE 1: DIAGRAM TREE VIEW */}
+              {treeViewMode === 'diagram' && (
+                <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 sm:p-6 overflow-x-auto min-h-[480px]">
+                  {treeRootNode ? (
+                    <div 
+                      className="flex flex-col items-center select-none w-[760px] mx-auto shrink-0 pt-4 transition-transform duration-200 origin-top"
+                      style={{ transform: `scale(${treeZoomScale})` }}
+                    >
+                      {/* ROOT LEVEL 1 */}
+                      <div className="flex flex-col items-center">
+                        <div className={`p-4 rounded-2xl border w-48 text-center shadow-md relative transition ${
+                          treeRootNode.id === user.id ? 'bg-gradient-to-b from-blue-600 to-blue-700 text-white border-blue-500 ring-2 ring-blue-300' : 'bg-white border-slate-200 text-slate-900'
+                        }`}>
+                          <span className="text-[9px] opacity-80 uppercase tracking-widest font-extrabold block">
+                            {treeRootNode.id === user.id ? '⭐ Akun Utama Saya' : 'Upline Fokus'}
+                          </span>
+                          <p className="font-black text-sm truncate mt-0.5">{treeRootNode.fullname}</p>
+                          <p className={`text-[10px] mt-0.5 font-bold ${treeRootNode.id === user.id ? 'text-blue-100' : 'text-slate-400'}`}>
+                            {treeRootNode.username.replace(/^@/, '')}
+                          </p>
+                          
+                          {/* Points Summary for Upline Fokus */}
+                          {(() => {
+                            const leftPts = getNodePoints(treeRootNode, 'left');
+                            const rightPts = getNodePoints(treeRootNode, 'right');
+                            return (
+                              <div className="grid grid-cols-2 gap-1 mt-2.5 pt-2 border-t border-slate-200/20 text-[9px] font-black">
+                                <div className="border-r border-slate-200/20 pr-1">
+                                  <p className="opacity-80">👈 Kiri (L)</p>
+                                  <p className="text-xs font-black">{leftPts.sales} pt</p>
+                                  <p className="text-[8px] opacity-85 font-semibold">{leftPts.count} member</p>
+                                </div>
+                                <div className="pl-1">
+                                  <p className="opacity-80">Kanan (R) 👉</p>
+                                  <p className="text-xs font-black">{rightPts.sales} pt</p>
+                                  <p className="text-[8px] opacity-85 font-semibold">{rightPts.count} member</p>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Tree Branch connectors (vertical line) */}
+                        <div className="h-7 w-0.5 bg-slate-300"></div>
+                        {/* Horizontal line */}
+                        <div className="w-[320px] h-0.5 bg-slate-300 flex justify-between">
+                          <div className="w-0.5 h-4 bg-slate-300"></div>
+                          <div className="w-0.5 h-4 bg-slate-300"></div>
+                        </div>
+                      </div>
+
+                      {/* ROOT LEVEL 2 (Left & Right Child) */}
+                      <div className="flex justify-between w-[640px] pt-4">
+                        
+                        {/* LEFT LEG */}
+                        <div className="flex flex-col items-center w-[300px]">
+                          {treeRootNode.left ? (
+                            <div 
+                              onClick={() => handleTreeNodeClick(treeRootNode.left!.id)}
+                              className={`p-3.5 rounded-xl border w-40 text-center cursor-pointer shadow-xs hover:shadow-md hover:border-blue-500 hover:-translate-y-0.5 transition ${
+                                treeRootNode.left.is_active ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-100 border-dashed border-slate-300 text-slate-400'
+                              }`}
+                            >
+                              <p className="text-[8px] font-extrabold text-blue-600 uppercase tracking-wider">Kiri (L)</p>
+                              <p className="font-bold text-xs truncate mt-0.5">{treeRootNode.left.fullname}</p>
+                              <p className="text-[9px] text-slate-400 font-mono">{treeRootNode.left.username.replace(/^@/, '')}</p>
+                              
+                              {(() => {
+                                const lLeftPts = getNodePoints(treeRootNode.left, 'left');
+                                const lRightPts = getNodePoints(treeRootNode.left, 'right');
+                                return (
+                                  <div className="flex justify-between text-[8px] mt-2 pt-1.5 border-t border-slate-100 font-bold text-slate-600">
+                                    <span>L: {lLeftPts.sales}pt ({lLeftPts.count}m)</span>
+                                    <span>R: {lRightPts.sales}pt ({lRightPts.count}m)</span>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            <div 
+                              onClick={() => setActiveTab('referrals')}
+                              className="p-3.5 rounded-xl border border-dashed border-slate-300 w-40 text-center text-[10px] text-slate-400 bg-slate-50/50 py-5 cursor-pointer hover:bg-slate-100/50 transition"
+                            >
+                              <p className="font-extrabold text-blue-500">+ Tambah</p>
+                              <p className="text-[8px] opacity-75 mt-0.5">Sponsori Tim Kiri</p>
+                            </div>
+                          )}
+
+                          {/* Connector down to level 3 left */}
+                          <div className="h-6 w-0.5 bg-slate-300"></div>
+                          <div className="w-[140px] h-0.5 bg-slate-300 flex justify-between">
+                            <div className="w-0.5 h-4 bg-slate-300"></div>
+                            <div className="w-0.5 h-4 bg-slate-300"></div>
+                          </div>
+
+                          {/* LEVEL 3 Under Left Leg (L-L, L-R) */}
+                          <div className="flex justify-between w-[190px] pt-4">
+                            {treeRootNode.left?.left ? (
+                              <div 
+                                onClick={() => handleTreeNodeClick(treeRootNode.left!.left!.id)}
+                                className="p-2 rounded-xl border border-slate-200 w-22 text-center cursor-pointer shadow-2xs bg-white hover:border-blue-500 text-slate-800 text-[10px]"
+                              >
+                                <p className="font-bold truncate">{treeRootNode.left.left.username.replace(/^@/, '')}</p>
+                                <p className="text-[8px] text-slate-400 mt-0.5">L-L ({treeRootNode.left.left.is_active ? 'Aktif' : 'Non-aktif'})</p>
+                              </div>
+                            ) : (
+                              <div className="p-2 rounded-xl border border-dashed border-slate-200 w-22 text-center text-[9px] text-slate-400 bg-slate-50 py-3">
+                                Kosong
+                              </div>
+                            )}
+
+                            {treeRootNode.left?.right ? (
+                              <div 
+                                onClick={() => handleTreeNodeClick(treeRootNode.left!.right!.id)}
+                                className="p-2 rounded-xl border border-slate-200 w-22 text-center cursor-pointer shadow-2xs bg-white hover:border-blue-500 text-slate-800 text-[10px]"
+                              >
+                                <p className="font-bold truncate">{treeRootNode.left.right.username.replace(/^@/, '')}</p>
+                                <p className="text-[8px] text-slate-400 mt-0.5">L-R ({treeRootNode.left.right.is_active ? 'Aktif' : 'Non-aktif'})</p>
+                              </div>
+                            ) : (
+                              <div className="p-2 rounded-xl border border-dashed border-slate-200 w-22 text-center text-[9px] text-slate-400 bg-slate-50 py-3">
+                                Kosong
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* RIGHT LEG */}
+                        <div className="flex flex-col items-center w-[300px]">
+                          {treeRootNode.right ? (
+                            <div 
+                              onClick={() => handleTreeNodeClick(treeRootNode.right!.id)}
+                              className={`p-3.5 rounded-xl border w-40 text-center cursor-pointer shadow-xs hover:shadow-md hover:border-blue-500 hover:-translate-y-0.5 transition ${
+                                treeRootNode.right.is_active ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-100 border-dashed border-slate-300 text-slate-400'
+                              }`}
+                            >
+                              <p className="text-[8px] font-extrabold text-amber-600 uppercase tracking-wider">Kanan (R)</p>
+                              <p className="font-bold text-xs truncate mt-0.5">{treeRootNode.right.fullname}</p>
+                              <p className="text-[9px] text-slate-400 font-mono">{treeRootNode.right.username.replace(/^@/, '')}</p>
+
+                              {(() => {
+                                const rLeftPts = getNodePoints(treeRootNode.right, 'left');
+                                const rRightPts = getNodePoints(treeRootNode.right, 'right');
+                                return (
+                                  <div className="flex justify-between text-[8px] mt-2 pt-1.5 border-t border-slate-100 font-bold text-slate-600">
+                                    <span>L: {rLeftPts.sales}pt ({rLeftPts.count}m)</span>
+                                    <span>R: {rRightPts.sales}pt ({rRightPts.count}m)</span>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            <div 
+                              onClick={() => setActiveTab('referrals')}
+                              className="p-3.5 rounded-xl border border-dashed border-slate-300 w-40 text-center text-[10px] text-slate-400 bg-slate-50/50 py-5 cursor-pointer hover:bg-slate-100/50 transition"
+                            >
+                              <p className="font-extrabold text-amber-500">+ Tambah</p>
+                              <p className="text-[8px] opacity-75 mt-0.5">Sponsori Tim Kanan</p>
+                            </div>
+                          )}
+
+                          {/* Connector down to level 3 right */}
+                          <div className="h-6 w-0.5 bg-slate-300"></div>
+                          <div className="w-[140px] h-0.5 bg-slate-300 flex justify-between">
+                            <div className="w-0.5 h-4 bg-slate-300"></div>
+                            <div className="w-0.5 h-4 bg-slate-300"></div>
+                          </div>
+
+                          {/* LEVEL 3 Under Right Leg (R-L, R-R) */}
+                          <div className="flex justify-between w-[190px] pt-4">
+                            {treeRootNode.right?.left ? (
+                              <div 
+                                onClick={() => handleTreeNodeClick(treeRootNode.right!.left!.id)}
+                                className="p-2 rounded-xl border border-slate-200 w-22 text-center cursor-pointer shadow-2xs bg-white hover:border-blue-500 text-slate-800 text-[10px]"
+                              >
+                                <p className="font-bold truncate">{treeRootNode.right.left.username.replace(/^@/, '')}</p>
+                                <p className="text-[8px] text-slate-400 mt-0.5">R-L ({treeRootNode.right.left.is_active ? 'Aktif' : 'Non-aktif'})</p>
+                              </div>
+                            ) : (
+                              <div className="p-2 rounded-xl border border-dashed border-slate-200 w-22 text-center text-[9px] text-slate-400 bg-slate-50 py-3">
+                                Kosong
+                              </div>
+                            )}
+
+                            {treeRootNode.right?.right ? (
+                              <div 
+                                onClick={() => handleTreeNodeClick(treeRootNode.right!.right!.id)}
+                                className="p-2 rounded-xl border border-slate-200 w-22 text-center cursor-pointer shadow-2xs bg-white hover:border-blue-500 text-slate-800 text-[10px]"
+                              >
+                                <p className="font-bold truncate">{treeRootNode.right.right.username.replace(/^@/, '')}</p>
+                                <p className="text-[8px] text-slate-400 mt-0.5">R-R ({treeRootNode.right.right.is_active ? 'Aktif' : 'Non-aktif'})</p>
+                              </div>
+                            ) : (
+                              <div className="p-2 rounded-xl border border-dashed border-slate-200 w-22 text-center text-[9px] text-slate-400 bg-slate-50 py-3">
+                                Kosong
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                      </div>
+
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 py-12 text-center">Pohon Jaringan Kosong</p>
+                  )}
+                </div>
+              )}
+
+              {/* VIEW MODE 2: MOBILE LIST VIEW (Sangat Ramah HP) */}
+              {treeViewMode === 'list' && (
+                <div className="space-y-4">
+                  {treeRootNode ? (
+                    <div className="space-y-4">
+                      {/* Upline Fokus Card */}
+                      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl p-5 shadow-md">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[9px] uppercase tracking-widest font-black bg-white/20 text-white px-2 py-0.5 rounded-md inline-block">
+                              Upline Fokus Terpilih
+                            </span>
+                            <h4 className="text-lg font-black mt-1.5">{treeRootNode.fullname}</h4>
+                            <p className="text-xs text-blue-100 font-mono">@{treeRootNode.username.replace(/^@/, '')}</p>
+                          </div>
+                          <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full ${
+                            treeRootNode.is_active ? 'bg-green-400/30 text-green-100 border border-green-300/40' : 'bg-amber-400/30 text-amber-100 border border-amber-300/40'
+                          }`}>
+                            {treeRootNode.is_active ? '✓ Premium Aktif' : 'Belum Aktif'}
+                          </span>
+                        </div>
+
+                        {(() => {
+                          const leftPts = getNodePoints(treeRootNode, 'left');
+                          const rightPts = getNodePoints(treeRootNode, 'right');
+                          return (
+                            <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-white/20 text-center">
+                              <div className="bg-white/10 rounded-xl p-2.5 border border-white/10">
+                                <span className="text-[10px] text-blue-100 uppercase font-black tracking-wider block">👈 Tim Kiri</span>
+                                <p className="text-xl font-black mt-0.5">{leftPts.sales} <span className="text-xs font-normal opacity-80">pt</span></p>
+                                <p className="text-[10px] text-blue-100 font-medium">{leftPts.count} total member</p>
+                              </div>
+                              <div className="bg-white/10 rounded-xl p-2.5 border border-white/10">
+                                <span className="text-[10px] text-blue-100 uppercase font-black tracking-wider block">Tim Kanan 👉</span>
+                                <p className="text-xl font-black mt-0.5">{rightPts.sales} <span className="text-xs font-normal opacity-80">pt</span></p>
+                                <p className="text-[10px] text-blue-100 font-medium">{rightPts.count} total member</p>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Left & Right Legs Section */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        {/* LEFT LEG ITEM */}
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                            <span className="text-xs font-black text-blue-700 bg-blue-100/80 px-2.5 py-0.5 rounded-lg uppercase">
+                              👈 Tim Kiri (Left Leg)
+                            </span>
+                            {treeRootNode.left && (
+                              <button 
+                                onClick={() => handleTreeNodeClick(treeRootNode.left!.id)}
+                                className="text-[10px] font-extrabold text-blue-600 hover:underline flex items-center gap-1"
+                              >
+                                🔎 Fokus Ke Sini
+                              </button>
+                            )}
+                          </div>
+
+                          {treeRootNode.left ? (
+                            <div className="mt-3 space-y-3">
+                              <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-extrabold text-slate-900 text-sm">{treeRootNode.left.fullname}</p>
+                                    <p className="text-xs text-slate-500 font-mono">@{treeRootNode.left.username.replace(/^@/, '')}</p>
+                                  </div>
+                                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${
+                                    treeRootNode.left.is_active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-500'
+                                  }`}>
+                                    {treeRootNode.left.is_active ? 'Aktif' : 'Non-aktif'}
+                                  </span>
+                                </div>
+
+                                {(() => {
+                                  const lLeft = getNodePoints(treeRootNode.left, 'left');
+                                  const lRight = getNodePoints(treeRootNode.left, 'right');
+                                  return (
+                                    <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-slate-100 text-xs">
+                                      <div className="bg-slate-50 p-2 rounded-lg text-center">
+                                        <span className="text-[9px] text-slate-400 font-bold block uppercase">Kiri (L-L)</span>
+                                        <span className="font-black text-slate-800">{lLeft.sales} pt</span>
+                                      </div>
+                                      <div className="bg-slate-50 p-2 rounded-lg text-center">
+                                        <span className="text-[9px] text-slate-400 font-bold block uppercase">Kanan (L-R)</span>
+                                        <span className="font-black text-slate-800">{lRight.sales} pt</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+
+                              {/* Downlines Level 3 Left */}
+                              <div className="pl-3 border-l-2 border-blue-200 space-y-2">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sub-Downline Level 3:</p>
+                                {treeRootNode.left.left ? (
+                                  <div className="bg-white rounded-lg p-2.5 border border-slate-200 flex justify-between items-center text-xs">
+                                    <div>
+                                      <p className="font-bold text-slate-800">@{treeRootNode.left.left.username.replace(/^@/, '')}</p>
+                                      <p className="text-[10px] text-slate-400">Posisi: L-L</p>
+                                    </div>
+                                    <button 
+                                      onClick={() => handleTreeNodeClick(treeRootNode.left!.left!.id)}
+                                      className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-1 rounded-md"
+                                    >
+                                      Lihat
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] text-slate-400 italic">Posisi L-L: Masih Kosong</p>
+                                )}
+
+                                {treeRootNode.left.right ? (
+                                  <div className="bg-white rounded-lg p-2.5 border border-slate-200 flex justify-between items-center text-xs">
+                                    <div>
+                                      <p className="font-bold text-slate-800">@{treeRootNode.left.right.username.replace(/^@/, '')}</p>
+                                      <p className="text-[10px] text-slate-400">Posisi: L-R</p>
+                                    </div>
+                                    <button 
+                                      onClick={() => handleTreeNodeClick(treeRootNode.left!.right!.id)}
+                                      className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-1 rounded-md"
+                                    >
+                                      Lihat
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] text-slate-400 italic">Posisi L-R: Masih Kosong</p>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="py-6 text-center text-slate-400 text-xs">
+                              Belum ada member terpasang di kaki kiri.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* RIGHT LEG ITEM */}
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                            <span className="text-xs font-black text-amber-700 bg-amber-100/80 px-2.5 py-0.5 rounded-lg uppercase">
+                              Tim Kanan (Right Leg) 👉
+                            </span>
+                            {treeRootNode.right && (
+                              <button 
+                                onClick={() => handleTreeNodeClick(treeRootNode.right!.id)}
+                                className="text-[10px] font-extrabold text-blue-600 hover:underline flex items-center gap-1"
+                              >
+                                🔎 Fokus Ke Sini
+                              </button>
+                            )}
+                          </div>
+
+                          {treeRootNode.right ? (
+                            <div className="mt-3 space-y-3">
+                              <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-extrabold text-slate-900 text-sm">{treeRootNode.right.fullname}</p>
+                                    <p className="text-xs text-slate-500 font-mono">@{treeRootNode.right.username.replace(/^@/, '')}</p>
+                                  </div>
+                                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${
+                                    treeRootNode.right.is_active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-500'
+                                  }`}>
+                                    {treeRootNode.right.is_active ? 'Aktif' : 'Non-aktif'}
+                                  </span>
+                                </div>
+
+                                {(() => {
+                                  const rLeft = getNodePoints(treeRootNode.right, 'left');
+                                  const rRight = getNodePoints(treeRootNode.right, 'right');
+                                  return (
+                                    <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-slate-100 text-xs">
+                                      <div className="bg-slate-50 p-2 rounded-lg text-center">
+                                        <span className="text-[9px] text-slate-400 font-bold block uppercase">Kiri (R-L)</span>
+                                        <span className="font-black text-slate-800">{rLeft.sales} pt</span>
+                                      </div>
+                                      <div className="bg-slate-50 p-2 rounded-lg text-center">
+                                        <span className="text-[9px] text-slate-400 font-bold block uppercase">Kanan (R-R)</span>
+                                        <span className="font-black text-slate-800">{rRight.sales} pt</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+
+                              {/* Downlines Level 3 Right */}
+                              <div className="pl-3 border-l-2 border-amber-200 space-y-2">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sub-Downline Level 3:</p>
+                                {treeRootNode.right.left ? (
+                                  <div className="bg-white rounded-lg p-2.5 border border-slate-200 flex justify-between items-center text-xs">
+                                    <div>
+                                      <p className="font-bold text-slate-800">@{treeRootNode.right.left.username.replace(/^@/, '')}</p>
+                                      <p className="text-[10px] text-slate-400">Posisi: R-L</p>
+                                    </div>
+                                    <button 
+                                      onClick={() => handleTreeNodeClick(treeRootNode.right!.left!.id)}
+                                      className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-1 rounded-md"
+                                    >
+                                      Lihat
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] text-slate-400 italic">Posisi R-L: Masih Kosong</p>
+                                )}
+
+                                {treeRootNode.right.right ? (
+                                  <div className="bg-white rounded-lg p-2.5 border border-slate-200 flex justify-between items-center text-xs">
+                                    <div>
+                                      <p className="font-bold text-slate-800">@{treeRootNode.right.right.username.replace(/^@/, '')}</p>
+                                      <p className="text-[10px] text-slate-400">Posisi: R-R</p>
+                                    </div>
+                                    <button 
+                                      onClick={() => handleTreeNodeClick(treeRootNode.right!.right!.id)}
+                                      className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-1 rounded-md"
+                                    >
+                                      Lihat
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] text-slate-400 italic">Posisi R-R: Masih Kosong</p>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="py-6 text-center text-slate-400 text-xs">
+                              Belum ada member terpasang di kaki kanan.
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 py-12 text-center">Pohon Jaringan Kosong</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1560,7 +1888,7 @@ export default function UserDashboard({
                 <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Users className="text-blue-600 w-5 h-5" /> Anggota Yang Anda Sponsori Langsung
                 </h3>
-                <p className="text-xs text-slate-500">Daftar rekan kerja yang mendaftar menggunakan ID Referal Anda. Dapatkan Bonus Sponsor Rp 20.000 ketika mereka melakukan aktifasi premium.</p>
+                <p className="text-xs text-slate-500">Daftar rekan kerja yang mendaftar menggunakan ID Referal Anda. Dapatkan Bonus Sponsor Rp 40.000 ketika mereka melakukan aktifasi premium.</p>
               </div>
 
               <div className="overflow-x-auto">
@@ -1583,7 +1911,7 @@ export default function UserDashboard({
                       referrals.map((ref) => (
                         <tr key={ref.id} className="hover:bg-slate-50/50">
                           <td className="py-3.5 px-4 font-bold text-slate-800">{ref.fullname}</td>
-                          <td className="py-3.5 px-4 font-mono text-slate-500">@{ref.username}</td>
+                          <td className="py-3.5 px-4 font-mono text-slate-500">{ref.username.replace(/^@/, '')}</td>
                           <td className="py-3.5 px-4 text-slate-600">{ref.phone}</td>
                           <td className="py-3.5 px-4 text-slate-400">
                             {new Date(ref.created_at).toLocaleDateString('id-ID')}

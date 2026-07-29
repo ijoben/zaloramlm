@@ -91,6 +91,8 @@ export interface BinaryTreeNode {
   is_active: boolean;
   left_count: number;
   right_count: number;
+  left_sales?: number;
+  right_sales?: number;
   left: BinaryTreeNode | null;
   right: BinaryTreeNode | null;
 }

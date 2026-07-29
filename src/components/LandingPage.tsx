@@ -270,10 +270,10 @@ export default function LandingPage({
   };
 
   return (
-    <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 font-sans selection:bg-[#C41230] selection:text-white overflow-x-hidden w-full" id="store-landing-root">
+    <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 font-sans selection:bg-[#C41230] selection:text-white w-full" id="store-landing-root">
       
       {/* Top Bar + Sticky Main Header Container */}
-      <div className="sticky top-0 z-50 w-full bg-white shadow-md">
+      <div className="sticky top-0 z-50 w-full bg-white shadow-md border-b border-neutral-200">
         {/* 1. Top Announcement Bar */}
         <div className="bg-[#111111] text-white text-[10px] sm:text-[11px] font-bold tracking-widest uppercase py-2 px-4 border-b border-neutral-800 flex items-center justify-start sm:justify-center gap-6 w-full overflow-x-auto whitespace-nowrap scrollbar-none">
           <span className="flex items-center gap-1.5 text-neutral-300 shrink-0">
@@ -409,7 +409,7 @@ export default function LandingPage({
                 onClick={onLoginClick}
                 className="bg-[#C41230] hover:bg-[#A00E26] text-white px-2 sm:px-3.5 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black uppercase tracking-wider transition shadow-xs flex items-center gap-1 shrink-0"
               >
-                <User className="w-3.5 h-3.5" /> <span className="hidden sm:inline">MEMBER PORTAL</span><span className="sm:hidden">MASUK</span>
+                <User className="w-3.5 h-3.5" /> <span className="hidden sm:inline">LOGIN</span><span className="sm:hidden">LOGIN</span>
               </button>
             )}
 

@@ -807,12 +807,12 @@ export default function AdminDashboard({
         <aside className="hidden lg:block lg:w-64 flex-shrink-0 space-y-4" id="admin-sidebar">
           
           {/* Nav Navigation */}
-          <nav className="bg-white rounded-2xl border border-slate-200/80 p-2 shadow-[0_8px_30px_rgb(0,0,0,0.01)] space-y-1">
+          <nav className="bg-slate-900 rounded-2xl border border-slate-800 p-2 shadow-xl space-y-1">
             <button
               id="admin-tab-financials"
               onClick={() => setActiveTab('financials')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'financials' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'financials' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <BarChart2 className="w-4 h-4" />
@@ -823,7 +823,7 @@ export default function AdminDashboard({
               id="admin-tab-withdrawals"
               onClick={() => setActiveTab('withdrawals')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'withdrawals' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'withdrawals' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <ArrowUpRight className="w-4 h-4" />
@@ -839,7 +839,7 @@ export default function AdminDashboard({
               id="admin-tab-deposits"
               onClick={() => setActiveTab('deposits')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'deposits' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'deposits' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <ArrowDownLeft className="w-4 h-4" />
@@ -855,12 +855,12 @@ export default function AdminDashboard({
               id="admin-tab-members"
               onClick={() => setActiveTab('members')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
-                activeTab === 'members' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'members' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <Users className="w-4 h-4 shrink-0" />
               <span className="flex-1 text-left">Manajemen Jaringan</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'members' ? 'bg-blue-500/20 text-white' : 'bg-slate-100 text-slate-700'}`}>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'members' ? 'bg-blue-500/20 text-white' : 'bg-slate-800 text-slate-300'}`}>
                 {metrics.totalMembers} org
               </span>
             </button>
@@ -869,7 +869,7 @@ export default function AdminDashboard({
               id="admin-tab-products"
               onClick={() => setActiveTab('products')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'products' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'products' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <Package className="w-4 h-4" />
@@ -880,7 +880,7 @@ export default function AdminDashboard({
               id="admin-tab-landing-editor"
               onClick={() => setActiveTab('landing-editor')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'landing-editor' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'landing-editor' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <Edit className="w-4 h-4" />
@@ -891,7 +891,7 @@ export default function AdminDashboard({
               id="admin-tab-settings"
               onClick={() => setActiveTab('settings')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'settings' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'settings' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <Settings className="w-4 h-4" />
@@ -902,14 +902,14 @@ export default function AdminDashboard({
               id="admin-tab-profil"
               onClick={() => setActiveTab('profil')}
               className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                activeTab === 'profil' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'profil' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <User className="w-4 h-4" />
               <span>Profil Saya & Sandi</span>
             </button>
 
-            <div className="pt-2 border-t border-slate-100">
+            <div className="pt-2 border-t border-slate-800">
               <button
                 id="admin-sidebar-btn-logout"
                 onClick={onLogout}
@@ -1068,7 +1068,7 @@ export default function AdminDashboard({
                       {transactions.slice().reverse().map((tx) => (
                         <tr key={tx.id} className="hover:bg-slate-50/50">
                           <td className="py-3 px-4 text-slate-500 whitespace-nowrap">{new Date(tx.created_at).toLocaleString('id-ID')}</td>
-                          <td className="py-3 px-4 font-bold text-slate-800">@{tx.username}</td>
+                          <td className="py-3 px-4 font-bold text-slate-800">{tx.username.replace(/^@/, '')}</td>
                           <td className="py-3 px-4">
                             <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase tracking-wide ${
                               tx.type.endsWith('_bonus') ? 'bg-green-100 text-green-800' :
@@ -1127,7 +1127,7 @@ export default function AdminDashboard({
                           <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
                             {new Date(wd.created_at).toLocaleString('id-ID')}
                           </td>
-                          <td className="py-3.5 px-4 font-bold text-slate-800">@{wd.username}</td>
+                          <td className="py-3.5 px-4 font-bold text-slate-800">{wd.username.replace(/^@/, '')}</td>
                           <td className="py-3.5 px-4 leading-normal">
                             <span className="font-extrabold block text-slate-900">{wd.account_holder}</span>
                             <span className="text-[10px] text-slate-500 font-mono uppercase">{wd.bank_name} • {wd.account_number}</span>
@@ -1233,16 +1233,16 @@ export default function AdminDashboard({
                               <span className="block text-[9px] text-slate-400 font-normal">Daftar: {u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID') : '-'}</span>
                             </td>
                             <td className="py-3.5 px-4 leading-normal">
-                              <span className="font-bold text-blue-600 block">@{u.username}</span>
+                              <span className="font-bold text-blue-600 block">{u.username.replace(/^@/, '')}</span>
                               <span className="text-[10px] text-slate-500 font-mono">{u.phone || '-'}</span>
                             </td>
                             <td className="py-3.5 px-4 leading-normal">
                               <div className="text-[10px] text-slate-700 font-medium">
                                 <span className="font-bold text-slate-900 block">
-                                  Upline: {uplineUser ? `@${uplineUser.username}` : 'Root'} <span className="text-blue-600 font-extrabold">({u.position || 'L'})</span>
+                                  Upline: {uplineUser ? uplineUser.username.replace(/^@/, '') : 'Root'} <span className="text-blue-600 font-extrabold">({u.position || 'L'})</span>
                                 </span>
                                 <span className="text-slate-500 block">
-                                  Sponsor: {sponsorUser ? `@${sponsorUser.username}` : '-'}
+                                  Sponsor: {sponsorUser ? sponsorUser.username.replace(/^@/, '') : '-'}
                                 </span>
                               </div>
                             </td>
@@ -1429,7 +1429,7 @@ export default function AdminDashboard({
                             <p className="text-[10px] text-slate-400 mt-0.5">{new Date(dep.created_at).toLocaleString()}</p>
                           </td>
                           <td className="px-4 py-3.5">
-                            <p className="font-bold text-slate-950">@{dep.username}</p>
+                            <p className="font-bold text-slate-950">{dep.username.replace(/^@/, '')}</p>
                             <p className="text-[10px] text-slate-500 mt-0.5">{dep.method.startsWith('manual') ? "Transfer Manual" : "Payment Gateway"}</p>
                           </td>
                           <td className="px-4 py-3.5">
