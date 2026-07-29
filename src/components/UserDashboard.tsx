@@ -313,7 +313,7 @@ export default function UserDashboard({
           <div className="hidden sm:flex items-center gap-2">
             <div className="text-right">
               <p className="text-xs font-bold text-neutral-100">{user.fullname}</p>
-              <p className="text-[10px] text-neutral-400">@{user.username} • {user.is_active ? 'Member Active' : 'Inactive'}</p>
+              <p className="text-[10px] text-neutral-400 font-mono">ID: ZLR-{String(user.id).padStart(6, '0')} • @{user.username} • {user.is_active ? 'Member Premium' : 'Inactive'}</p>
             </div>
           </div>
           <button 
@@ -375,9 +375,12 @@ export default function UserDashboard({
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-white truncate">{user.fullname}</p>
-                  <p className="text-[9px] text-slate-400 mt-0.5 truncate">
-                    @{user.username} • {user.is_active ? 'Premium Active' : 'Inactive'}
+                  <p className="text-[10px] text-slate-400 mt-0.5 truncate font-mono">
+                    ID: ZLR-{String(user.id).padStart(6, '0')} • @{user.username}
                   </p>
+                  <span className="text-[9px] font-bold text-blue-400 block mt-0.5">
+                    {user.is_active ? 'Member Premium Active' : 'Lisensi Belum Aktif'}
+                  </span>
                 </div>
               </div>
 
@@ -558,16 +561,23 @@ export default function UserDashboard({
               <div>
                 <h4 className="font-display font-bold text-slate-900 leading-tight">{user.fullname}</h4>
                 <p className="text-xs text-slate-400 font-medium">@{user.username}</p>
+                <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-mono font-extrabold text-slate-700">
+                  <span>ID:</span>
+                  <span className="text-blue-600">ZLR-{String(user.id).padStart(6, '0')}</span>
+                </div>
               </div>
             </div>
 
             {/* License Active badge */}
             {user.is_active ? (
-              <div className="bg-green-50/60 border border-green-100 text-green-800 rounded-xl p-3.5 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+              <div className="bg-green-50/60 border border-green-100 text-green-800 rounded-xl p-3.5 flex items-start gap-2.5">
+                <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
                 <div className="text-xs leading-normal font-medium">
-                  <span className="font-bold block text-green-900">Member Premium</span>
-                  Level Jaringan Binary Terbuka!
+                  <span className="font-extrabold block text-green-950 text-sm">Member Premium</span>
+                  <span className="inline-block my-1 px-2 py-0.5 rounded bg-green-200/60 text-green-900 font-mono font-bold text-[10px] border border-green-300/50">
+                    ID MEMBER: ZLR-{String(user.id).padStart(6, '0')}
+                  </span>
+                  <p className="text-[11px] text-green-800/90 mt-0.5">Level Jaringan Binary Terbuka!</p>
                 </div>
               </div>
             ) : (
@@ -575,8 +585,11 @@ export default function UserDashboard({
                 <div className="flex items-start gap-2">
                   <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-xs leading-normal font-medium">
-                    <span className="font-bold block text-amber-900">Lisensi Tidak Aktif</span>
-                    Wajib aktifasi Rp 550.000 untuk bonus jaringan & belanja.
+                    <span className="font-extrabold block text-amber-950 text-sm">Lisensi Tidak Aktif</span>
+                    <span className="inline-block my-1 px-2 py-0.5 rounded bg-amber-200/60 text-amber-900 font-mono font-bold text-[10px] border border-amber-300/50">
+                      ID MEMBER: ZLR-{String(user.id).padStart(6, '0')}
+                    </span>
+                    <p className="text-[11px] text-amber-800/90 mt-0.5">Wajib aktifasi Rp 550.000 untuk bonus jaringan & belanja.</p>
                   </div>
                 </div>
                 <button
@@ -1123,51 +1136,86 @@ export default function UserDashboard({
           {/* TAB 3: SHOP (BELANJA CELANA JEANS) */}
           {activeTab === 'shop' && (
             <div className="space-y-6" id="shop-tab-content">
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
-                  <ShoppingBag className="text-blue-600 w-5 h-5" /> Katalog Jeans Premium Khusus Member
-                </h3>
-                <p className="text-xs text-slate-500">Membeli produk jeans akan secara otomatis memotong saldo dompet Anda, mengirimkan pesanan ke gudang logistik kami, dan mengalirkan Bonus Repeat Order (RO) Rp 5.000 ke sponsor Anda.</p>
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+                    <ShoppingBag className="text-blue-600 w-5 h-5" /> Katalog Eksklusif Celana Jeans Premium
+                  </h3>
+                  <p className="text-xs text-slate-500">Nikmati harga diskon khusus Member Premium. Setiap pembelian produk memicu Bonus Repeat Order (RO) Rp 5.000 untuk sponsor Anda.</p>
+                </div>
+                <div className="bg-blue-50 border border-blue-100 px-4 py-2.5 rounded-xl text-right shrink-0">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Saldo Dompet Tersedia</p>
+                  <p className="text-base font-black text-blue-600 font-mono">Rp {user.balance.toLocaleString('id-ID')}</p>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {products.map((p) => (
-                  <div key={p.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm flex flex-col sm:flex-row">
-                    <div className="w-full sm:w-48 h-48 bg-slate-100 shrink-0 relative">
-                      <img referrerPolicy="no-referrer" src={p.image} className="w-full h-full object-cover" alt={p.name} />
-                      <div className="absolute top-2 left-2 bg-slate-950/80 text-white text-[10px] font-bold px-2 py-1 rounded">
-                        Stok: {p.stock} pcs
-                      </div>
-                    </div>
-                    <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
-                      <div>
-                        <h4 className="font-extrabold text-sm text-slate-900 leading-snug">{p.name}</h4>
-                        <p className="text-[11px] text-slate-500 line-clamp-2 mt-1">{p.description}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {products.map((p) => {
+                  const savings = Math.max(0, p.price - p.member_price);
+                  return (
+                    <div key={p.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200/90 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col group">
+                      <div className="relative w-full h-52 bg-slate-100 overflow-hidden">
+                        <img 
+                          referrerPolicy="no-referrer" 
+                          src={p.image} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                          alt={p.name} 
+                        />
+                        {/* Member Special Tag */}
+                        <div className="absolute top-3 left-3 bg-blue-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow-sm">
+                          MEMBER EXCLUSIVE
+                        </div>
+                        {/* Stock Tag */}
+                        <div className={`absolute top-3 right-3 text-[10px] font-extrabold px-2.5 py-1 rounded-lg border shadow-sm ${
+                          p.stock > 10 ? 'bg-white/95 text-green-700 border-green-200' :
+                          p.stock > 0 ? 'bg-amber-500 text-white border-amber-600' :
+                          'bg-red-600 text-white border-red-700'
+                        }`}>
+                          {p.stock > 0 ? `Stok: ${p.stock} pcs` : 'Stok Habis'}
+                        </div>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-100">
-                        <div className="flex justify-between items-baseline mb-3">
-                          <span className="text-[10px] text-slate-400">Harga Member</span>
-                          <span className="text-blue-600 font-extrabold text-lg">Rp {p.member_price.toLocaleString()}</span>
+                      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                        <div className="space-y-1.5">
+                          <h4 className="font-extrabold text-sm text-slate-900 group-hover:text-blue-600 transition-colors leading-snug line-clamp-1">{p.name}</h4>
+                          <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{p.description}</p>
                         </div>
-                        
-                        <button
-                          id={`btn-buy-product-${p.id}`}
-                          onClick={() => handleProductPurchase(p.id)}
-                          disabled={p.stock < 1 || loadingAction}
-                          className={`w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm ${
-                            p.stock < 1 
-                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
-                          }`}
-                        >
-                          <ShoppingBag className="w-3.5 h-3.5" /> 
-                          {p.stock < 1 ? 'Stok Habis' : 'Beli Menggunakan Saldo'}
-                        </button>
+
+                        <div className="pt-3 border-t border-slate-100 space-y-3">
+                          <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                            <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                              <span>Harga Retail Umum:</span>
+                              <span className="line-through text-slate-400 font-semibold">Rp {p.price.toLocaleString('id-ID')}</span>
+                            </div>
+                            <div className="flex justify-between items-baseline mt-1">
+                              <span className="text-[11px] font-bold text-slate-700">Harga Member:</span>
+                              <span className="text-blue-600 font-black text-lg font-mono">Rp {p.member_price.toLocaleString('id-ID')}</span>
+                            </div>
+                            {savings > 0 && (
+                              <div className="mt-1 text-[10px] text-green-600 font-extrabold text-right">
+                                🎉 Hemat Rp {savings.toLocaleString('id-ID')}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <button
+                            id={`btn-buy-product-${p.id}`}
+                            onClick={() => handleProductPurchase(p.id)}
+                            disabled={p.stock < 1 || loadingAction}
+                            className={`w-full py-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer ${
+                              p.stock < 1 
+                                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-600/10 active:scale-[0.98]'
+                            }`}
+                          >
+                            <ShoppingBag className="w-4 h-4" /> 
+                            {p.stock < 1 ? 'Stok Tidak Tersedia' : 'Beli Sekarang (Potong Saldo)'}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
