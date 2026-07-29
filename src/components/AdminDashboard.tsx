@@ -429,10 +429,17 @@ export default function AdminDashboard({
   const handleSaveShippingMode = async (mode: 'AUTO_API' | 'MANUAL', apiKeyInput?: string) => {
     setLoading(true);
     try {
-      if (onSaveSettings) {
-        await onSaveSettings({
-          shippingTrackingMode: mode,
-          ...(apiKeyInput !== undefined ? { shippingApiKey: apiKeyInput } : {})
+      const payload = {
+        shippingTrackingMode: mode,
+        ...(apiKeyInput !== undefined ? { shippingApiKey: apiKeyInput } : {})
+      };
+      if (onUpdateSettings) {
+        await onUpdateSettings(payload);
+      } else {
+        await fetch("/api/admin/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
         });
       }
       setMessage({ 
@@ -441,6 +448,7 @@ export default function AdminDashboard({
           : "✅ Mode Pengiriman diubah ke Mode Manual (Input Admin)", 
         type: "success" 
       });
+      if (onRefresh) onRefresh();
     } catch (err: any) {
       setMessage({ text: err.message || "Gagal menyimpan mode pengiriman", type: "error" });
     } finally {

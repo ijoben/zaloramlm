@@ -918,7 +918,17 @@ app.get(["/api/settings", "/settings"], async (req, res) => {
       console.warn("Failed reading settings from Firestore in GET /api/settings:", e);
     }
   }
-  res.json(systemSettings);
+
+  // Create sanitized copy for public consumption (hide secret keys)
+  const publicSettings = { ...systemSettings };
+  if (publicSettings.midtransServerKey) {
+    publicSettings.midtransServerKey = "••••••••" + publicSettings.midtransServerKey.slice(-4);
+  }
+  if (publicSettings.shippingApiKey) {
+    publicSettings.hasShippingApiKey = true;
+    publicSettings.shippingApiKey = "••••••••" + publicSettings.shippingApiKey.slice(-4);
+  }
+  res.json(publicSettings);
 });
 
 // Update System Settings (Admin operation)
