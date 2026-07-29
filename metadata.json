@@ -1,6 +1,6 @@
 {
-  "name": "Zalora Denim MLM Binary",
-  "description": "Sistem MLM Binary 10 level, terintegrasi toko celana jeans premium, dasbor user dan admin, serta export source code PHP lengkap.",
+  "name": "Hedtro Jeans Official - System Afiliasi Reseller",
+  "description": "Sistem Afiliasi & Reseller Multi-Level Hedtro Jeans, terintegrasi katalog produk celana jeans premium, dasbor user dan admin, serta export source code PHP lengkap.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

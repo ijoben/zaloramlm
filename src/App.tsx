@@ -10,7 +10,7 @@ import PHPSourceViewer from "./components/PHPSourceViewer";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest } from "./types";
 import { DEFAULT_PRODUCTS } from "./data/defaultProducts";
 import { DEFAULT_USERS } from "./data/defaultUsers";
-import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send } from "lucide-react";
+import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send, User, CreditCard, ShoppingBag, Users } from "lucide-react";
 
 // Client-side timeout helper to prevent hanging on Firestore network stalls
 function withClientTimeout<T>(promise: Promise<T>, ms: number = 8000, label = "Operation"): Promise<T | null> {
@@ -180,6 +180,8 @@ async function registerUserToFirestoreDirect(regData: {
   bank_name?: string;
   bank_account?: string;
   bank_holder?: string;
+  address?: string;
+  city?: string;
 }): Promise<MLMUser> {
   const users = await fetchFirestoreUsers();
 
@@ -239,7 +241,9 @@ async function registerUserToFirestoreDirect(regData: {
     whatsapp: regData.whatsapp || regData.phone || "",
     bank_name: regData.bank_name || "",
     bank_account: regData.bank_account || "",
-    bank_holder: regData.bank_holder || regData.fullname || ""
+    bank_holder: regData.bank_holder || regData.fullname || "",
+    address: regData.address || "",
+    city: regData.city || ""
   };
 
   const updatedUsers = [...users, newUser];
@@ -256,7 +260,7 @@ async function registerUserToFirestoreDirect(regData: {
         username: normalizedUsername,
         type: "bonus_produk",
         amount: 550000,
-        description: "Bonus Registrasi: Gratis 1 Produk Paket Perdana Zalora Denim senilai Rp 550.000 (Termasuk Paket Pendaftaran Hak Usaha)",
+        description: "Bonus Registrasi: Gratis 1 Produk Paket Perdana HEDTRO JEANS senilai Rp 550.000 (Termasuk Paket Pendaftaran Hak Usaha)",
         created_at: new Date().toISOString()
       });
 
@@ -607,14 +611,21 @@ async function deleteFirestoreProduct(productId: number): Promise<void> {
   }
 }
 
-async function updateFirestoreUserProfile(userId: number, updateData: { fullname?: string; email?: string; phone?: string; password?: string; balance?: number; is_active?: boolean; sponsor_bonus?: number; pairing_bonus?: number; level_bonus?: number; ro_bonus?: number }): Promise<void> {
+async function updateFirestoreUserProfile(userId: number, updateData: { fullname?: string; email?: string; phone?: string; whatsapp?: string; bank_name?: string; bank_account?: string; bank_holder?: string; address?: string; city?: string; password?: string; balance?: number; is_active?: boolean; sponsor_bonus?: number; pairing_bonus?: number; level_bonus?: number; ro_bonus?: number; wishlist?: number[] }): Promise<void> {
   if (db) {
     try {
       const cleanData: any = {};
-      if (updateData.fullname) cleanData.fullname = updateData.fullname;
-      if (updateData.email) cleanData.email = updateData.email;
-      if (updateData.phone) cleanData.phone = updateData.phone;
-      if (updateData.password) cleanData.password = updateData.password;
+      if (updateData.fullname !== undefined) cleanData.fullname = updateData.fullname;
+      if (updateData.email !== undefined) cleanData.email = updateData.email;
+      if (updateData.phone !== undefined) cleanData.phone = updateData.phone;
+      if (updateData.whatsapp !== undefined) cleanData.whatsapp = updateData.whatsapp;
+      if (updateData.bank_name !== undefined) cleanData.bank_name = updateData.bank_name;
+      if (updateData.bank_account !== undefined) cleanData.bank_account = updateData.bank_account;
+      if (updateData.bank_holder !== undefined) cleanData.bank_holder = updateData.bank_holder;
+      if (updateData.address !== undefined) cleanData.address = updateData.address;
+      if (updateData.city !== undefined) cleanData.city = updateData.city;
+      if (updateData.password !== undefined) cleanData.password = updateData.password;
+      if (updateData.wishlist !== undefined) cleanData.wishlist = updateData.wishlist;
       if (updateData.balance !== undefined) cleanData.balance = updateData.balance;
       if (updateData.is_active !== undefined) cleanData.is_active = updateData.is_active;
       if (updateData.sponsor_bonus !== undefined) cleanData.sponsor_bonus = updateData.sponsor_bonus;
@@ -782,6 +793,8 @@ export default function App() {
   const [regBankName, setRegBankName] = useState('BCA');
   const [regBankAccount, setRegBankAccount] = useState('');
   const [regBankHolder, setRegBankHolder] = useState('');
+  const [regAddress, setRegAddress] = useState('');
+  const [regCity, setRegCity] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regSponsor, setRegSponsor] = useState('');
@@ -792,12 +805,12 @@ export default function App() {
   // Dynamic branding & configuration settings
   const [systemSettings, setSystemSettings] = useState<any>(() => {
     const defaults = {
-      webName: "Zalora Denim Premium MLM",
-      logoText: "ZALORA.DENIM",
+      webName: "HEDTRO JEANS Afiliasi & Reseller",
+      logoText: "HEDTRO.JEANS",
       logoUrl: "",
       iconUrl: "",
       contactPhone: "081234567890",
-      contactEmail: "support@zaloradenim.com",
+      contactEmail: "support@hedtrojeans.com",
       sponsorBonus: 20000,
       pairingBonus: 10000,
       roBonus: 5000,
@@ -1016,8 +1029,8 @@ export default function App() {
       return {
         id: 1,
         username: "admin",
-        fullname: "Administrator Zalora Denim",
-        email: "admin@zaloradenim.com",
+        fullname: "Administrator HEDTRO JEANS",
+        email: "admin@hedtrojeans.com",
         phone: "081234567890",
         is_active: true,
         upline_id: null,
@@ -1097,7 +1110,7 @@ export default function App() {
     deposits: [],
     withdrawals: [],
     notifications: [
-      { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Member Zalora Denim MLM.", read: false, time: "Baru saja" }
+      { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Afiliasi HEDTRO JEANS.", read: false, time: "Baru saja" }
     ],
     binaryTree: {
       user: user,
@@ -1227,7 +1240,7 @@ export default function App() {
           deposits: userDeps,
           withdrawals: userWDs,
           notifications: [
-            { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Member Zalora Denim MLM.", read: false, time: "Baru saja" }
+            { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Afiliasi HEDTRO JEANS.", read: false, time: "Baru saja" }
           ]
         });
         console.log("✅ [fetchDashboardData] User dashboard updated via direct Firestore data for user:", freshUser.username);
@@ -1254,11 +1267,11 @@ export default function App() {
     let authEmail = loginUsername.trim();
     if (!authEmail.includes("@")) {
       if (authEmail.toLowerCase() === "admin") {
-        authEmail = "admin@zaloradenim.com";
+        authEmail = "admin@hedtrojeans.com";
       } else if (authEmail.toLowerCase() === "budi") {
         authEmail = "budi@gmail.com";
       } else {
-        authEmail = `${authEmail.toLowerCase()}@zaloradenim.com`;
+        authEmail = `${authEmail.toLowerCase()}@hedtrojeans.com`;
       }
     }
 
@@ -1391,7 +1404,9 @@ export default function App() {
             whatsapp: regWhatsapp || regPhone,
             bank_name: regBankName,
             bank_account: regBankAccount,
-            bank_holder: regBankHolder || regFullname
+            bank_holder: regBankHolder || regFullname,
+            address: regAddress,
+            city: regCity
           })
         });
         if (res.ok) {
@@ -1423,11 +1438,13 @@ export default function App() {
           whatsapp: regWhatsapp || regPhone,
           bank_name: regBankName,
           bank_account: regBankAccount,
-          bank_holder: regBankHolder || regFullname
+          bank_holder: regBankHolder || regFullname,
+          address: regAddress,
+          city: regCity
         });
       }
 
-      setRegSuccessMessage(`Pendaftaran Berhasil via Firebase & Firestore! Akun @${createdUsername} (${regEmail}) terdaftar di database.`);
+      setRegSuccessMessage(`Pendaftaran Berhasil via Firebase & Firestore! Akun ${createdUsername} (${regEmail}) terdaftar di database.`);
       setLoginUsername(regEmail);
       setLoginPassword(regPassword);
       setRegUsername('');
@@ -1522,7 +1539,7 @@ export default function App() {
       username: currentUser.username,
       type: "purchase",
       amount: -priceToPay,
-      description: `Pembelian Produk: ${prod?.name || 'Jeans Zalora Denim'} (-Rp ${priceToPay.toLocaleString("id-ID")})`,
+      description: `Pembelian Produk: ${prod?.name || 'HEDTRO JEANS'} (-Rp ${priceToPay.toLocaleString("id-ID")})`,
       created_at: new Date().toISOString()
     };
 
@@ -1861,7 +1878,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateProfile = async (data: { fullname: string; email: string; phone: string; password?: string }): Promise<boolean> => {
+  const handleUpdateProfile = async (data: { fullname: string; email: string; phone: string; whatsapp?: string; bank_name?: string; bank_account?: string; bank_holder?: string; address?: string; city?: string; password?: string }): Promise<boolean> => {
     if (!currentUser) return false;
     try {
       const res = await fetch(`/api/user/${currentUser.id}/profile`, {
@@ -1884,6 +1901,12 @@ export default function App() {
       fullname: data.fullname || prev.fullname,
       email: data.email || prev.email,
       phone: data.phone || prev.phone,
+      whatsapp: data.whatsapp !== undefined ? data.whatsapp : prev.whatsapp,
+      bank_name: data.bank_name !== undefined ? data.bank_name : prev.bank_name,
+      bank_account: data.bank_account !== undefined ? data.bank_account : prev.bank_account,
+      bank_holder: data.bank_holder !== undefined ? data.bank_holder : prev.bank_holder,
+      address: data.address !== undefined ? data.address : prev.address,
+      city: data.city !== undefined ? data.city : prev.city,
       ...(data.password ? { password: data.password } : {})
     }) : null);
     await fetchDashboardData();
@@ -2235,7 +2258,7 @@ export default function App() {
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   </div>
                   <p className="text-[11px] text-slate-400 pt-1">
-                    Petunjuk: Anda dapat menggunakan email demo seperti <code className="text-blue-600 font-bold">budi@gmail.com</code> atau <code className="text-blue-600 font-bold">admin@zalora.com</code>.
+                    Petunjuk: Anda dapat menggunakan email demo seperti <code className="text-blue-600 font-bold">budi@gmail.com</code> atau <code className="text-blue-600 font-bold">admin@hedtrojeans.com</code>.
                   </p>
                 </div>
 
@@ -2332,17 +2355,17 @@ export default function App() {
               <span className="bg-blue-100 text-blue-800 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                 Registrasi Member Baru
               </span>
-              <h3 className="text-xl font-black text-slate-900">Daftar Hak Usaha MLM Binary</h3>
-              <p className="text-xs text-slate-500">Mulai langkah bisnis Anda dan dapatkan keuntungan tak terbatas.</p>
+              <h3 className="text-xl font-black text-slate-900">Daftar Member & Afiliasi Reseller</h3>
+              <p className="text-xs text-slate-500">Mulai langkah bisnis Anda bersama HEDTRO JEANS dan dapatkan komisi penjualan.</p>
             </div>
 
             {regSuccessMessage ? (
               <div className="bg-green-50 border border-green-200 rounded-2xl p-5 space-y-4 text-center">
                 <CheckCircle className="w-12 h-12 text-green-600 mx-auto" />
-                <h4 className="font-extrabold text-green-950">Pendaftaran Anda Berhasil!</h4>
+                <h4 className="font-extrabold text-green-950 text-base">Pendaftaran Anda Berhasil!</h4>
                 <p className="text-xs text-green-800 leading-relaxed">
-                  Akun Anda telah terdaftar sebagai member dalam pohon jaringan silsilah binary. Status Anda saat ini adalah <strong className="text-red-600 font-black">TIDAK AKTIF</strong>. <br />
-                  Silakan masuk menggunakan akun baru Anda, lalu lakukan pengisian deposit saldo Rp 550.000 untuk melakukan aktifasi premium agar seluruh bonus mengalir lancar!
+                  Selamat, akun Anda telah terdaftar sebagai Member Afiliasi HEDTRO JEANS. Status akun Anda saat ini adalah <strong className="text-emerald-700 font-extrabold">TERVERIFIKASI / KANONIKAL</strong>. <br />
+                  Silakan masuk menggunakan username/email Anda untuk mengakses area portal member dan mulai berbelanja atau membagikan link afiliasi Anda!
                 </p>
                 <div className="flex gap-3 pt-2">
                   <button
@@ -2352,7 +2375,7 @@ export default function App() {
                       setRegSuccessMessage('');
                       setShowLoginModal(true);
                     }}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow"
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md"
                   >
                     Masuk Sekarang
                   </button>
@@ -2369,94 +2392,141 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleRegisterSubmit} className="space-y-3">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Username Baru</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Contoh: agus2026"
-                      value={regUsername}
-                      onChange={(e) => setRegUsername(e.target.value.toLowerCase().replace(/\s+/g, ""))}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
-                    />
+              <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                
+                {/* Section 1: Data Akun & Login */}
+                <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <User className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">1. Data Akun & Keamanan</h4>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nama Lengkap (Sesuai KTP)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Masukkan nama lengkap..."
-                      value={regFullname}
-                      onChange={(e) => setRegFullname(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nomor KTP / NIK (16 Digit)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="3271xxxxxxxxxxxx"
-                      value={regKtp}
-                      onChange={(e) => setRegKtp(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Email / Gmail Aktif</label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="Contoh: nama@gmail.com"
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nomor HP / Telepon</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Contoh: 0812xxxxxxxx"
-                      value={regPhone}
-                      onChange={(e) => {
-                        setRegPhone(e.target.value);
-                        if (!regWhatsapp) setRegWhatsapp(e.target.value);
-                      }}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nomor WhatsApp Aktif</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Contoh: 0812xxxxxxxx"
-                      value={regWhatsapp}
-                      onChange={(e) => setRegWhatsapp(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-100 pt-2 space-y-2">
-                  <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Rekening Bank Pencairan Bonus (WD)</p>
-                  
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Bank</label>
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Username Baru *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Contoh: agus2026"
+                        value={regUsername}
+                        onChange={(e) => setRegUsername(e.target.value.toLowerCase().replace(/\s+/g, ""))}
+                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Email Aktif *</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="nama@email.com"
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Kata Sandi *</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="Buat kata sandi..."
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Konfirmasi Kata Sandi *</label>
+                      <input
+                        type="password"
+                        required
+                        placeholder="Ulangi kata sandi..."
+                        value={regConfirmPassword}
+                        onChange={(e) => setRegConfirmPassword(e.target.value)}
+                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Data Pribadi & Kontak */}
+                <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <Award className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">2. Data Informasi Identitas & Kontak</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Nama Lengkap (Sesuai KTP) *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Masukkan nama lengkap..."
+                        value={regFullname}
+                        onChange={(e) => setRegFullname(e.target.value)}
+                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Nomor KTP / NIK (16 Digit) *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="3271xxxxxxxxxxxx"
+                        value={regKtp}
+                        onChange={(e) => setRegKtp(e.target.value)}
+                        className="w-full border border-slate-200 bg-white font-mono rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">No. HP / Telepon *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Contoh: 0812345678"
+                        value={regPhone}
+                        onChange={(e) => {
+                          setRegPhone(e.target.value);
+                          if (!regWhatsapp) setRegWhatsapp(e.target.value);
+                        }}
+                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">No. WhatsApp Aktif *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Contoh: 0812345678"
+                        value={regWhatsapp}
+                        onChange={(e) => setRegWhatsapp(e.target.value)}
+                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Rekening Bank Pencairan Komisi */}
+                <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <CreditCard className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">3. Rekening Bank Pencairan Komisi</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Nama Bank</label>
                       <select
                         value={regBankName}
                         onChange={(e) => setRegBankName(e.target.value)}
@@ -2473,113 +2543,115 @@ export default function App() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">No. Rekening</label>
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">No. Rekening</label>
                       <input
                         type="text"
-                        required
                         placeholder="1234567890"
                         value={regBankAccount}
                         onChange={(e) => setRegBankAccount(e.target.value)}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                        className="w-full border border-slate-200 bg-white font-mono rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Nama Pemilik</label>
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Atas Nama Bank</label>
                       <input
                         type="text"
-                        required
                         placeholder="Atas nama..."
                         value={regBankHolder}
                         onChange={(e) => setRegBankHolder(e.target.value)}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
+                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Section 4: Alamat Pengiriman Produk */}
+                <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <ShoppingBag className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">4. Alamat Pengiriman Produk Perdana</h4>
+                  </div>
+
                   <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Kata Sandi</label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="Buat kata sandi..."
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500"
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Alamat Lengkap (Jalan, RT/RW, No. Rumah, Kel/Kec)</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Masukkan alamat pengiriman..."
+                      value={regAddress}
+                      onChange={(e) => setRegAddress(e.target.value)}
+                      className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Ulangi Kata Sandi</label>
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Kota / Kabupaten & Provinsi</label>
                     <input
-                      type="password"
-                      required
-                      placeholder="Konfirmasi kata sandi..."
-                      value={regConfirmPassword}
-                      onChange={(e) => setRegConfirmPassword(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500"
+                      type="text"
+                      placeholder="Contoh: Jakarta Selatan, DKI Jakarta"
+                      value={regCity}
+                      onChange={(e) => setRegCity(e.target.value)}
+                      className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                     />
                   </div>
                 </div>
 
-                <div className="border-t border-slate-100 pt-3 space-y-3">
-                  <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Silsilah Penempatan Jaringan (Placement)</p>
+                {/* Section 5: Structure Placement */}
+                <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-blue-200/60 pb-2">
+                    <Users className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">5. Penempatan Tim Afiliasi (Placement)</h4>
+                  </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Username Sponsor (Pengajak)</label>
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Username Sponsor (Pengajak)</label>
                       <input
                         type="text"
                         placeholder="Admin (Bila dikosongkan)"
                         value={regSponsor}
                         onChange={(e) => setRegSponsor(e.target.value)}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono text-blue-600 bg-blue-50/20"
+                        className="w-full border border-blue-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono text-blue-600"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Username Upline (Atasan Langsung)</label>
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Username Upline (Atasan Langsung)</label>
                       <input
                         type="text"
                         placeholder="Admin (Bila dikosongkan)"
                         value={regUpline}
                         onChange={(e) => setRegUpline(e.target.value)}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono text-blue-600 bg-blue-50/20"
+                        className="w-full border border-blue-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono text-blue-600"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Posisi Kaki Binary</label>
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Posisi Tim / Kaki Jaringan</label>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         type="button"
                         id="reg-pos-left"
                         onClick={() => setRegPosition('L')}
-                        className={`py-2 px-3 border rounded-xl text-center text-xs font-extrabold transition ${
-                          regPosition === 'L' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                        className={`py-2 px-3 border rounded-xl text-center text-xs font-extrabold transition shadow-xs ${
+                          regPosition === 'L' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                         }`}
                       >
-                        👈 SISI KIRI (L)
+                        👈 TIM SISI KIRI (L)
                       </button>
                       <button
                         type="button"
                         id="reg-pos-right"
                         onClick={() => setRegPosition('R')}
-                        className={`py-2 px-3 border rounded-xl text-center text-xs font-extrabold transition ${
-                          regPosition === 'R' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                        className={`py-2 px-3 border rounded-xl text-center text-xs font-extrabold transition shadow-xs ${
+                          regPosition === 'R' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                         }`}
                       >
-                        SISI KANAN (R) 👉
+                        TIM SISI KANAN (R) 👉
                       </button>
                     </div>
                   </div>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[10px] text-slate-500 leading-relaxed">
-                  💡 <strong>Keterangan:</strong> Posisi menentukan di kaki mana Anda ditempatkan di bawah atasan (Upline) langsung Anda.
                 </div>
 
                 <button

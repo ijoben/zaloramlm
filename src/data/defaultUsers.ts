@@ -4,8 +4,8 @@ export const DEFAULT_USERS: MLMUser[] = [
   {
     id: 1,
     username: "admin",
-    fullname: "Administrator Zalora Denim",
-    email: "admin@zaloradenim.com",
+    fullname: "Administrator Hedtro Jeans",
+    email: "admin@hedtrojeans.com",
     phone: "081234567890",
     password: "admin",
     is_active: true,

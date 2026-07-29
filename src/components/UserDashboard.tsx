@@ -23,7 +23,18 @@ interface UserDashboardProps {
   onWithdraw: (amount: number, bank: string, accountNum: string, holder: string) => Promise<void>;
   onSimulatePayment: (depositId: number) => Promise<void>;
   onActivate: () => Promise<void>;
-  onUpdateProfile?: (data: { fullname: string; email: string; phone: string; password?: string }) => Promise<boolean>;
+  onUpdateProfile?: (data: { 
+    fullname: string; 
+    email: string; 
+    phone: string; 
+    whatsapp?: string;
+    bank_name?: string;
+    bank_account?: string;
+    bank_holder?: string;
+    address?: string;
+    city?: string;
+    password?: string 
+  }) => Promise<boolean>;
   onResetPassword?: (currentPass: string, newPass: string) => Promise<boolean>;
   serverUrl: string;
   settings?: any;
@@ -50,6 +61,7 @@ export default function UserDashboard({
   serverUrl,
   settings
 }: UserDashboardProps) {
+  const idPrefix = settings?.memberIdPrefix || 'HDT-';
   const [activeTab, setActiveTab] = useState<'overview' | 'tree' | 'shop' | 'finance' | 'referrals' | 'bonuses' | 'panduan' | 'profil'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
@@ -62,20 +74,53 @@ export default function UserDashboard({
   const [wdHolder, setWdHolder] = useState(user.fullname);
 
   // Profile and Password Form states
-  const [profileFullname, setProfileFullname] = useState(user.fullname);
-  const [profileEmail, setProfileEmail] = useState(user.email);
-  const [profilePhone, setProfilePhone] = useState(user.phone);
+  const [profileFullname, setProfileFullname] = useState(user.fullname || '');
+  const [profileEmail, setProfileEmail] = useState(user.email || '');
+  const [profilePhone, setProfilePhone] = useState(user.phone || '');
+  const [profileWhatsapp, setProfileWhatsapp] = useState(user.whatsapp || user.phone || '');
+  const [profileKtp, setProfileKtp] = useState(user.ktp || '');
+  const [profileBankName, setProfileBankName] = useState(user.bank_name || 'BCA');
+  const [profileBankAccount, setProfileBankAccount] = useState(user.bank_account || '');
+  const [profileBankHolder, setProfileBankHolder] = useState(user.bank_holder || user.fullname || '');
+  const [profileAddress, setProfileAddress] = useState(user.address || '');
+  const [profileCity, setProfileCity] = useState(user.city || '');
   const [profilePassword, setProfilePassword] = useState('');
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
+  // Calculate dynamic volume & member counts from binary tree structure to ensure DB connectivity
+  const getSubtreeStats = (node: BinaryTreeNode | null): { totalCount: number; activeSales: number } => {
+    if (!node) return { totalCount: 0, activeSales: 0 };
+    const leftStats = getSubtreeStats(node.left);
+    const rightStats = getSubtreeStats(node.right);
+    return {
+      totalCount: 1 + leftStats.totalCount + rightStats.totalCount,
+      activeSales: (node.is_active ? 1 : 0) + leftStats.activeSales + rightStats.activeSales
+    };
+  };
+
+  const leftSubtreeStats = binaryTree ? getSubtreeStats(binaryTree.left) : { totalCount: 0, activeSales: 0 };
+  const rightSubtreeStats = binaryTree ? getSubtreeStats(binaryTree.right) : { totalCount: 0, activeSales: 0 };
+
+  const displayLeftCount = Math.max(user.left_count || 0, leftSubtreeStats.totalCount);
+  const displayLeftSales = Math.max(user.left_sales || 0, leftSubtreeStats.activeSales);
+  const displayRightCount = Math.max(user.right_count || 0, rightSubtreeStats.totalCount);
+  const displayRightSales = Math.max(user.right_sales || 0, rightSubtreeStats.activeSales);
+
   // Sync profile fields when user prop updates
   React.useEffect(() => {
-    setProfileFullname(user.fullname);
-    setProfileEmail(user.email);
-    setProfilePhone(user.phone);
+    setProfileFullname(user.fullname || '');
+    setProfileEmail(user.email || '');
+    setProfilePhone(user.phone || '');
+    setProfileWhatsapp(user.whatsapp || user.phone || '');
+    setProfileKtp(user.ktp || '');
+    setProfileBankName(user.bank_name || 'BCA');
+    setProfileBankAccount(user.bank_account || '');
+    setProfileBankHolder(user.bank_holder || user.fullname || '');
+    setProfileAddress(user.address || '');
+    setProfileCity(user.city || '');
   }, [user]);
 
   // Tree focus state (allows drilling down the tree)
@@ -150,7 +195,7 @@ export default function UserDashboard({
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profileFullname || !profileEmail || !profilePhone) {
-      alert("Nama Lengkap, Email, dan No. WA harus diisi!");
+      alert("Nama Lengkap, Email, dan No. HP harus diisi!");
       return;
     }
     setLoadingAction(true);
@@ -161,6 +206,12 @@ export default function UserDashboard({
           fullname: profileFullname,
           email: profileEmail,
           phone: profilePhone,
+          whatsapp: profileWhatsapp,
+          bank_name: profileBankName,
+          bank_account: profileBankAccount,
+          bank_holder: profileBankHolder,
+          address: profileAddress,
+          city: profileCity,
           ...(profilePassword ? { password: profilePassword } : {})
         });
         setProfilePassword('');
@@ -174,6 +225,12 @@ export default function UserDashboard({
             fullname: profileFullname,
             email: profileEmail,
             phone: profilePhone,
+            whatsapp: profileWhatsapp,
+            bank_name: profileBankName,
+            bank_account: profileBankAccount,
+            bank_holder: profileBankHolder,
+            address: profileAddress,
+            city: profileCity,
             password: profilePassword
           })
         });
@@ -301,7 +358,7 @@ export default function UserDashboard({
             <img src={settings.logoUrl} alt={settings?.webName || "Logo"} className="h-8 max-w-[150px] object-contain shrink-0" />
           ) : (
             <div className="bg-[#C41230] text-white font-black font-display text-sm sm:text-base tracking-tighter px-3 py-1 rounded-b-md shadow-md uppercase border-t-2 border-red-800">
-              {settings?.logoText || "ZALORA® DENIM"}
+              {settings?.logoText || "HEDTRO.JEANS"}
             </div>
           )}
           <span className="hidden sm:inline-block text-xs font-black uppercase tracking-widest text-neutral-300">
@@ -313,7 +370,7 @@ export default function UserDashboard({
           <div className="hidden sm:flex items-center gap-2">
             <div className="text-right">
               <p className="text-xs font-bold text-neutral-100">{user.fullname}</p>
-              <p className="text-[10px] text-neutral-400 font-mono">ID: ZLR-{String(user.id).padStart(6, '0')} • @{user.username} • {user.is_active ? 'Member Premium' : 'Inactive'}</p>
+              <p className="text-[10px] text-neutral-400 font-mono">ID: {idPrefix}{String(user.id).padStart(6, '0')} • @{user.username} • {user.is_active ? 'Member Premium' : 'Inactive'}</p>
             </div>
           </div>
           <button 
@@ -356,7 +413,7 @@ export default function UserDashboard({
                     <img src={settings.logoUrl} alt={settings?.webName || "Logo"} className="h-8 max-w-[160px] object-contain shrink-0" />
                   ) : (
                     <span className="text-lg font-display font-black tracking-tight text-white">
-                      {settings?.logoText || "ZALORA"}<span className="text-blue-500 font-light">.PORTAL</span>
+                      {settings?.logoText || "HEDTRO"}<span className="text-blue-500 font-light">.PORTAL</span>
                     </span>
                   )}
                 </div>
@@ -376,7 +433,7 @@ export default function UserDashboard({
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-white truncate">{user.fullname}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5 truncate font-mono">
-                    ID: ZLR-{String(user.id).padStart(6, '0')} • @{user.username}
+                    ID: {idPrefix}{String(user.id).padStart(6, '0')} • @{user.username}
                   </p>
                   <span className="text-[9px] font-bold text-blue-400 block mt-0.5">
                     {user.is_active ? 'Member Premium Active' : 'Lisensi Belum Aktif'}
@@ -563,7 +620,7 @@ export default function UserDashboard({
                 <p className="text-xs text-slate-400 font-medium">@{user.username}</p>
                 <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-mono font-extrabold text-slate-700">
                   <span>ID:</span>
-                  <span className="text-blue-600">ZLR-{String(user.id).padStart(6, '0')}</span>
+                  <span className="text-blue-600">{idPrefix}{String(user.id).padStart(6, '0')}</span>
                 </div>
               </div>
             </div>
@@ -573,11 +630,11 @@ export default function UserDashboard({
               <div className="bg-green-50/60 border border-green-100 text-green-800 rounded-xl p-3.5 flex items-start gap-2.5">
                 <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
                 <div className="text-xs leading-normal font-medium">
-                  <span className="font-extrabold block text-green-950 text-sm">Member Premium</span>
+                  <span className="font-extrabold block text-green-950 text-sm">Member Premium Active</span>
                   <span className="inline-block my-1 px-2 py-0.5 rounded bg-green-200/60 text-green-900 font-mono font-bold text-[10px] border border-green-300/50">
-                    ID MEMBER: ZLR-{String(user.id).padStart(6, '0')}
+                    ID MEMBER: {idPrefix}{String(user.id).padStart(6, '0')}
                   </span>
-                  <p className="text-[11px] text-green-800/90 mt-0.5">Level Jaringan Binary Terbuka!</p>
+                  <p className="text-[11px] text-green-800/90 mt-0.5 font-semibold">Status Afiliasi Reseller Terverifikasi!</p>
                 </div>
               </div>
             ) : (
@@ -585,11 +642,11 @@ export default function UserDashboard({
                 <div className="flex items-start gap-2">
                   <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-xs leading-normal font-medium">
-                    <span className="font-extrabold block text-amber-950 text-sm">Lisensi Tidak Aktif</span>
+                    <span className="font-extrabold block text-amber-950 text-sm">Lisensi Belum Aktif</span>
                     <span className="inline-block my-1 px-2 py-0.5 rounded bg-amber-200/60 text-amber-900 font-mono font-bold text-[10px] border border-amber-300/50">
-                      ID MEMBER: ZLR-{String(user.id).padStart(6, '0')}
+                      ID MEMBER: {idPrefix}{String(user.id).padStart(6, '0')}
                     </span>
-                    <p className="text-[11px] text-amber-800/90 mt-0.5">Wajib aktifasi Rp 550.000 untuk bonus jaringan & belanja.</p>
+                    <p className="text-[11px] text-amber-800/90 mt-0.5">Wajib aktifasi Rp 550.000 untuk bonus komisi & belanja.</p>
                   </div>
                 </div>
                 <button
@@ -785,67 +842,72 @@ export default function UserDashboard({
                     </button>
                   </div>
                 </div>
- 
+
                 {/* Left & Right Legs Sales */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.01)] flex flex-col justify-between">
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between hover:shadow-md transition">
                   <div className="flex justify-between items-start">
                     <div>
-                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Omset Volume Grup</span>
-                      <div className="flex gap-4 mt-2">
-                        <div>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase">Kiri (Left)</p>
-                          <p className="text-lg font-display font-bold text-slate-850">{user.left_sales} pt</p>
-                          <p className="text-[10px] text-slate-400">({user.left_count} member)</p>
+                      <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block">Omset Volume Grup</span>
+                      <div className="flex gap-4 mt-3">
+                        <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex-1">
+                          <p className="text-[9px] text-blue-600 font-extrabold uppercase">👈 Tim Kiri</p>
+                          <p className="text-xl font-black text-slate-900 mt-0.5">{displayLeftSales} pt</p>
+                          <p className="text-[10px] text-slate-500 font-medium">{displayLeftCount} member</p>
                         </div>
-                        <div className="border-l border-slate-200 pl-4">
-                          <p className="text-[9px] text-slate-400 font-bold uppercase">Kanan (Right)</p>
-                          <p className="text-lg font-display font-bold text-slate-850">{user.right_sales} pt</p>
-                          <p className="text-[10px] text-slate-400">({user.right_count} member)</p>
+                        <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex-1">
+                          <p className="text-[9px] text-blue-600 font-extrabold uppercase">Tim Kanan 👉</p>
+                          <p className="text-xl font-black text-slate-900 mt-0.5">{displayRightSales} pt</p>
+                          <p className="text-[10px] text-slate-500 font-medium">{displayRightCount} member</p>
                         </div>
                       </div>
                     </div>
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl shrink-0">
                       <TreePine className="w-5 h-5" />
                     </div>
                   </div>
-                  <div className="border-t border-slate-100 pt-3 mt-4 text-[10px] text-slate-400 font-medium leading-relaxed">
-                    Setiap pendaftaran dan aktifasi member baru menambahkan 1 pt omset kaki.
+                  <div className="border-t border-slate-100 pt-3 mt-4 text-[10px] text-slate-500 font-medium leading-relaxed flex items-center justify-between">
+                    <span>Aktivasi member tim baru menambah +1 pt omset.</span>
+                    <span className="inline-flex items-center gap-1 font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[9px]">
+                      ● Terhubung DB
+                    </span>
                   </div>
                 </div>
- 
+
                 {/* Total Bonus Accumulated */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.01)] flex flex-col justify-between">
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between hover:shadow-md transition">
                   <div className="flex justify-between items-start">
                     <div>
-                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Total Bonus MLM</span>
-                      <h3 className="text-2xl font-display font-bold text-slate-900 mt-1">
-                        Rp {(user.sponsor_bonus + user.pairing_bonus + user.level_bonus + user.ro_bonus).toLocaleString()}
+                      <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block">Total Komisi Afiliasi</span>
+                      <h3 className="text-2xl font-black text-slate-900 mt-1">
+                        Rp {(user.sponsor_bonus + user.pairing_bonus + user.level_bonus + user.ro_bonus).toLocaleString('id-ID')}
                       </h3>
                     </div>
-                    <div className="p-3 bg-green-50 text-green-600 rounded-xl">
+                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                       <TrendingUp className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100 text-[10px]">
                     <div>
-                      <span className="text-slate-400">Sponsor:</span>
-                      <p className="font-extrabold text-slate-700">Rp {user.sponsor_bonus.toLocaleString()}</p>
+                      <span className="text-slate-500 font-semibold">Sponsor:</span>
+                      <p className="font-black text-slate-800">Rp {user.sponsor_bonus.toLocaleString('id-ID')}</p>
                     </div>
                     <div>
-                      <span className="text-slate-400">Pairing:</span>
-                      <p className="font-extrabold text-slate-700">Rp {user.pairing_bonus.toLocaleString()}</p>
+                      <span className="text-slate-500 font-semibold">Pasangan:</span>
+                      <p className="font-black text-slate-800">Rp {user.pairing_bonus.toLocaleString('id-ID')}</p>
                     </div>
                     <div>
-                      <span className="text-slate-400">Generasi:</span>
-                      <p className="font-extrabold text-slate-700">Rp {user.level_bonus.toLocaleString()}</p>
+                      <span className="text-slate-500 font-semibold">Generasi:</span>
+                      <p className="font-black text-slate-800">Rp {user.level_bonus.toLocaleString('id-ID')}</p>
                     </div>
                     <div>
-                      <span className="text-slate-400">RO Bonus:</span>
-                      <p className="font-extrabold text-slate-700">Rp {user.ro_bonus.toLocaleString()}</p>
+                      <span className="text-slate-500 font-semibold">RO Bonus:</span>
+                      <p className="font-black text-slate-800">Rp {user.ro_bonus.toLocaleString('id-ID')}</p>
                     </div>
                   </div>
                 </div>
-              </div>              {/* Notification Box & Referral summary */}
+              </div>
+
+              {/* Notification Box & Referral summary */}
               <div className="grid grid-cols-1 gap-6">
                  
                 {/* Real-time Notifications */}
@@ -1474,9 +1536,9 @@ export default function UserDashboard({
                   <div className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 text-[10px] font-extrabold px-3 py-1 rounded-full border border-amber-500/30 uppercase tracking-widest mb-1">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Paket Pendaftaran Hak Usaha Member
                   </div>
-                  <h3 className="text-lg font-extrabold text-white">Gratis 1 Produk Paket Perdana Zalora Denim (Senilai Rp 550.000)</h3>
+                  <h3 className="text-lg font-extrabold text-white">Gratis 1 Produk Paket Perdana HEDTRO JEANS (Senilai Rp 550.000)</h3>
                   <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
-                    Saat Anda mendaftar & melakukan pembayaran pendaftaran Rp 550.000, Anda berhak memperoleh <strong>1x Produk Perdana Celana Jeans Zalora Denim (Senilai Rp 550.000)</strong> secara gratis! Seluruh produk di katalog toko di bawah difungsikan untuk <strong>Repeat Order (RO)</strong>.
+                    Saat Anda mendaftar & melakukan pembayaran pendaftaran Rp 550.000, Anda berhak memperoleh <strong>1x Produk Perdana Celana Jeans HEDTRO JEANS (Senilai Rp 550.000)</strong> secara gratis! Seluruh produk di katalog toko di bawah difungsikan untuk <strong>Repeat Order (RO)</strong>.
                   </p>
                 </div>
                 <div className="shrink-0 bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/20 text-center space-y-1 w-full md:w-auto">
@@ -1888,26 +1950,50 @@ export default function UserDashboard({
                   </h4>
                   
                   <form onSubmit={handleProfileSubmit} className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">ID / Username</label>
-                      <input
-                        type="text"
-                        disabled
-                        value={user.username}
-                        className="w-full text-xs font-mono bg-slate-50 border border-slate-200 text-slate-500 rounded-xl px-4 py-3 cursor-not-allowed"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">ID Member</label>
+                        <input
+                          type="text"
+                          disabled
+                          value={`${idPrefix}${String(user.id).padStart(6, '0')}`}
+                          className="w-full text-xs font-mono font-bold bg-slate-50 border border-slate-200 text-blue-600 rounded-xl px-4 py-2.5 cursor-not-allowed"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Username</label>
+                        <input
+                          type="text"
+                          disabled
+                          value={`@${user.username}`}
+                          className="w-full text-xs font-mono bg-slate-50 border border-slate-200 text-slate-500 rounded-xl px-4 py-2.5 cursor-not-allowed"
+                        />
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Nama Lengkap</label>
-                      <input
-                        type="text"
-                        required
-                        value={profileFullname}
-                        onChange={(e) => setProfileFullname(e.target.value)}
-                        placeholder="Masukkan nama lengkap Anda"
-                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Nama Lengkap (Sesuai KTP)</label>
+                        <input
+                          type="text"
+                          required
+                          value={profileFullname}
+                          onChange={(e) => setProfileFullname(e.target.value)}
+                          placeholder="Masukkan nama lengkap Anda"
+                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Nomor KTP / NIK (16 Digit)</label>
+                        <input
+                          type="text"
+                          disabled
+                          value={profileKtp || "Belum diisi"}
+                          className="w-full text-xs font-mono bg-slate-50 border border-slate-200 text-slate-500 rounded-xl px-4 py-2.5 cursor-not-allowed"
+                        />
+                      </div>
                     </div>
 
                     <div className="space-y-1">
@@ -1918,20 +2004,105 @@ export default function UserDashboard({
                         value={profileEmail}
                         onChange={(e) => setProfileEmail(e.target.value)}
                         placeholder="nama@email.com"
-                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">No. WhatsApp / WA</label>
-                      <input
-                        type="text"
-                        required
-                        value={profilePhone}
-                        onChange={(e) => setProfilePhone(e.target.value)}
-                        placeholder="Contoh: 0812345678"
-                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">No. HP / Telepon</label>
+                        <input
+                          type="text"
+                          required
+                          value={profilePhone}
+                          onChange={(e) => setProfilePhone(e.target.value)}
+                          placeholder="Contoh: 0812345678"
+                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">No. WhatsApp Aktif</label>
+                        <input
+                          type="text"
+                          required
+                          value={profileWhatsapp}
+                          onChange={(e) => setProfileWhatsapp(e.target.value)}
+                          placeholder="Contoh: 0812345678"
+                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-3 space-y-3">
+                      <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Rekening Bank Pencairan Komisi</p>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold text-slate-400 uppercase block">Nama Bank</label>
+                          <select
+                            value={profileBankName}
+                            onChange={(e) => setProfileBankName(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          >
+                            <option value="BCA">BCA</option>
+                            <option value="MANDIRI">MANDIRI</option>
+                            <option value="BRI">BRI</option>
+                            <option value="BNI">BNI</option>
+                            <option value="BSI">BSI</option>
+                            <option value="CIMB">CIMB NIAGA</option>
+                            <option value="DANA">DANA / OVO</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold text-slate-400 uppercase block">No. Rekening</label>
+                          <input
+                            type="text"
+                            value={profileBankAccount}
+                            onChange={(e) => setProfileBankAccount(e.target.value)}
+                            placeholder="1234567890"
+                            className="w-full text-xs font-mono bg-white border border-slate-200 text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold text-slate-400 uppercase block">Atas Nama Bank</label>
+                          <input
+                            type="text"
+                            value={profileBankHolder}
+                            onChange={(e) => setProfileBankHolder(e.target.value)}
+                            placeholder="Atas nama..."
+                            className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-3 space-y-3">
+                      <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Alamat Pengiriman Produk</p>
+                      
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-extrabold text-slate-400 uppercase block">Alamat Lengkap (Jalan, RT/RW, No. Rumah, Kel/Kec)</label>
+                        <textarea
+                          rows={2}
+                          value={profileAddress}
+                          onChange={(e) => setProfileAddress(e.target.value)}
+                          placeholder="Masukkan alamat lengkap pengiriman..."
+                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-extrabold text-slate-400 uppercase block">Kota / Kabupaten & Provinsi</label>
+                        <input
+                          type="text"
+                          value={profileCity}
+                          onChange={(e) => setProfileCity(e.target.value)}
+                          placeholder="Contoh: Jakarta Selatan, DKI Jakarta"
+                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                      </div>
                     </div>
 
                     <button

@@ -23,9 +23,12 @@ export interface MLMUser {
   firebase_uid?: string;
   ktp?: string;
   whatsapp?: string;
+  address?: string;
+  city?: string;
   bank_name?: string;
   bank_account?: string;
   bank_holder?: string;
+  wishlist?: number[];
 }
 
 export interface Product {
@@ -93,6 +96,7 @@ export interface BinaryTreeNode {
 }
 
 export interface SystemSettings {
+  memberIdPrefix?: string;
   sponsorBonus?: number;
   pairingBonus?: number;
   levelBonusG1?: number;
@@ -116,4 +120,19 @@ export interface SystemSettings {
   iconUrl?: string;
   slogan?: string;
   siteDescription?: string;
+  // Landing Page CMS content fields
+  heroBadge?: string;
+  heroTitle?: string;
+  heroSubtitle?: string;
+  heroCtaText?: string;
+  promoTitle?: string;
+  promoSubtitle?: string;
+  featuresTitle?: string;
+  featuresSubtitle?: string;
+  aboutTitle?: string;
+  aboutContent?: string;
+  catalogTitle?: string;
+  catalogSubtitle?: string;
+  faqTitle?: string;
+  footerAbout?: string;
 }

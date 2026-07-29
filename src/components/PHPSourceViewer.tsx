@@ -55,7 +55,7 @@ export default function PHPSourceViewer() {
       const blob = await zip.generateAsync({ type: "blob" });
       const element = document.createElement("a");
       element.href = URL.createObjectURL(blob);
-      element.download = "zalora-denim-mlm-php-hosting.zip";
+      element.download = "hedtro-jeans-afiliasi-php-hosting.zip";
       document.body.appendChild(element);
       element.click();
       document.body.removeChild(element);

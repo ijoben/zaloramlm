@@ -42,7 +42,24 @@ export default function LandingPage({
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all"); // 'all' | 'pria' | 'wanita' | 'aksesoris' | 'diskon'
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [wishlist, setWishlist] = useState<number[]>([]);
+  const [wishlist, setWishlist] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem("hedtro_wishlist");
+      if (saved) return JSON.parse(saved);
+      return [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Persist Wishlist to LocalStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("hedtro_wishlist", JSON.stringify(wishlist));
+    } catch (err) {
+      console.error(err);
+    }
+  }, [wishlist]);
   
   // Ref for product carousel horizontal scrolling
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -58,7 +75,7 @@ export default function LandingPage({
   // Update Document Title & Favicon dynamically if settings change
   useEffect(() => {
     if (settings?.webName || settings?.slogan) {
-      document.title = `${settings.webName || 'Zalora Denim Official Store'} - ${settings.slogan || 'Premium Jeans & MLM System'}`;
+      document.title = `${settings.webName || 'Hedtro Jeans Official Store'} - ${settings.slogan || 'Premium Jeans & Reseller System'}`;
     }
     if (settings?.iconUrl) {
       let favicon = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
@@ -74,11 +91,11 @@ export default function LandingPage({
   const slides = [
     {
       id: 1,
-      title: "501® ORIGINAL DENIM",
-      subtitle: "IKONIK SEJAK 1873. POTONGAN LURUS DENGAN RAW DENIM 14OZ PREMUM.",
+      title: settings?.heroTitle || "501® ORIGINAL DENIM",
+      subtitle: settings?.heroSubtitle || "IKONIK SEJAK 1873. POTONGAN LURUS DENGAN RAW DENIM 14OZ PREMUM.",
       image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1600&auto=format&fit=crop",
-      badge: "KOLEKSI IKONIK",
-      cta: "BELANJA KOLEKSI 501®",
+      badge: settings?.heroBadge || "KOLEKSI IKONIK",
+      cta: settings?.heroCtaText || "BELANJA KOLEKSI 501®",
       categoryTarget: "pria"
     },
     {
@@ -109,9 +126,9 @@ export default function LandingPage({
     return () => clearInterval(timer);
   }, [slides.length]);
 
-  const webName = settings?.webName || "Levi's® Zalora Official Store";
+  const webName = settings?.webName || "Hedtro Jeans Official Store";
   const phone = settings?.contactPhone || "081234567890";
-  const email = settings?.contactEmail || "support@zaloradenim.com";
+  const email = settings?.contactEmail || "support@hedtrojeans.com";
 
   // Helper to categorize products
   const categorizeProduct = (p: Product) => {
@@ -240,7 +257,7 @@ export default function LandingPage({
       invoice: cleanInput,
       status: "DALAM PENGIRIMAN",
       courier: "JNE REGULER (003482194021)",
-      origin: "Gudang Utama Levi's® Zalora Jakarta",
+      origin: "Gudang Utama Hedtro Jeans Jakarta",
       destination: "Penerima (Sesuai Alamat Pemesan)",
       date: new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }),
       steps: [
@@ -255,23 +272,25 @@ export default function LandingPage({
   return (
     <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 font-sans selection:bg-[#C41230] selection:text-white overflow-x-hidden w-full" id="store-landing-root">
       
-      {/* 1. Top Announcement Bar */}
-      <div className="bg-[#111111] text-white text-[10px] sm:text-[11px] font-bold tracking-widest uppercase py-2.5 px-4 border-b border-neutral-800 flex items-center justify-start sm:justify-center gap-6 w-full overflow-x-auto whitespace-nowrap scrollbar-none">
-        <span className="flex items-center gap-1.5 text-neutral-300 shrink-0">
-          <Truck className="w-3.5 h-3.5 text-[#C41230]" /> FREE ONGKIR SELURUH INDONESIA
-        </span>
-        <span className="text-neutral-600 shrink-0">•</span>
-        <span className="text-neutral-300 shrink-0">
-          BAYAR DI TEMPAT (COD) TERSEDIA
-        </span>
-        <span className="text-neutral-600 shrink-0">•</span>
-        <span className="bg-[#C41230] text-white px-2.5 py-0.5 font-black text-[9px] tracking-wider uppercase rounded-xs shrink-0">
-          DISKON MEMBER RP 100.000/PCS
-        </span>
-      </div>
+      {/* Top Bar + Sticky Main Header Container */}
+      <div className="sticky top-0 z-50 w-full bg-white shadow-md">
+        {/* 1. Top Announcement Bar */}
+        <div className="bg-[#111111] text-white text-[10px] sm:text-[11px] font-bold tracking-widest uppercase py-2 px-4 border-b border-neutral-800 flex items-center justify-start sm:justify-center gap-6 w-full overflow-x-auto whitespace-nowrap scrollbar-none">
+          <span className="flex items-center gap-1.5 text-neutral-300 shrink-0">
+            <Truck className="w-3.5 h-3.5 text-[#C41230]" /> FREE ONGKIR SELURUH INDONESIA
+          </span>
+          <span className="text-neutral-600 shrink-0">•</span>
+          <span className="text-neutral-300 shrink-0">
+            BAYAR DI TEMPAT (COD) TERSEDIA
+          </span>
+          <span className="text-neutral-600 shrink-0">•</span>
+          <span className="bg-[#C41230] text-white px-2.5 py-0.5 font-black text-[9px] tracking-wider uppercase rounded-xs shrink-0">
+            DISKON MEMBER RP 100.000/PCS
+          </span>
+        </div>
 
-      {/* 2. Main E-Commerce Header Navigation */}
-      <header className="bg-white border-b border-neutral-200 sticky top-0 z-40 shadow-xs w-full" id="main-header">
+        {/* 2. Main E-Commerce Header Navigation */}
+        <header className="bg-white border-b border-neutral-200 w-full" id="main-header">
         <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-1 sm:gap-4">
           
           {/* Brand Logo - Strictly Left Aligned in PC mode */}
@@ -285,15 +304,15 @@ export default function LandingPage({
                 />
               ) : (
                 <div className="bg-[#C41230] text-white font-black font-display text-xs sm:text-2xl tracking-tighter px-2 sm:px-4 py-1 sm:py-1.5 rounded-b-md shadow-md uppercase border-t-2 border-red-800 shrink-0 text-left">
-                  {settings?.logoText || "ZALORA® DENIM"}
+                  {settings?.logoText || "HEDTRO.JEANS"}
                 </div>
               )}
               <div className="hidden md:flex flex-col text-left items-start justify-start">
                 <span className="text-[11px] font-black tracking-widest uppercase text-neutral-800 leading-tight text-left">
-                  {settings?.webName || "ZALORA DENIM OFFICIAL"}
+                  {settings?.webName || "HEDTRO JEANS OFFICIAL"}
                 </span>
                 <span className="text-[9px] text-[#C41230] font-bold tracking-wider uppercase text-left">
-                  {settings?.slogan || "OFFICIAL STORE & MLM BINARY PREMIER"}
+                  {settings?.slogan || "OFFICIAL STORE & AFILIASI RESELLER"}
                 </span>
               </div>
             </a>
@@ -481,6 +500,7 @@ export default function LandingPage({
           </div>
         )}
       </header>
+      </div>
 
       {/* 3. Slide Utama (Hero Carousel Slider) */}
       <section className="relative bg-neutral-900 text-white overflow-hidden border-b-4 border-[#C41230]" id="hero-slider">
@@ -707,10 +727,10 @@ export default function LandingPage({
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6 border-b border-neutral-200 pb-6">
           <div className="space-y-1">
             <span className="text-[10px] font-black tracking-widest text-[#C41230] uppercase">
-              LEVI'S® ZALORA CATALOGUE
+              {settings?.catalogSubtitle || "HEDTRO JEANS CATALOGUE"}
             </span>
             <h2 className="text-2xl sm:text-3xl font-black font-display text-neutral-900 uppercase tracking-tight">
-              PRODUK BARU & KOLEKSI EKSKLUSIF
+              {settings?.catalogTitle || "PRODUK BARU & KOLEKSI EKSKLUSIF"}
             </h2>
           </div>
 
@@ -870,7 +890,7 @@ export default function LandingPage({
             )}
 
             <p className="text-xs text-neutral-600 leading-relaxed mb-6">
-              Sesuai peraturan sistem Zalora Denim, produk berkualitas ini <strong>hanya dapat dibeli oleh Member Terdaftar & Bayar Lisensi (Rp 550.000)</strong>. 
+              Sesuai peraturan sistem Hedtro Jeans, produk berkualitas ini <strong>hanya dapat dibeli oleh Member Terdaftar & Bayar Lisensi (Rp 550.000)</strong>. 
               Silakan Masuk ke akun anda atau lakukan Pendaftaran Member Baru.
             </p>
 
@@ -1184,11 +1204,11 @@ export default function LandingPage({
                 <img src={settings.logoUrl} alt={settings?.webName || "Logo"} className="h-10 object-contain" />
               ) : (
                 <div className="bg-[#C41230] text-white font-black font-display text-lg tracking-tighter px-3 py-1 inline-block uppercase">
-                  {settings?.logoText || "ZALORA® DENIM"}
+                  {settings?.logoText || "HEDTRO.JEANS"}
                 </div>
               )}
               <p className="text-neutral-400 leading-relaxed text-left">
-                {settings?.siteDescription || "Platform belanja online resmi celana jeans Zalora Denim dengan koleksi otentik 100% cotton raw denim."}
+                {settings?.siteDescription || "Platform belanja online resmi celana jeans Hedtro Jeans dengan koleksi otentik 100% cotton raw denim."}
               </p>
             </div>
 

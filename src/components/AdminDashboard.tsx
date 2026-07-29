@@ -4,7 +4,7 @@ import {
   Shield, Users, DollarSign, Package, TrendingUp, HelpCircle, 
   CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, 
   ArrowUpRight, ArrowDownLeft, RefreshCw, BarChart2, Search, Percent,
-  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock, LogOut, Upload, Trash2, Eye
+  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock, LogOut, Upload, Trash2, Eye, Sparkles
 } from "lucide-react";
 
 interface AdminDashboardProps {
@@ -32,7 +32,18 @@ interface AdminDashboardProps {
   onProcessWithdrawal: (wdId: number, action: 'approve' | 'reject') => Promise<void>;
   onProcessDeposit?: (depositId: number, action: 'approve' | 'reject') => Promise<void>;
   onAddProduct?: (prodData: Omit<Product, "id">) => Promise<boolean>;
-  onUpdateProfile?: (data: { fullname: string; email: string; phone: string; password?: string }) => Promise<boolean>;
+  onUpdateProfile?: (data: { 
+    fullname: string; 
+    email: string; 
+    phone: string; 
+    whatsapp?: string;
+    bank_name?: string;
+    bank_account?: string;
+    bank_holder?: string;
+    address?: string;
+    city?: string;
+    password?: string 
+  }) => Promise<boolean>;
   onResetPassword?: (currentPass: string, newPass: string) => Promise<boolean>;
   onToggleAutoPayout: (autoPayout: boolean) => Promise<void>;
   settings?: any;
@@ -63,7 +74,7 @@ export default function AdminDashboard({
   onUpdateSettings,
   onRefreshProducts
 }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'settings' | 'profil'>('financials');
+  const [activeTab, setActiveTab] = useState<'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'settings' | 'landing-editor' | 'profil'>('financials');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Product edit & modal states
@@ -80,17 +91,34 @@ export default function AdminDashboard({
   const [message, setMessage] = useState({ text: '', type: '' });
 
   // Web and MLM configuration states
-  const [formWebName, setFormWebName] = useState(settings?.webName || '');
-  const [formLogoText, setFormLogoText] = useState(settings?.logoText || '');
+  const [formWebName, setFormWebName] = useState(settings?.webName || 'Hedtro Jeans Official');
+  const [formLogoText, setFormLogoText] = useState(settings?.logoText || 'HEDTRO.JEANS');
+  const [formMemberIdPrefix, setFormMemberIdPrefix] = useState(settings?.memberIdPrefix || 'HDT-');
   const [formLogoUrl, setFormLogoUrl] = useState(settings?.logoUrl || '');
   const [formIconUrl, setFormIconUrl] = useState(settings?.iconUrl || '');
-  const [formSlogan, setFormSlogan] = useState(settings?.slogan || 'OFFICIAL STORE & MLM BINARY PREMIER');
-  const [formSiteDescription, setFormSiteDescription] = useState(settings?.siteDescription || 'Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis MLM Binary 10 Level Terpercaya.');
+  const [formSlogan, setFormSlogan] = useState(settings?.slogan || 'OFFICIAL STORE & AFILIASI RESELLER');
+  const [formSiteDescription, setFormSiteDescription] = useState(settings?.siteDescription || 'Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis Afiliasi Reseller Terpercaya.');
   const [formEnableMlmBonus, setFormEnableMlmBonus] = useState(settings?.enableMlmBonus ?? true);
   const [formEnableLevelBonus, setFormEnableLevelBonus] = useState(settings?.enableLevelBonus ?? true);
   const [formEnableRewardBonus, setFormEnableRewardBonus] = useState(settings?.enableRewardBonus ?? true);
   const [formContactPhone, setFormContactPhone] = useState(settings?.contactPhone || '');
   const [formContactEmail, setFormContactEmail] = useState(settings?.contactEmail || '');
+
+  // Landing Page CMS Content states
+  const [formHeroBadge, setFormHeroBadge] = useState(settings?.heroBadge || 'PORTAL MEMBER & RESELLER RESMI');
+  const [formHeroTitle, setFormHeroTitle] = useState(settings?.heroTitle || 'Celana Jeans Premium HEDTRO JEANS Dengan System Afiliasi Terbaik');
+  const [formHeroSubtitle, setFormHeroSubtitle] = useState(settings?.heroSubtitle || 'Dapatkan komisi sponsor, komisi pasangan, bonus kedalaman level generasi, dan repeat order secara otomatis dengan bergabung sebagai member resmi.');
+  const [formHeroCtaText, setFormHeroCtaText] = useState(settings?.heroCtaText || 'DAFTAR SEKARANG - RP 550.000');
+  const [formPromoTitle, setFormPromoTitle] = useState(settings?.promoTitle || 'Daftar Member Rp 550.000, Gratis 1 Pcs Jeans Perdana!');
+  const [formPromoSubtitle, setFormPromoSubtitle] = useState(settings?.promoSubtitle || 'Tanpa biaya tersembunyi. Langsung dapat produk jeans kualitas export senilai Rp 550.000 dan akun portal afiliasi aktif.');
+  const [formFeaturesTitle, setFormFeaturesTitle] = useState(settings?.featuresTitle || 'Keunggulan Sistem Afiliasi Hedtro Jeans');
+  const [formFeaturesSubtitle, setFormFeaturesSubtitle] = useState(settings?.featuresSubtitle || 'Didesain transparan, cepat, dan menguntungkan untuk seluruh reseller dan jaringan member.');
+  const [formAboutTitle, setFormAboutTitle] = useState(settings?.aboutTitle || 'Mengapa Bergabung Dengan HEDTRO JEANS?');
+  const [formAboutContent, setFormAboutContent] = useState(settings?.aboutContent || 'Kami memproduksi celana jeans denim kualitas terbaik dengan bahan premium stretch comfort dan jahitan presisi standar ekspor.');
+  const [formCatalogTitle, setFormCatalogTitle] = useState(settings?.catalogTitle || 'Katalog Produk Pilihan Hedtro Jeans');
+  const [formCatalogSubtitle, setFormCatalogSubtitle] = useState(settings?.catalogSubtitle || 'Produk fashion jeans pria & wanita paling laris untuk Repeat Order (RO).');
+  const [formFaqTitle, setFormFaqTitle] = useState(settings?.faqTitle || 'Pertanyaan Yang Sering Diajukan (FAQ)');
+  const [formFooterAbout, setFormFooterAbout] = useState(settings?.footerAbout || 'Hedtro Jeans adalah brand fashion jeans lokal kualitas premium yang mengusung sistem bisnis afiliasi dan reseller berjenjang secara adil dan transparan.');
 
   const [formSponsorBonus, setFormSponsorBonus] = useState(settings?.sponsorBonus || 20000);
   const [formPairingBonus, setFormPairingBonus] = useState(settings?.pairingBonus || 10000);
@@ -120,17 +148,17 @@ export default function AdminDashboard({
   // Email Notification configuration states
   const [formEmailNotifAdminActive, setFormEmailNotifAdminActive] = useState(settings?.emailNotifRegisterAdminActive ?? true);
   const [formEmailNotifSponsorActive, setFormEmailNotifSponsorActive] = useState(settings?.emailNotifRegisterSponsorActive ?? true);
-  const [formAdminNotifEmail, setFormAdminNotifEmail] = useState(settings?.adminNotifEmail || 'admin@zaloradenim.com');
+  const [formAdminNotifEmail, setFormAdminNotifEmail] = useState(settings?.adminNotifEmail || 'admin@hedtrojeans.com');
   const [formSmtpHost, setFormSmtpHost] = useState(settings?.smtpHost || 'smtp.gmail.com');
   const [formSmtpPort, setFormSmtpPort] = useState(settings?.smtpPort || 587);
-  const [formSmtpUser, setFormSmtpUser] = useState(settings?.smtpUser || 'notifikasi@zaloradenim.com');
+  const [formSmtpUser, setFormSmtpUser] = useState(settings?.smtpUser || 'notifikasi@hedtrojeans.com');
   const [formSmtpPass, setFormSmtpPass] = useState(settings?.smtpPass || 'app-password-1234');
-  const [formEmailSenderName, setFormEmailSenderName] = useState(settings?.emailSenderName || 'Zalora Denim Premium MLM');
+  const [formEmailSenderName, setFormEmailSenderName] = useState(settings?.emailSenderName || 'Hedtro Jeans Official');
   const [formWelcomeEmailTemplate, setFormWelcomeEmailTemplate] = useState(settings?.welcomeEmailTemplate || '');
 
   // Admin Profile & Password Form states
   const [profileFullname, setProfileFullname] = useState(user?.fullname || 'Admin Utama');
-  const [profileEmail, setProfileEmail] = useState(user?.email || 'admin@zaloradenim.com');
+  const [profileEmail, setProfileEmail] = useState(user?.email || 'admin@hedtrojeans.com');
   const [profilePhone, setProfilePhone] = useState(user?.phone || '081234567890');
   const [profilePassword, setProfilePassword] = useState('');
 
@@ -185,13 +213,28 @@ export default function AdminDashboard({
 
       setFormEmailNotifAdminActive(settings.emailNotifRegisterAdminActive ?? true);
       setFormEmailNotifSponsorActive(settings.emailNotifRegisterSponsorActive ?? true);
-      setFormAdminNotifEmail(settings.adminNotifEmail || 'admin@zaloradenim.com');
+      setFormAdminNotifEmail(settings.adminNotifEmail || 'admin@hedtrojeans.com');
       setFormSmtpHost(settings.smtpHost || 'smtp.gmail.com');
       setFormSmtpPort(settings.smtpPort ?? 587);
-      setFormSmtpUser(settings.smtpUser || 'notifikasi@zaloradenim.com');
+      setFormSmtpUser(settings.smtpUser || 'notifikasi@hedtrojeans.com');
       setFormSmtpPass(settings.smtpPass || 'app-password-1234');
-      setFormEmailSenderName(settings.emailSenderName || 'Zalora Denim Premium MLM');
+      setFormEmailSenderName(settings.emailSenderName || 'HEDTRO JEANS Official');
       setFormWelcomeEmailTemplate(settings.welcomeEmailTemplate || '');
+
+      setFormHeroBadge(settings.heroBadge || 'PORTAL MEMBER & RESELLER RESMI');
+      setFormHeroTitle(settings.heroTitle || 'Celana Jeans Premium HEDTRO JEANS Dengan System Afiliasi Terbaik');
+      setFormHeroSubtitle(settings.heroSubtitle || 'Dapatkan komisi sponsor, komisi pasangan, bonus kedalaman level generasi, dan repeat order secara otomatis dengan bergabung sebagai member resmi.');
+      setFormHeroCtaText(settings.heroCtaText || 'DAFTAR SEKARANG - RP 550.000');
+      setFormPromoTitle(settings.promoTitle || 'Daftar Member Rp 550.000, Gratis 1 Pcs Jeans Perdana!');
+      setFormPromoSubtitle(settings.promoSubtitle || 'Tanpa biaya tersembunyi. Langsung dapat produk jeans kualitas export senilai Rp 550.000 dan akun portal afiliasi aktif.');
+      setFormFeaturesTitle(settings.featuresTitle || 'Keunggulan Sistem Afiliasi Hedtro Jeans');
+      setFormFeaturesSubtitle(settings.featuresSubtitle || 'Didesain transparan, cepat, dan menguntungkan untuk seluruh reseller dan jaringan member.');
+      setFormAboutTitle(settings.aboutTitle || 'Mengapa Bergabung Dengan HEDTRO JEANS?');
+      setFormAboutContent(settings.aboutContent || 'Kami memproduksi celana jeans denim kualitas terbaik dengan bahan premium stretch comfort dan jahitan presisi standar ekspor.');
+      setFormCatalogTitle(settings.catalogTitle || 'Katalog Produk Pilihan Hedtro Jeans');
+      setFormCatalogSubtitle(settings.catalogSubtitle || 'Produk fashion jeans pria & wanita paling laris untuk Repeat Order (RO).');
+      setFormFaqTitle(settings.faqTitle || 'Pertanyaan Yang Sering Diajukan (FAQ)');
+      setFormFooterAbout(settings.footerAbout || 'Hedtro Jeans adalah brand fashion jeans lokal kualitas premium yang mengusung sistem bisnis afiliasi dan reseller berjenjang secara adil dan transparan.');
     }
   }, [settings]);
 
@@ -310,6 +353,7 @@ export default function AdminDashboard({
     const success = await onUpdateSettings({
       webName: formWebName,
       logoText: formLogoText,
+      memberIdPrefix: formMemberIdPrefix,
       logoUrl: formLogoUrl,
       iconUrl: formIconUrl,
       slogan: formSlogan,
@@ -348,10 +392,24 @@ export default function AdminDashboard({
       smtpUser: formSmtpUser,
       smtpPass: formSmtpPass,
       emailSenderName: formEmailSenderName,
-      welcomeEmailTemplate: formWelcomeEmailTemplate
+      welcomeEmailTemplate: formWelcomeEmailTemplate,
+      heroBadge: formHeroBadge,
+      heroTitle: formHeroTitle,
+      heroSubtitle: formHeroSubtitle,
+      heroCtaText: formHeroCtaText,
+      promoTitle: formPromoTitle,
+      promoSubtitle: formPromoSubtitle,
+      featuresTitle: formFeaturesTitle,
+      featuresSubtitle: formFeaturesSubtitle,
+      aboutTitle: formAboutTitle,
+      aboutContent: formAboutContent,
+      catalogTitle: formCatalogTitle,
+      catalogSubtitle: formCatalogSubtitle,
+      faqTitle: formFaqTitle,
+      footerAbout: formFooterAbout
     });
     if (success) {
-      setMessage({ text: "Semua konfigurasi Web, skema bonus MLM, kredensial Midtrans, dan notifikasi email berhasil disimpan!", type: "success" });
+      setMessage({ text: "Semua konfigurasi Web, skema bonus MLM, kredensial Midtrans, notifikasi email, dan konten Landing Page berhasil disimpan!", type: "success" });
     }
     setLoading(false);
   };
@@ -538,7 +596,7 @@ export default function AdminDashboard({
             <img src={settings.logoUrl} alt={settings?.webName || "Logo"} className="h-8 max-w-[160px] object-contain shrink-0" />
           ) : (
             <div className="bg-[#C41230] text-white font-black font-display text-sm sm:text-base tracking-tighter px-3 py-1 rounded-b-md shadow-md uppercase border-t-2 border-red-800 shrink-0">
-              {settings?.logoText || "ZALORA® DENIM"}
+              {settings?.logoText || "HEDTRO.JEANS"}
             </div>
           )}
           <span className="text-xs font-black uppercase tracking-widest text-neutral-300">
@@ -595,7 +653,7 @@ export default function AdminDashboard({
                     <img src={settings.logoUrl} alt={settings?.webName || "Logo"} className="h-8 max-w-[160px] object-contain shrink-0" />
                   ) : (
                     <span className="text-lg font-display font-black tracking-tight text-white">
-                      {settings?.logoText || "ZALORA"}<span className="text-blue-500 font-light">.ADMIN</span>
+                      {settings?.logoText || "HEDTRO"}<span className="text-blue-500 font-light">.ADMIN</span>
                     </span>
                   )}
                 </div>
@@ -690,6 +748,18 @@ export default function AdminDashboard({
                 >
                   <span className="flex items-center gap-2.5">
                     <Package className="w-4 h-4" /> Gudang & Stok Jeans
+                  </span>
+                </button>
+
+                <button
+                  id="admin-tab-landing-editor-mobile"
+                  onClick={() => { setActiveTab('landing-editor'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition ${
+                    activeTab === 'landing-editor' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Edit className="w-4 h-4" /> Edit Tulisan Landing Page
                   </span>
                 </button>
 
@@ -804,6 +874,17 @@ export default function AdminDashboard({
             >
               <Package className="w-4 h-4" />
               <span>Gudang & Stok Jeans</span>
+            </button>
+
+            <button
+              id="admin-tab-landing-editor"
+              onClick={() => setActiveTab('landing-editor')}
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+                activeTab === 'landing-editor' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <Edit className="w-4 h-4" />
+              <span>Edit Tulisan Landing Page</span>
             </button>
 
             <button
@@ -1601,6 +1682,19 @@ export default function AdminDashboard({
                       className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono"
                     />
                   </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Prefix Awalan ID Member</label>
+                    <input
+                      type="text"
+                      required
+                      value={formMemberIdPrefix}
+                      onChange={(e) => setFormMemberIdPrefix(e.target.value.toUpperCase().trim())}
+                      placeholder="Contoh: HDT-, ZLR-, MBR-"
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono text-emerald-600 bg-emerald-50/20"
+                    />
+                    <span className="text-[9px] text-slate-400">Digunakan untuk format otomatis ID Anggota (misal: HDT-000001)</span>
+                  </div>
                 </div>
 
                 {/* MIDTRANS CONFIGURATION */}
@@ -2062,7 +2156,7 @@ export default function AdminDashboard({
                               required
                               value={formEmailSenderName}
                               onChange={(e) => setFormEmailSenderName(e.target.value)}
-                              placeholder="Zalora Denim Premium MLM"
+                              placeholder="Hedtro Jeans Official"
                               className="w-full border border-slate-200 rounded px-2.5 py-1.5 text-xs"
                             />
                           </div>
@@ -2367,6 +2461,250 @@ export default function AdminDashboard({
                 </form>
               </div>
 
+            </div>
+          )}
+
+          {/* TAB: LANDING PAGE CMS EDITOR */}
+          {activeTab === 'landing-editor' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                    <Edit className="text-blue-600 w-6 h-6" /> Edit Semua Tulisan Landing Page
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    Ubah teks banner hero, judul promo, deskripsi fitur, tentang brand, katalog, FAQ, dan footer secara real-time.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveSettingsSubmit}
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold text-xs tracking-wider uppercase transition shadow-md flex items-center justify-center gap-2 self-start md:self-center shrink-0 cursor-pointer"
+                >
+                  💾 Simpan Perubahan Teks
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveSettingsSubmit} className="space-y-6">
+                
+                {/* 1. HERO HEADER BANNER */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h4 className="text-sm font-black uppercase text-slate-800 tracking-wider flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-blue-600" /> 1. Hero Header Banner (Tampilan Utama Belanja)
+                    </h4>
+                    <p className="text-xs text-slate-400">Tulisan banner paling atas saat pengunjung membuka web HEDTRO JEANS</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">Badge / Label Atas Hero</label>
+                      <input
+                        type="text"
+                        value={formHeroBadge}
+                        onChange={(e) => setFormHeroBadge(e.target.value)}
+                        placeholder="Contoh: PORTAL MEMBER & RESELLER RESMI"
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">Teks Tombol CTA Hero</label>
+                      <input
+                        type="text"
+                        value={formHeroCtaText}
+                        onChange={(e) => setFormHeroCtaText(e.target.value)}
+                        placeholder="Contoh: DAFTAR SEKARANG - RP 550.000"
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-[11px] font-bold text-slate-700 block">Judul Utama Hero (Heading 1)</label>
+                      <input
+                        type="text"
+                        value={formHeroTitle}
+                        onChange={(e) => setFormHeroTitle(e.target.value)}
+                        placeholder="Contoh: Celana Jeans Premium HEDTRO JEANS Dengan System Afiliasi Terbaik"
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-[11px] font-bold text-slate-700 block">Sub-Judul / Deskripsi Hero</label>
+                      <textarea
+                        rows={2}
+                        value={formHeroSubtitle}
+                        onChange={(e) => setFormHeroSubtitle(e.target.value)}
+                        placeholder="Deskripsi singkat promo hero..."
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. PROMO & PAKET PERDANA */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h4 className="text-sm font-black uppercase text-slate-800 tracking-wider flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-500" /> 2. Banner Promo & Lisensi Perdana
+                    </h4>
+                    <p className="text-xs text-slate-400">Penjelasan lisensi Rp 550.000 dan bonus 1 Pcs Jeans gratis</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">Judul Promo Perdana</label>
+                      <input
+                        type="text"
+                        value={formPromoTitle}
+                        onChange={(e) => setFormPromoTitle(e.target.value)}
+                        placeholder="Contoh: Daftar Member Rp 550.000, Gratis 1 Pcs Jeans Perdana!"
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">Deskripsi Promo Perdana</label>
+                      <textarea
+                        rows={2}
+                        value={formPromoSubtitle}
+                        onChange={(e) => setFormPromoSubtitle(e.target.value)}
+                        placeholder="Penjelasan promo perdana..."
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. FITUR & KEUNGGULAN BISNIS */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h4 className="text-sm font-black uppercase text-slate-800 tracking-wider flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600" /> 3. Section Keunggulan Bisnis & System
+                    </h4>
+                    <p className="text-xs text-slate-400">Judul dan sub-judul section 4 pilar keunggulan bisnis</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">Judul Section Keunggulan</label>
+                      <input
+                        type="text"
+                        value={formFeaturesTitle}
+                        onChange={(e) => setFormFeaturesTitle(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">Sub-Judul Keunggulan</label>
+                      <input
+                        type="text"
+                        value={formFeaturesSubtitle}
+                        onChange={(e) => setFormFeaturesSubtitle(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. TENTANG BRAND & TENTANG KAMI */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h4 className="text-sm font-black uppercase text-slate-800 tracking-wider flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-blue-600" /> 4. Section Tentang Kami & Kualitas Denim
+                    </h4>
+                    <p className="text-xs text-slate-400">Penjelasan profil brand, jaminan produk otentik, dan kualitas bahan</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">Judul Tentang Kami</label>
+                      <input
+                        type="text"
+                        value={formAboutTitle}
+                        onChange={(e) => setFormAboutTitle(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">Konten Teks Tentang Kami</label>
+                      <textarea
+                        rows={3}
+                        value={formAboutContent}
+                        onChange={(e) => setFormAboutContent(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. KATALOG, FAQ & FOOTER */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h4 className="text-sm font-black uppercase text-slate-800 tracking-wider flex items-center gap-2">
+                      <Package className="w-4 h-4 text-purple-600" /> 5. Judul Katalog, FAQ & Deskripsi Footer
+                    </h4>
+                    <p className="text-xs text-slate-400">Pengaturan teks section katalog produk, FAQ, dan copyright footer</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">Judul Section Katalog</label>
+                      <input
+                        type="text"
+                        value={formCatalogTitle}
+                        onChange={(e) => setFormCatalogTitle(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">Sub-Judul Katalog</label>
+                      <input
+                        type="text"
+                        value={formCatalogSubtitle}
+                        onChange={(e) => setFormCatalogSubtitle(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-[11px] font-bold text-slate-700 block">Judul Section FAQ</label>
+                      <input
+                        type="text"
+                        value={formFaqTitle}
+                        onChange={(e) => setFormFaqTitle(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-[11px] font-bold text-slate-700 block">Deskripsi Footer (Atas Copyright)</label>
+                      <textarea
+                        rows={2}
+                        value={formFooterAbout}
+                        onChange={(e) => setFormFooterAbout(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 px-8 rounded-xl transition text-xs shadow-lg tracking-wider uppercase cursor-pointer"
+                  >
+                    💾 SIMPAN SEMUA TULISAN LANDING PAGE
+                  </button>
+                </div>
+
+              </form>
             </div>
           )}
 

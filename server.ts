@@ -32,7 +32,7 @@ const PORT = 3000;
 app.use(express.json());
 
 app.get(["/api", "/api/"], (req, res) => {
-  res.json({ status: "ok", message: "Zalora Denim MLM Backend API is active" });
+  res.json({ status: "ok", message: "Hedtro Jeans Official Backend API is active" });
 });
 
 // ==========================================
@@ -167,8 +167,8 @@ let users: MLMUser[] = [
   {
     id: 1,
     username: "admin",
-    fullname: "Administrator Zalora Denim",
-    email: "admin@zaloradenim.com",
+    fullname: "Administrator Hedtro Jeans",
+    email: "admin@hedtrojeans.com",
     phone: "081234567890",
     is_active: true,
     upline_id: null,
@@ -389,7 +389,7 @@ let users: MLMUser[] = [
 let products: Product[] = [
   {
     id: 1,
-    name: "Zalora Denim Slim Fit Premium Indigo",
+    name: "Hedtro Jeans Slim Fit Premium Indigo",
     description: "Celana jeans premium dengan potongan slim-fit modern. Dibuat dengan katun denim berkualitas tinggi 14oz, warna indigo pekat elegan yang awet, serat lentur yang sangat nyaman digunakan seharian.",
     price: 350000,
     member_price: 250000,
@@ -398,7 +398,7 @@ let products: Product[] = [
   },
   {
     id: 2,
-    name: "Zalora Denim Classic Straight Cut Raw",
+    name: "Hedtro Jeans Classic Straight Cut Raw",
     description: "Model straight cut klasik legendaris. Menggunakan bahan raw denim kaku berkualitas ekspor yang akan membentuk memudar (fading) alami sesuai bentuk tubuh Anda seiring waktu pemakaian.",
     price: 390000,
     member_price: 280000,
@@ -407,7 +407,7 @@ let products: Product[] = [
   },
   {
     id: 3,
-    name: "Zalora Denim Jet Black Stretch Comfort",
+    name: "Hedtro Jeans Jet Black Stretch Comfort",
     description: "Warna hitam legam pekat yang elegan untuk formal maupun kasual. Sangat fleksibel (high stretch), pas di paha dan kaki tanpa membatasi pergerakan aktif Anda.",
     price: 330000,
     member_price: 240000,
@@ -416,7 +416,7 @@ let products: Product[] = [
   },
   {
     id: 4,
-    name: "Zalora Denim Light Wash Retro 90s",
+    name: "Hedtro Jeans Light Wash Retro 90s",
     description: "Tampilan retro klasik tahun 90-an dengan efek pencucian warna muda (light wash) yang kasual. Sangat cocok dipadukan dengan kaos santai maupun kemeja oversized.",
     price: 370000,
     member_price: 270000,
@@ -499,7 +499,7 @@ let deposits: DepositRequest[] = [
     amount: 100000,
     method: "qris",
     status: "pending",
-    payment_code: "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=ZaloraDenimDepositDedi100K",
+    payment_code: "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=HedtroJeansDepositDedi100K",
     created_at: "2026-07-20T11:00:00Z"
   }
 ];
@@ -551,17 +551,18 @@ let notifications: MLMNotification[] = [
 let isAutoPayout = true;
 
 let systemSettings: any = {
-  webName: "Zalora Denim Premium MLM",
-  logoText: "ZALORA.DENIM",
+  webName: "Hedtro Jeans Official",
+  logoText: "HEDTRO.JEANS",
+  memberIdPrefix: "HDT-",
   logoUrl: "",
   iconUrl: "",
-  slogan: "OFFICIAL STORE & MLM BINARY PREMIER",
-  siteDescription: "Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis MLM Binary 10 Level Terpercaya.",
+  slogan: "OFFICIAL STORE & AFILIASI RESELLER",
+  siteDescription: "Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis Afiliasi Reseller Terpercaya.",
   enableMlmBonus: true,
   enableLevelBonus: true,
   enableRewardBonus: true,
   contactPhone: "081234567890",
-  contactEmail: "support@zaloradenim.com",
+  contactEmail: "support@hedtrojeans.com",
   sponsorBonus: 20000,
   pairingBonus: 10000,
   roBonus: 5000,
@@ -585,13 +586,13 @@ let systemSettings: any = {
   midtransIsProduction: false,
   emailNotifRegisterAdminActive: true,
   emailNotifRegisterSponsorActive: true,
-  adminNotifEmail: "admin@zaloradenim.com",
+  adminNotifEmail: "admin@hedtrojeans.com",
   smtpHost: "smtp.gmail.com",
   smtpPort: 587,
-  smtpUser: "notifikasi@zaloradenim.com",
+  smtpUser: "notifikasi@hedtrojeans.com",
   smtpPass: "app-password-1234",
-  emailSenderName: "Zalora Denim Premium MLM",
-  welcomeEmailTemplate: "Halo {fullname} ({username}), selamat bergabung di Zalora Denim Premium! Akun Anda telah terdaftar. Silakan hubungi sponsor Anda {sponsor} untuk aktivasi status premium."
+  emailSenderName: "Hedtro Jeans Official",
+  welcomeEmailTemplate: "Halo {fullname} ({username}), selamat bergabung di Hedtro Jeans! Akun Anda telah terdaftar. Silakan hubungi sponsor Anda {sponsor} untuk aktivasi status premium."
 };
 
 // ==========================================
@@ -653,7 +654,7 @@ async function activateUserMLM(userId: number) {
     username: user.username,
     type: "bonus_produk",
     amount: 550000,
-    description: "Bonus Registrasi/Aktifasi: Gratis 1 Produk Paket Perdana Zalora Denim senilai Rp 550.000 (Paket Hak Usaha Pendaftaran)",
+    description: "Bonus Registrasi/Aktifasi: Gratis 1 Produk Paket Perdana Hedtro Jeans senilai Rp 550.000 (Paket Hak Usaha Pendaftaran)",
     created_at: new Date().toISOString()
   };
   transactions.push(prodBonusTx);
@@ -1040,8 +1041,8 @@ app.post("/api/auth/forgot-password", (req, res) => {
     message: `Link reset password telah dikirim ke email terdaftar Anda!`,
     simulatedEmail: {
       to: user.email,
-      subject: "Setel Ulang Kata Sandi - ZALORA.PORTAL",
-      body: `Halo ${user.fullname},\n\nKami menerima permintaan untuk menyetel ulang kata sandi akun Anda (@${user.username}).\n\nKode Verifikasi OTP Anda adalah:\n\n>>> ${otp} <<<\n\nHarap masukkan kode ini pada formulir reset untuk melanjutkan.\n\nSalam Hangat,\nSistem Otomasi ZALORA.PORTAL`,
+      subject: "Setel Ulang Kata Sandi - HEDTRO.PORTAL",
+      body: `Halo ${user.fullname},\n\nKami menerima permintaan untuk menyetel ulang kata sandi akun Anda (@${user.username}).\n\nKode Verifikasi OTP Anda adalah:\n\n>>> ${otp} <<<\n\nHarap masukkan kode ini pada formulir reset untuk melanjutkan.\n\nSalam Hangat,\nSistem Otomasi HEDTRO.PORTAL`,
       code: otp
     }
   });
@@ -1170,7 +1171,7 @@ app.post("/api/auth/register", async (req, res) => {
   await syncNotificationToFirestore(notif);
 
   res.status(201).json({
-    message: "Pendaftaran berhasil! Akun Anda berstatus TIDAK AKTIF. Lakukan pembayaran aktifasi Rp 550,000 untuk menikmati seluruh fitur dan berbelanja produk Zalora Denim.",
+    message: "Pendaftaran berhasil! Akun Anda berstatus TIDAK AKTIF. Lakukan pembayaran aktifasi Rp 550,000 untuk menikmati seluruh fitur dan berbelanja produk Hedtro Jeans.",
     user: newUser
   });
   } catch (err: any) {
@@ -1337,7 +1338,7 @@ app.post("/api/user/deposit", async (req, res) => {
   const newDepId = deposits.length + 1;
   const midtransOrderId = `DEP-MID-${newDepId}-${Date.now()}`;
   let paymentCode = method === 'qris' 
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=ZaloraDenimQRISDep${numAmount}`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=HedtroJeansQRISDep${numAmount}`
     : `MOCK-${method.toUpperCase()}-VA-${Math.floor(1000000000 + Math.random() * 9000000000)}`;
 
   if (systemSettings.midtransServerKey) {
@@ -1909,7 +1910,7 @@ app.get(["/api/admin/dashboard", "/admin/dashboard"], async (req, res) => {
 // ==========================================
 
 const phpProjectFiles = {
-  "readme.txt": `=== ZALORA DENIM MLM BINARY CODEBASE ===
+  "readme.txt": `=== HEDTRO JEANS AFILIASI RESELLER CODEBASE ===
 Petunjuk Instalasi di Web Hosting:
 
 1. Persyaratan Server:
@@ -1918,12 +1919,12 @@ Petunjuk Instalasi di Web Hosting:
    - MySQL / MariaDB Database
 
 2. Langkah Setup:
-   - Buat database baru di MySQL cPanel / PhpMyAdmin Anda (misalnya: \`zalora_mlm\`).
+   - Buat database baru di MySQL cPanel / PhpMyAdmin Anda (misalnya: \`hedtro_db\`).
    - Import file \`database.sql\` ke dalam database tersebut.
    - Unggah (upload) seluruh file source code ini ke folder \`public_html\` hosting Anda.
    - Cari file \`.env\` (atau copy \`.env.example\` menjadi \`.env\`) lalu sesuaikan isinya:
      - DB_HOST = localhost
-     - DB_NAME = zalora_mlm
+     - DB_NAME = hedtro_db
      - DB_USER = username_database_anda
      - DB_PASS = password_database_anda
      - APP_URL = https://domain-anda.com
@@ -1937,20 +1938,20 @@ Petunjuk Instalasi di Web Hosting:
      - Password: password123
 
 Fitur Utama yang Berjalan pada PHP:
-- Landing page mirip Zalora, premium & responsive.
-- Sistem binary tree 10 level otomatis (Sponsor, Pairing, Level Generasi, RO).
+- Landing page HEDTRO JEANS, premium & responsive.
+- Sistem jaringan tim afiliasi otomatis (Sponsor, Komisi Pasangan, Bonus Level Generasi, RO).
 - Notifikasi real-time via session / popup dashboard.
 - Modul Stok Gudang, Kas, Laporan Keuangan Bulanan, Cetak PDF, Pembayaran QRIS otomatis (Mock/Integration).
 `,
 
   ".env": `DB_HOST="localhost"
 DB_PORT="3306"
-DB_NAME="zalora_mlm"
+DB_NAME="hedtro_db"
 DB_USER="root"
 DB_PASS="password_db"
 
-APP_URL="https://zaloradenim-mlm.com"
-APP_NAME="Zalora Denim Premium MLM"
+APP_URL="https://hedtrojeans.com"
+APP_NAME="HEDTRO JEANS Afiliasi & Reseller"
 
 # API Gateway Payment Setup (Midtrans / Tripay)
 PAYMENT_GATEWAY="midtrans"
@@ -2072,15 +2073,15 @@ CREATE TABLE IF NOT EXISTS \`settings\` (
 
 -- Preseed Admin and Base Users (Default password: password123)
 INSERT INTO \`users\` (\`id\`, \`username\`, \`fullname\`, \`email\`, \`phone\`, \`password\`, \`role\`, \`is_active\`) VALUES
-(1, 'admin', 'Administrator Zalora Denim', 'admin@zaloradenim.com', '081234567890', '$2y$10$OQzWbH20fOqM1I/n1D3V.On/fS8kQ80yC46Zl3R9TfeYV7gK6r0Qy', 'admin', 1);
+(1, 'admin', 'Administrator HEDTRO JEANS', 'admin@hedtrojeans.com', '081234567890', '$2y$10$OQzWbH20fOqM1I/n1D3V.On/fS8kQ80yC46Zl3R9TfeYV7gK6r0Qy', 'admin', 1);
 
 INSERT INTO \`products\` (\`id\`, \`name\`, \`description\`, \`price\`, \`member_price\`, \`stock\`, \`image\`) VALUES
-(1, 'Zalora Denim Slim Fit Premium Indigo', 'Celana jeans premium dengan potongan slim-fit modern.', 350000.00, 250000.00, 50, 'product1.jpg'),
-(2, 'Zalora Denim Classic Straight Cut Raw', 'Model straight cut klasik legendaris.', 390000.00, 280000.00, 30, 'product2.jpg'),
-(3, 'Zalora Denim Jet Black Stretch Comfort', 'Warna hitam legam pekat yang elegan.', 330000.00, 240000.00, 25, 'product3.jpg');
+(1, 'HEDTRO JEANS Slim Fit Premium Indigo', 'Celana jeans premium dengan potongan slim-fit modern.', 350000.00, 250000.00, 50, 'product1.jpg'),
+(2, 'HEDTRO JEANS Classic Straight Cut Raw', 'Model straight cut klasik legendaris.', 390000.00, 280000.00, 30, 'product2.jpg'),
+(3, 'HEDTRO JEANS Jet Black Stretch Comfort', 'Warna hitam legam pekat yang elegan.', 330000.00, 240000.00, 25, 'product3.jpg');
 
 INSERT INTO \`settings\` (\`setting_key\`, \`setting_value\`) VALUES
-('site_title', 'ZALORA DENIM MLM'),
+('site_title', 'HEDTRO JEANS PORTAL'),
 ('sponsor_bonus', '20000'),
 ('pairing_bonus', '10000'),
 ('activation_fee', '100000');
