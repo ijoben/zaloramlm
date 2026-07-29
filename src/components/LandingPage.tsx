@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { Product } from "../types";
 import { DEFAULT_PRODUCTS } from "../data/defaultProducts";
 import { 
-  ShoppingBag, Heart, Search, Truck, ChevronLeft, ChevronRight, 
+  ShoppingBag, Heart, Search, Truck, ChevronLeft, ChevronRight, ChevronDown, HelpCircle,
   X, Check, Menu, Filter, ArrowRight, User, ShieldCheck, Sparkles,
-  Tag, Clock, MapPin, Eye, RefreshCw, Star
+  Tag, Clock, MapPin, Eye, RefreshCw, Star, Package
 } from "lucide-react";
 
 interface LandingPageProps {
@@ -37,6 +37,7 @@ export default function LandingPage({
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
   const [isMemberOnlyModalOpen, setIsMemberOnlyModalOpen] = useState(false);
   const [selectedProductForMemberModal, setSelectedProductForMemberModal] = useState<Product | null>(null);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   // E-Commerce Functional States
   const [searchQuery, setSearchQuery] = useState("");
@@ -346,6 +347,14 @@ export default function LandingPage({
               TENTANG KAMI
             </button>
             <button
+              onClick={() => {
+                document.getElementById('faq-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="text-xs font-black uppercase tracking-widest py-1 transition text-neutral-800 hover:text-[#C41230] text-left"
+            >
+              FAQ
+            </button>
+            <button
               onClick={() => setIsTrackModalOpen(true)}
               className="text-xs font-black uppercase tracking-widest text-neutral-600 hover:text-neutral-900 transition flex items-center gap-1.5 border-l border-neutral-200 pl-4 text-left"
             >
@@ -486,6 +495,15 @@ export default function LandingPage({
                 className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100 text-neutral-800 w-full"
               >
                 TENTANG KAMI
+              </button>
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  document.getElementById('faq-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-left text-xs font-black uppercase tracking-widest py-2 border-b border-neutral-100 text-neutral-800 w-full"
+              >
+                FAQ & BANTUAN
               </button>
               <button
                 onClick={() => {
@@ -1192,13 +1210,72 @@ export default function LandingPage({
         </div>
       )}
 
+      {/* 10. FAQ Section (Pertanyaan Yang Sering Diajukan - Judul dikonekkan ke Database Settings) */}
+      <section id="faq-section" className="bg-neutral-900 text-white py-16 border-t-4 border-[#C41230]">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+          <div className="text-center space-y-2">
+            <span className="bg-[#C41230] text-white px-3 py-1 text-[10px] font-black uppercase tracking-widest inline-block">
+              INFORMASI & BANTUAN
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black font-display uppercase tracking-tight text-white">
+              {settings?.faqTitle || "Pertanyaan Yang Sering Diajukan (FAQ)"}
+            </h2>
+            <p className="text-xs text-neutral-400 max-w-lg mx-auto">
+              Temukan jawaban cepat mengenai keanggotaan reseller, komisi afiliasi, pengiriman, dan kualitas produk Hedtro Jeans.
+            </p>
+          </div>
+
+          {/* Accordion FAQ Items */}
+          <div className="space-y-3">
+            {[
+              {
+                q: "Bagaimana cara bergabung menjadi member/reseller resmi Hedtro Jeans?",
+                a: "Anda dapat mendaftar akun member melalui tombol Login / Register di atas. Pembelian Paket Member Perdana Rp 550.000 sudah termasuk 1 Pcs Celana Jeans kualitas premium dan lisensi aktif portal bisnis afiliasi."
+              },
+              {
+                q: "Bagaimana perhitungan bonus komisi sponsor dan komisi pasangan?",
+                a: "Setiap member yang Anda sponsori memberikan Komisi Sponsor Rp 20.000. Setiap terjadi pasangan 1 Kiri dan 1 Kanan di jaringan binary Anda, sistem otomatis memberikan Komisi Pasangan Rp 10.000."
+              },
+              {
+                q: "Apakah celana jeans dapat ditukar jika ukurannya tidak pas?",
+                a: "Ya! Kami menyediakan Garansi Penukaran Ukuran (Size Exchange) dalam waktu 30 hari sejak barang diterima, selama tag/label belum dilepas dan barang belum dicuci."
+              },
+              {
+                q: "Bagaimana proses dan kecepatan penarikan komisi (Withdrawal)?",
+                a: "Penarikan bonus dapat dilakukan langsung melalui Member Area ke rekening BCA, Mandiri, BRI, BNI atau E-Wallet Anda. Proses verifikasi dan transfer dilakukan secara cepat dan transparan."
+              }
+            ].map((faq, idx) => {
+              const isOpen = openFaqIndex === idx;
+              return (
+                <div key={idx} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden transition">
+                  <button
+                    onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
+                    className="w-full text-left p-4 flex justify-between items-center gap-4 hover:bg-neutral-900/80 transition cursor-pointer"
+                  >
+                    <span className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-2">
+                      <span className="text-[#C41230]">Q.</span> {faq.q}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 text-neutral-400 transition-transform duration-200 shrink-0 ${isOpen ? "rotate-180 text-[#C41230]" : ""}`} />
+                  </button>
+                  {isOpen && (
+                    <div className="p-4 pt-1 text-xs text-neutral-300 leading-relaxed border-t border-neutral-800/60 bg-neutral-900/40">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* 11. Footer - Clean E-Commerce Footer */}
       <footer className="bg-[#0A0A0B] text-neutral-400 py-16 border-t-4 border-[#C41230]" id="store-footer">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-xs border-b border-neutral-800 pb-12">
             
-            {/* Column 1: Brand Info */}
+            {/* Column 1: Brand Info & Footer Description */}
             <div className="space-y-3 text-left">
               {settings?.logoUrl ? (
                 <img src={settings.logoUrl} alt={settings?.webName || "Logo"} className="h-10 object-contain" />
@@ -1207,8 +1284,8 @@ export default function LandingPage({
                   {settings?.logoText || "HEDTRO.JEANS"}
                 </div>
               )}
-              <p className="text-neutral-400 leading-relaxed text-left">
-                {settings?.siteDescription || "Platform belanja online resmi celana jeans Hedtro Jeans dengan koleksi otentik 100% cotton raw denim."}
+              <p className="text-neutral-400 leading-relaxed text-left text-xs">
+                {settings?.footerAbout || settings?.siteDescription || "Hedtro Jeans adalah brand fashion jeans lokal kualitas premium yang mengusung sistem bisnis afiliasi dan reseller berjenjang secara adil dan transparan."}
               </p>
             </div>
 
@@ -1229,7 +1306,7 @@ export default function LandingPage({
               <ul className="space-y-1.5">
                 <li><button onClick={() => setIsTrackModalOpen(true)} className="hover:text-white transition">Lacak Status Pengiriman</button></li>
                 <li><a href="#tentang-kami" onClick={() => document.getElementById('tentang-kami')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Panduan Ukuran (Size Guide)</a></li>
-                <li><a href="#tentang-kami" onClick={() => document.getElementById('tentang-kami')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Syarat & Ketentuan Garansi</a></li>
+                <li><a href="#faq-section" onClick={() => document.getElementById('faq-section')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Pertanyaan FAQ & Komisi</a></li>
                 <li><a href="#tentang-kami" onClick={() => document.getElementById('tentang-kami')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Kebijakan Privasi</a></li>
               </ul>
             </div>
@@ -1242,6 +1319,16 @@ export default function LandingPage({
             </div>
 
           </div>
+
+          {/* Dedicated Footer Description Box (Deskripsi Footer dari Admin) */}
+          {settings?.footerAbout && (
+            <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-xs text-neutral-300 leading-relaxed text-left">
+              <strong className="text-white font-black uppercase text-[10px] tracking-wider block mb-1 text-[#C41230]">
+                Mengenai {webName}:
+              </strong>
+              {settings.footerAbout}
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-neutral-500 font-mono gap-4">
             <p>© 2026 {webName}. Hak Cipta Dilindungi Undang-Undang.</p>
