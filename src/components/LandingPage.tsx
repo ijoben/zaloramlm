@@ -73,8 +73,29 @@ export default function LandingPage({
   const [trackingResult, setTrackingResult] = useState<any>(null);
   const [trackingError, setTrackingError] = useState("");
 
-  // Slide Utama (Hero Carousel) State
+  // Slide Utama (Hero Carousel) State & Touch Swipe Gesture
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [heroTouchStart, setHeroTouchStart] = useState<number | null>(null);
+  const [heroTouchEnd, setHeroTouchEnd] = useState<number | null>(null);
+
+  const handleHeroTouchStart = (e: React.TouchEvent) => {
+    setHeroTouchStart(e.touches[0].clientX);
+    setHeroTouchEnd(null);
+  };
+
+  const handleHeroTouchMove = (e: React.TouchEvent) => {
+    setHeroTouchEnd(e.touches[0].clientX);
+  };
+
+  const handleHeroTouchEnd = () => {
+    if (heroTouchStart === null || heroTouchEnd === null) return;
+    const distance = heroTouchStart - heroTouchEnd;
+    if (distance > 40) {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    } else if (distance < -40) {
+      setCurrentSlide((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
+    }
+  };
 
   // Update Document Title & Favicon dynamically if settings change
   useEffect(() => {
@@ -311,25 +332,23 @@ export default function LandingPage({
   return (
     <div className="bg-[#FAF9F6] min-h-screen text-neutral-900 font-sans selection:bg-[#C41230] selection:text-white w-full" id="store-landing-root">
       
-      {/* Top Bar + Sticky Main Header Container */}
-      <div className="sticky top-0 z-50 w-full bg-white shadow-md border-b border-neutral-200">
-        {/* 1. Top Announcement Bar */}
-        <div className="bg-[#111111] text-white text-[10px] sm:text-[11px] font-bold tracking-widest uppercase py-2 px-4 border-b border-neutral-800 flex items-center justify-start sm:justify-center gap-6 w-full overflow-x-auto whitespace-nowrap scrollbar-none">
-          <span className="flex items-center gap-1.5 text-neutral-300 shrink-0">
-            <Truck className="w-3.5 h-3.5 text-[#C41230]" /> FREE ONGKIR SELURUH INDONESIA
-          </span>
-          <span className="text-neutral-600 shrink-0">•</span>
-          <span className="text-neutral-300 shrink-0">
-            BAYAR DI TEMPAT (COD) TERSEDIA
-          </span>
-          <span className="text-neutral-600 shrink-0">•</span>
-          <span className="bg-[#C41230] text-white px-2.5 py-0.5 font-black text-[9px] tracking-wider uppercase rounded-xs shrink-0">
-            DISKON MEMBER RP 100.000/PCS
-          </span>
-        </div>
+      {/* 1. Top Announcement Bar (Non-Sticky) */}
+      <div className="bg-[#111111] text-white text-[10px] sm:text-[11px] font-bold tracking-widest uppercase py-2 px-4 border-b border-neutral-800 flex items-center justify-start sm:justify-center gap-6 w-full overflow-x-auto whitespace-nowrap scrollbar-none">
+        <span className="flex items-center gap-1.5 text-neutral-300 shrink-0">
+          <Truck className="w-3.5 h-3.5 text-[#C41230]" /> FREE ONGKIR SELURUH INDONESIA
+        </span>
+        <span className="text-neutral-600 shrink-0">•</span>
+        <span className="text-neutral-300 shrink-0">
+          BAYAR DI TEMPAT (COD) TERSEDIA
+        </span>
+        <span className="text-neutral-600 shrink-0">•</span>
+        <span className="bg-[#C41230] text-white px-2.5 py-0.5 font-black text-[9px] tracking-wider uppercase rounded-xs shrink-0">
+          DISKON MEMBER RP 100.000/PCS
+        </span>
+      </div>
 
-        {/* 2. Main E-Commerce Header Navigation */}
-        <header className="bg-white border-b border-neutral-200 w-full" id="main-header">
+      {/* 2. Main E-Commerce Header Navigation (Sticky) */}
+      <header className="sticky top-0 z-50 bg-white shadow-md border-b border-neutral-200 w-full" id="main-header">
         <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-1 sm:gap-4">
           
           {/* Brand Logo - Strictly Left Aligned in PC mode */}
@@ -556,10 +575,15 @@ export default function LandingPage({
           </div>
         )}
       </header>
-      </div>
 
-      {/* 3. Slide Utama (Hero Carousel Slider) */}
-      <section className="relative bg-neutral-900 text-white overflow-hidden border-b-4 border-[#C41230]" id="hero-slider">
+      {/* 3. Slide Utama (Hero Carousel Slider) - Touch Swipe Enabled */}
+      <section 
+        className="relative bg-neutral-900 text-white overflow-hidden border-b-4 border-[#C41230] select-none touch-pan-y cursor-grab active:cursor-grabbing" 
+        id="hero-slider"
+        onTouchStart={handleHeroTouchStart}
+        onTouchMove={handleHeroTouchMove}
+        onTouchEnd={handleHeroTouchEnd}
+      >
         <div className="relative h-[480px] sm:h-[560px] lg:h-[620px] w-full">
           {slides.map((slide, idx) => (
             <div
@@ -725,7 +749,8 @@ export default function LandingPage({
                   referrerPolicy="no-referrer"
                   src={p.image}
                   alt={p.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                  draggable={false}
+                  className="w-full h-full object-cover group-hover:scale-105 transition duration-500 select-none pointer-events-none"
                 />
                 <div className="absolute top-3 left-0 bg-[#C41230] text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1">
                   BEST SELLER
