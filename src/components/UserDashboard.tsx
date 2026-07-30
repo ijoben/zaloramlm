@@ -4,7 +4,8 @@ import {
   DollarSign, TrendingUp, Users, TreePine, ArrowUpRight, ArrowDownLeft, 
   Copy, Check, ShoppingBag, ShieldAlert, CheckCircle, RefreshCw, 
   CreditCard, Send, LogOut, Bell, HelpCircle, Award, Percent, Menu, X,
-  User, Lock, Sparkles, Truck, Package, Clock
+  User, Lock, Sparkles, Truck, Package, Clock, ChevronLeft, ChevronRight,
+  LayoutGrid, LayoutList
 } from "lucide-react";
 
 interface UserDashboardProps {
@@ -66,6 +67,23 @@ export default function UserDashboard({
   const idPrefix = settings?.memberIdPrefix || 'HDT-';
   const [activeTab, setActiveTab] = useState<'overview' | 'tree' | 'shop' | 'orders' | 'finance' | 'referrals' | 'bonuses' | 'panduan' | 'profil'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Custom Refs & View Modes
+  const overviewCardsRef = React.useRef<HTMLDivElement>(null);
+  const [shopGridView, setShopGridView] = useState<'1col' | '2col'>('2col');
+  const [financeSubTab, setFinanceSubTab] = useState<'deposit' | 'withdraw' | 'history'>('deposit');
+
+  const scrollCardsLeft = () => {
+    if (overviewCardsRef.current) {
+      overviewCardsRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+    }
+  };
+
+  const scrollCardsRight = () => {
+    if (overviewCardsRef.current) {
+      overviewCardsRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+    }
+  };
   
   // Form states
   const [depAmount, setDepAmount] = useState('');
@@ -907,105 +925,232 @@ export default function UserDashboard({
           {activeTab === 'overview' && (
             <div className="space-y-6" id="overview-tab-content">
               
-              {/* Financial Stats Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Financial Stats Grid - Mobile Horizontal Swipe Carousel / PC 3-Column Grid */}
+              <div className="relative group/carousel">
                 
-                {/* Main Balance Card */}
-                <div className="bg-gradient-to-br from-slate-950 to-slate-850 text-white rounded-2xl p-6 shadow-md border border-slate-800 flex flex-col justify-between">
-                  <div>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Saldo Dompet</span>
-                    <h3 className="text-3xl font-display font-bold mt-1 tracking-tight">Rp {user.balance.toLocaleString()}</h3>
-                  </div>
-                  <div className="flex gap-3 pt-6">
+                {/* Mobile & PC Slider Navigation Header */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    💳 Ringkasan Akun & Omset
+                  </span>
+                  <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => setActiveTab('finance')}
-                      className="flex-1 bg-white hover:bg-slate-100 text-slate-900 py-2.5 rounded-xl text-xs font-bold transition shadow-md flex items-center justify-center gap-1.5"
+                      type="button"
+                      onClick={scrollCardsLeft}
+                      className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 active:scale-90 transition border border-slate-200/90 shadow-2xs cursor-pointer flex items-center justify-center"
+                      title="Geser Kiri"
                     >
-                      <ArrowDownLeft className="w-3.5 h-3.5 text-blue-600" /> Deposit
+                      <ChevronLeft className="w-4 h-4 text-slate-800" />
                     </button>
                     <button
-                      onClick={() => setActiveTab('finance')}
-                      className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl text-xs font-bold transition shadow-md shadow-blue-600/10 flex items-center justify-center gap-1.5"
+                      type="button"
+                      onClick={scrollCardsRight}
+                      className="p-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white active:scale-90 transition shadow-xs cursor-pointer flex items-center justify-center"
+                      title="Geser Kanan"
                     >
-                      <ArrowUpRight className="w-3.5 h-3.5" /> Withdraw
+                      <ChevronRight className="w-4 h-4 text-white" />
                     </button>
                   </div>
                 </div>
 
-                {/* Left & Right Legs Sales */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
-                  <div>
-                    {/* Card Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                      <div>
-                        <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block">Omset Volume Grup</span>
-                        <p className="text-[10px] text-slate-400 font-medium mt-0.5">Jaringan Tim Kiri & Kanan (Binary)</p>
+                <div 
+                  ref={overviewCardsRef}
+                  className="flex sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 pt-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none"
+                >
+                  
+                  {/* Card 1: Virtual Platinum Wallet Card */}
+                  <div className="w-[86vw] xs:w-[320px] sm:w-auto shrink-0 snap-center sm:shrink bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 relative overflow-hidden flex flex-col justify-between group">
+                    <div className="absolute -right-10 -top-10 w-36 h-36 bg-blue-600/15 rounded-full blur-2xl pointer-events-none"></div>
+
+                    <div className="space-y-3">
+                      {/* Top Bar: Chip / Brand Badge */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-5 rounded bg-gradient-to-tr from-amber-400 to-yellow-200 p-0.5 flex flex-col justify-between shadow-xs">
+                            <div className="w-full h-0.5 bg-amber-600/40 rounded-xs"></div>
+                            <div className="w-2/3 h-0.5 bg-amber-600/40 rounded-xs"></div>
+                          </div>
+                          <span className="text-[9px] font-mono font-extrabold tracking-widest text-slate-400 uppercase">
+                            MEMBER ACCOUNT
+                          </span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                          user.is_active 
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                            : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                        }`}>
+                          {user.is_active ? '● PREMIUM' : '○ UNVERIFIED'}
+                        </span>
                       </div>
-                      <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
-                        <TreePine className="w-5 h-5" />
+
+                      {/* Balance */}
+                      <div>
+                        <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest block">
+                          Saldo Dompet Aktif
+                        </span>
+                        <h3 className="text-2xl sm:text-3xl font-display font-black tracking-tight text-white mt-0.5">
+                          <span className="text-blue-400 text-base font-sans mr-1">Rp</span>
+                          {user.balance.toLocaleString('id-ID')}
+                        </h3>
+                      </div>
+
+                      {/* Quick Meta Row */}
+                      <div className="grid grid-cols-2 gap-2 text-[10px] pt-1">
+                        <div className="bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
+                          <span className="text-slate-400 font-medium block text-[9px]">Sponsor</span>
+                          <span className="font-bold text-blue-400 truncate block">{user.sponsor_username || 'Perusahaan'}</span>
+                        </div>
+                        <div className="bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
+                          <span className="text-slate-400 font-medium block text-[9px]">ID Akun</span>
+                          <span className="font-bold text-emerald-400 font-mono truncate block">{idPrefix}{String(user.id).padStart(6, '0')}</span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Volume Grid */}
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <div className="bg-slate-50/90 rounded-xl p-3 border border-slate-100">
-                        <span className="text-[9px] text-blue-600 font-extrabold uppercase tracking-wider block">👈 Tim Kiri</span>
-                        <p className="text-2xl font-black text-slate-900 mt-1">{displayLeftSales} <span className="text-xs font-bold text-slate-500">pt</span></p>
-                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">{displayLeftCount} member</p>
-                      </div>
-                      <div className="bg-slate-50/90 rounded-xl p-3 border border-slate-100">
-                        <span className="text-[9px] text-blue-600 font-extrabold uppercase tracking-wider block">Tim Kanan 👉</span>
-                        <p className="text-2xl font-black text-slate-900 mt-1">{displayRightSales} <span className="text-xs font-bold text-slate-500">pt</span></p>
-                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">{displayRightCount} member</p>
-                      </div>
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-3 mt-3 border-t border-slate-800/70 relative z-10">
+                      <button
+                        onClick={() => setActiveTab('finance')}
+                        className="flex-1 bg-white hover:bg-slate-100 text-slate-900 py-2 rounded-xl text-xs font-extrabold transition shadow-xs flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+                      >
+                        <ArrowDownLeft className="w-3.5 h-3.5 text-blue-600" /> Isi Saldo
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('finance')}
+                        className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-extrabold transition shadow-xs flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+                      >
+                        <ArrowUpRight className="w-3.5 h-3.5" /> Tarik
+                      </button>
                     </div>
                   </div>
 
-                  {/* Sync info & Sponsor summary */}
-                  <div className="border-t border-slate-100 pt-3 mt-3 space-y-1.5 text-[10px]">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-500">Sponsor / Referal Langsung:</span>
-                      <span className="font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                        {referrals.length} orang ({referrals.filter(r => r.is_active).length} aktif)
+                  {/* Card 2: Omset Volume Grup */}
+                  <div className="w-[86vw] xs:w-[320px] sm:w-auto shrink-0 snap-center sm:shrink bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+                    <div className="space-y-2.5">
+                      {/* Header */}
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest block">
+                            OMSET VOLUME GRUP (BINARY)
+                          </span>
+                          <p className="text-xs font-extrabold text-slate-900">Tim Kiri & Kanan</p>
+                        </div>
+                        <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg shrink-0">
+                          <TreePine className="w-4 h-4" />
+                        </div>
+                      </div>
+
+                      {/* Left vs Right Meter */}
+                      {(() => {
+                        const totalVol = (displayLeftSales || 0) + (displayRightSales || 0);
+                        const leftPct = totalVol > 0 ? Math.round((displayLeftSales / totalVol) * 100) : 50;
+                        const rightPct = 100 - leftPct;
+                        return (
+                          <div className="space-y-1">
+                            <div className="flex justify-between items-center text-[9px] font-extrabold uppercase tracking-wider text-slate-500">
+                              <span className="text-blue-600">KIRI ({leftPct}%)</span>
+                              <span className="text-indigo-600">KANAN ({rightPct}%)</span>
+                            </div>
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/80">
+                              <div 
+                                style={{ width: `${leftPct}%` }} 
+                                className="h-full bg-blue-600 rounded-l-full"
+                              />
+                              <div 
+                                style={{ width: `${rightPct}%` }} 
+                                className="h-full bg-indigo-600 rounded-r-full"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Volume Boxes */}
+                      <div className="grid grid-cols-2 gap-2 pt-0.5">
+                        <div className="bg-blue-50/70 rounded-xl p-2.5 border border-blue-100">
+                          <span className="text-[9px] text-blue-700 font-black uppercase tracking-wider block">
+                            👈 TIM KIRI
+                          </span>
+                          <p className="text-lg font-black text-slate-900">
+                            {displayLeftSales} <span className="text-[10px] font-extrabold text-slate-400">pt</span>
+                          </p>
+                          <p className="text-[9px] text-slate-500 font-bold">{displayLeftCount} member</p>
+                        </div>
+
+                        <div className="bg-indigo-50/70 rounded-xl p-2.5 border border-indigo-100">
+                          <span className="text-[9px] text-indigo-700 font-black uppercase tracking-wider block">
+                            TIM KANAN 👉
+                          </span>
+                          <p className="text-lg font-black text-slate-900">
+                            {displayRightSales} <span className="text-[10px] font-extrabold text-slate-400">pt</span>
+                          </p>
+                          <p className="text-[9px] text-slate-500 font-bold">{displayRightCount} member</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="border-t border-slate-100 pt-2.5 mt-2.5 flex items-center justify-between text-[10px]">
+                      <span className="font-bold text-slate-500">Sponsor Direct:</span>
+                      <span className="font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
+                        {referrals.length} member ({referrals.filter(r => r.is_active).length} aktif)
                       </span>
                     </div>
-                    <p className="text-[9.5px] text-slate-400 font-medium leading-relaxed">
-                      Aktivasi member di jaringan tim menambah +1 pt omset.
-                    </p>
                   </div>
-                </div>
 
-                {/* Total Bonus Accumulated */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between hover:shadow-md transition">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block">Total Komisi Afiliasi</span>
-                      <h3 className="text-2xl font-black text-slate-900 mt-1">
-                        Rp {(user.sponsor_bonus + user.pairing_bonus + user.level_bonus + user.ro_bonus).toLocaleString('id-ID')}
-                      </h3>
+                  {/* Card 3: Total Komisi Afiliasi */}
+                  <div className="w-[86vw] xs:w-[320px] sm:w-auto shrink-0 snap-center sm:shrink bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-emerald-900/40 relative overflow-hidden flex flex-col justify-between group">
+                    <div className="absolute -right-10 -bottom-10 w-36 h-36 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                        <span className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-widest block">
+                          TOTAL KOMISI & AKUMULASI
+                        </span>
+                        <div className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/30">
+                          <TrendingUp className="w-4 h-4" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
+                          Pendapatan Bersih Total
+                        </span>
+                        <h3 className="text-2xl sm:text-3xl font-display font-black text-white mt-0.5 tracking-tight">
+                          <span className="text-emerald-400 text-base font-sans mr-1">Rp</span>
+                          {(user.sponsor_bonus + user.pairing_bonus + user.level_bonus + user.ro_bonus).toLocaleString('id-ID')}
+                        </h3>
+                      </div>
+
+                      {/* 4 Mini Bonus Pill Grid */}
+                      <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10px]">
+                        <div className="bg-slate-900/90 px-2 py-1 rounded-lg border border-slate-800">
+                          <span className="text-slate-400 font-semibold block text-[8px]">1. Sponsor</span>
+                          <p className="font-extrabold text-emerald-400 text-[11px]">Rp {user.sponsor_bonus.toLocaleString('id-ID')}</p>
+                        </div>
+                        <div className="bg-slate-900/90 px-2 py-1 rounded-lg border border-slate-800">
+                          <span className="text-slate-400 font-semibold block text-[8px]">2. Pasangan</span>
+                          <p className="font-extrabold text-emerald-400 text-[11px]">Rp {user.pairing_bonus.toLocaleString('id-ID')}</p>
+                        </div>
+                        <div className="bg-slate-900/90 px-2 py-1 rounded-lg border border-slate-800">
+                          <span className="text-slate-400 font-semibold block text-[8px]">3. Generasi</span>
+                          <p className="font-extrabold text-emerald-400 text-[11px]">Rp {user.level_bonus.toLocaleString('id-ID')}</p>
+                        </div>
+                        <div className="bg-slate-900/90 px-2 py-1 rounded-lg border border-slate-800">
+                          <span className="text-slate-400 font-semibold block text-[8px]">4. Repeat Order</span>
+                          <p className="font-extrabold text-emerald-400 text-[11px]">Rp {user.ro_bonus.toLocaleString('id-ID')}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-                      <TrendingUp className="w-5 h-5" />
-                    </div>
+
+                    <button
+                      onClick={() => setActiveTab('bonuses')}
+                      className="mt-3 w-full py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-extrabold text-xs rounded-lg border border-emerald-500/30 transition text-center cursor-pointer"
+                    >
+                      Perincian Bonus →
+                    </button>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100 text-[10px]">
-                    <div>
-                      <span className="text-slate-500 font-semibold">Sponsor:</span>
-                      <p className="font-black text-slate-800">Rp {user.sponsor_bonus.toLocaleString('id-ID')}</p>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 font-semibold">Pasangan:</span>
-                      <p className="font-black text-slate-800">Rp {user.pairing_bonus.toLocaleString('id-ID')}</p>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 font-semibold">Generasi:</span>
-                      <p className="font-black text-slate-800">Rp {user.level_bonus.toLocaleString('id-ID')}</p>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 font-semibold">RO Bonus:</span>
-                      <p className="font-black text-slate-800">Rp {user.ro_bonus.toLocaleString('id-ID')}</p>
-                    </div>
-                  </div>
+
                 </div>
               </div>
 
@@ -1039,11 +1184,51 @@ export default function UserDashboard({
               </div>
 
               {/* Transactions list */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.01)]">
-                <h3 className="text-base font-display font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-blue-600" /> Riwayat Transaksi Finansial
-                </h3>
-                <div className="overflow-x-auto">
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.01)] text-left">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm sm:text-base font-display font-bold text-slate-900 flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" /> Riwayat Transaksi Finansial
+                  </h3>
+                  <span className="text-[10px] sm:text-xs font-extrabold text-slate-500">
+                    Total {transactions.length} Catatan
+                  </span>
+                </div>
+
+                {/* Mobile View (1 Baris 2 Kolom Kanan Kiri) */}
+                <div className="block sm:hidden space-y-2">
+                  {transactions.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-6 text-center bg-slate-50 rounded-xl border border-slate-200">
+                      Belum ada catatan transaksi keuangan
+                    </p>
+                  ) : (
+                    transactions.map((tx) => (
+                      <div key={tx.id} className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-2.5 shadow-2xs flex justify-between items-center gap-2.5 text-left">
+                        {/* Kolom 1: Tanggal & Keterangan Singkat */}
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <p className="text-[9px] text-slate-400 font-bold">{new Date(tx.created_at).toLocaleDateString('id-ID')}</p>
+                          <p className="text-xs font-bold text-slate-800 truncate">{tx.description}</p>
+                        </div>
+
+                        {/* Kolom 2: Jumlah & Jenis */}
+                        <div className="text-right shrink-0 space-y-0.5">
+                          <p className={`text-xs font-mono font-black ${tx.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {tx.amount >= 0 ? '+' : ''}Rp {tx.amount.toLocaleString('id-ID')}
+                          </p>
+                          <span className={`inline-block text-[8px] font-extrabold px-1.5 py-0.2 rounded uppercase ${
+                            tx.type.includes('bonus') ? 'bg-emerald-100 text-emerald-800' :
+                            tx.type === 'deposit' ? 'bg-blue-100 text-blue-800' :
+                            tx.type === 'withdrawal' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-800'
+                          }`}>
+                            {tx.type.replace('_', ' ')}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Desktop View (Table) */}
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50/50 text-slate-400 uppercase text-[9px] tracking-wider">
@@ -1077,7 +1262,7 @@ export default function UserDashboard({
                             <td className={`py-3.5 px-4 text-right font-bold text-sm whitespace-nowrap ${
                               tx.amount > 0 ? 'text-green-600' : 'text-red-600'
                             }`}>
-                              {tx.amount > 0 ? '+' : ''}Rp {tx.amount.toLocaleString()}
+                              {tx.amount > 0 ? '+' : ''}Rp {tx.amount.toLocaleString('id-ID')}
                             </td>
                           </tr>
                         ))
@@ -1590,87 +1775,126 @@ export default function UserDashboard({
 
           {/* TAB 3: SHOP (BELANJA CELANA JEANS) */}
           {activeTab === 'shop' && (
-            <div className="space-y-6" id="shop-tab-content">
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-4 sm:space-y-6" id="shop-tab-content">
+              {/* Compact Banner Card on Mobile */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
-                    <ShoppingBag className="text-blue-600 w-5 h-5" /> Katalog Eksklusif Celana Jeans Premium
+                  <h3 className="text-sm sm:text-lg font-bold text-slate-900 mb-0.5 sm:mb-1 flex items-center gap-2">
+                    <ShoppingBag className="text-blue-600 w-4 h-4 sm:w-5 sm:h-5 shrink-0" /> Katalog Eksklusif Celana Jeans Premium
                   </h3>
-                  <p className="text-xs text-slate-500">Nikmati harga diskon khusus Member Premium. Setiap pembelian produk memicu Bonus Repeat Order (RO) Rp 5.000 untuk sponsor Anda.</p>
+                  <p className="text-[11px] sm:text-xs text-slate-500 leading-snug sm:leading-normal">Nikmati harga diskon khusus Member Premium. Setiap pembelian produk memicu Bonus Repeat Order (RO) Rp 5.000 untuk sponsor Anda.</p>
                 </div>
-                <div className="bg-blue-50 border border-blue-100 px-4 py-2.5 rounded-xl text-right shrink-0">
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Saldo Dompet Tersedia</p>
-                  <p className="text-base font-black text-blue-600 font-mono">Rp {user.balance.toLocaleString('id-ID')}</p>
+                <div className="bg-blue-50 border border-blue-100 p-2.5 sm:px-4 sm:py-2.5 rounded-xl flex sm:block items-center justify-between shrink-0">
+                  <p className="text-[9px] sm:text-[10px] font-bold uppercase text-slate-500 sm:text-slate-400">Saldo Dompet Tersedia</p>
+                  <p className="text-xs sm:text-base font-black text-blue-600 font-mono">Rp {user.balance.toLocaleString('id-ID')}</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Grid View Selector Bar */}
+              <div className="flex items-center justify-between bg-white border border-slate-200/90 px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl shadow-2xs">
+                <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                  (Produk Utama)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShopGridView('2col')}
+                    title="Tampilan 2 Kolom"
+                    className={`p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                      shopGridView === '2col' 
+                        ? 'bg-blue-600 text-white shadow-xs' 
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShopGridView('1col')}
+                    title="Tampilan 1 Kolom"
+                    className={`p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                      shopGridView === '1col' 
+                        ? 'bg-blue-600 text-white shadow-xs' 
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <LayoutList className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className={
+                shopGridView === '2col' 
+                  ? "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6" 
+                  : "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6"
+              }>
                 {products.map((p) => {
                   const savings = Math.max(0, p.price - p.member_price);
                   return (
-                    <div key={p.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200/90 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col group">
-                      <div className="relative w-full h-52 bg-slate-100 overflow-hidden">
-                        <img 
-                          referrerPolicy="no-referrer" 
-                          src={p.image} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                          alt={p.name} 
-                        />
-                        {/* Member Special Tag */}
-                        <div className="absolute top-3 left-3 bg-blue-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow-sm">
-                          MEMBER EXCLUSIVE
-                        </div>
-                        {/* Stock Tag */}
-                        <div className={`absolute top-3 right-3 text-[10px] font-extrabold px-2.5 py-1 rounded-lg border shadow-sm ${
-                          p.stock > 10 ? 'bg-white/95 text-green-700 border-green-200' :
-                          p.stock > 0 ? 'bg-amber-500 text-white border-amber-600' :
-                          'bg-red-600 text-white border-red-700'
-                        }`}>
-                          {p.stock > 0 ? `Stok: ${p.stock} pcs` : 'Stok Habis'}
-                        </div>
-                      </div>
-
-                      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                        <div className="space-y-1.5">
-                          <h4 className="font-extrabold text-sm text-slate-900 group-hover:text-blue-600 transition-colors leading-snug line-clamp-1">{p.name}</h4>
-                          <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{p.description}</p>
+                    <div key={p.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200/90 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+                      <div>
+                        <div className="relative w-full h-36 sm:h-52 bg-slate-100 overflow-hidden">
+                          <img 
+                            referrerPolicy="no-referrer" 
+                            src={p.image} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                            alt={p.name} 
+                          />
+                          {/* Member Special Tag */}
+                          <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-blue-600 text-white text-[8px] sm:text-[10px] font-extrabold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg shadow-xs">
+                            MEMBER EXCLUSIVE
+                          </div>
+                          {/* Stock Tag */}
+                          <div className={`absolute top-2 right-2 sm:top-3 sm:right-3 text-[8px] sm:text-[10px] font-extrabold px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg border shadow-xs ${
+                            p.stock > 10 ? 'bg-white/95 text-green-700 border-green-200' :
+                            p.stock > 0 ? 'bg-amber-500 text-white border-amber-600' :
+                            'bg-red-600 text-white border-red-700'
+                          }`}>
+                            {p.stock > 0 ? `Stok: ${p.stock}` : 'Habis'}
+                          </div>
                         </div>
 
-                        <div className="pt-3 border-t border-slate-100 space-y-3">
-                          <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100">
-                            <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                              <span>Harga Retail Umum:</span>
+                        <div className="p-3 sm:p-4 space-y-2">
+                          <div className="space-y-1">
+                            <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 group-hover:text-blue-600 transition-colors leading-snug line-clamp-1">{p.name}</h4>
+                            <p className="text-[10px] sm:text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{p.description}</p>
+                          </div>
+
+                          <div className="bg-slate-50 p-2 sm:p-3 rounded-xl border border-slate-100/90 text-left">
+                            <div className="flex justify-between items-center text-[8px] sm:text-[9px] text-slate-400 font-medium">
+                              <span>Retail:</span>
                               <span className="line-through text-slate-400 font-semibold">Rp {p.price.toLocaleString('id-ID')}</span>
                             </div>
-                            <div className="flex justify-between items-baseline mt-1">
-                              <span className="text-[11px] font-bold text-slate-700">Harga Member:</span>
-                              <span className="text-blue-600 font-black text-lg font-mono">Rp {p.member_price.toLocaleString('id-ID')}</span>
+                            <div className="flex justify-between items-baseline mt-0.5">
+                              <span className="text-[8px] sm:text-[10px] font-bold text-slate-700">Member:</span>
+                              <span className="text-blue-600 font-black text-xs sm:text-base font-mono">Rp {p.member_price.toLocaleString('id-ID')}</span>
                             </div>
                             {savings > 0 && (
-                              <div className="mt-1 text-[10px] text-green-600 font-extrabold text-right">
+                              <div className="mt-0.5 text-[8px] sm:text-[9px] text-emerald-600 font-extrabold text-right truncate">
                                 🎉 Hemat Rp {savings.toLocaleString('id-ID')}
                               </div>
                             )}
                           </div>
-                          
-                          <button
-                            id={`btn-buy-product-${p.id}`}
-                            onClick={() => {
-                              setPurchaseModalProduct(p);
-                              setPurchaseAddress(user.address || '');
-                              setPurchasePaymentMethod('saldo');
-                            }}
-                            disabled={p.stock < 1 || loadingAction}
-                            className={`w-full py-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer ${
-                              p.stock < 1 
-                                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-600/10 active:scale-[0.98]'
-                            }`}
-                          >
-                            <ShoppingBag className="w-4 h-4" /> 
-                            {p.stock < 1 ? 'Stok Tidak Tersedia' : 'Beli Sekarang'}
-                          </button>
                         </div>
+                      </div>
+
+                      <div className="p-3 sm:p-4 pt-0">
+                        <button
+                          id={`btn-buy-product-${p.id}`}
+                          onClick={() => {
+                            setPurchaseModalProduct(p);
+                            setPurchaseAddress(user.address || '');
+                            setPurchasePaymentMethod('saldo');
+                          }}
+                          disabled={p.stock < 1 || loadingAction}
+                          className={`w-full py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer ${
+                            p.stock < 1 
+                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
+                              : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'
+                          }`}
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5" /> Beli Sekarang
+                        </button>
                       </div>
                     </div>
                   );
@@ -1805,253 +2029,377 @@ export default function UserDashboard({
             </div>
           )}
 
-          {/* TAB 4: DEPO & WD */}
+          {/* TAB 4: DEPO & WD & RIWAYAT TRANSAKSI */}
           {activeTab === 'finance' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8" id="finance-tab-content">
-              
-              {/* DEPOSIT MODULE */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <ArrowDownLeft className="text-blue-600 w-5 h-5" /> Isi Saldo (Deposit)
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Top-up saldo dompet Anda menggunakan gerbang pembayaran QRIS instan atau VA Bank.</p>
-                </div>
-
-                <form onSubmit={handleDepositSubmit} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Jumlah Pengisian (Rp)</label>
-                    <input
-                      type="number"
-                      required
-                      min="50000"
-                      placeholder="Contoh: 550000"
-                      value={depAmount}
-                      onChange={(e) => setDepAmount(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 font-extrabold"
-                    />
-                    <span className="text-[10px] text-slate-400">Minimal deposit adalah Rp 50.000</span>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Metode Pembayaran</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      <button
-                        type="button"
-                        id="dep-method-qris"
-                        onClick={() => setDepMethod('qris')}
-                        className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
-                          depMethod === 'qris' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="font-black text-[10px] tracking-tighter text-red-600 block">QRIS</span>
-                        <span className="text-[8px] opacity-75">Saran (Instan)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        id="dep-method-bca"
-                        onClick={() => setDepMethod('bca')}
-                        className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
-                          depMethod === 'bca' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="font-extrabold block">BCA</span>
-                        <span className="text-[8px] opacity-75">VA Otomatis</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        id="dep-method-mandiri"
-                        onClick={() => setDepMethod('mandiri')}
-                        className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
-                          depMethod === 'mandiri' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="font-extrabold block">MANDIRI</span>
-                        <span className="text-[8px] opacity-75">VA Otomatis</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    id="btn-submit-deposit"
-                    disabled={loadingAction}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm shadow flex items-center justify-center gap-2"
-                  >
-                    <Send className="w-4 h-4" /> Buat Tagihan Deposit
-                  </button>
-                </form>
-
-                {/* Deposits Queue & Simulated QRIS screen */}
-                <div className="border-t border-slate-100 pt-5 space-y-4">
-                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Antrean Deposit Pembayaran</h4>
-                  <div className="space-y-3">
-                    {deposits.length === 0 ? (
-                      <p className="text-xs text-slate-400 py-3 text-center">Belum ada aktivitas deposit</p>
-                    ) : (
-                      deposits.map((dep) => (
-                        <div key={dep.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col gap-3">
-                          <div className="flex justify-between items-start text-xs">
-                            <div>
-                              <p className="font-bold text-slate-700">Rp {dep.amount.toLocaleString()}</p>
-                              <p className="text-[10px] text-slate-400 uppercase font-mono">{dep.method} VA • ID #{dep.id}</p>
-                            </div>
-                            <span className={`px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase ${
-                              dep.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {dep.status}
-                            </span>
-                          </div>
-
-                          {dep.status === 'pending' && (
-                            <div className="space-y-3 border-t border-slate-200/60 pt-3">
-                              {dep.method === 'qris' && (
-                                <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-100">
-                                  <p className="text-[9px] text-red-600 font-bold tracking-widest uppercase mb-1">Pindai Kode QRIS Di Bawah</p>
-                                  <img referrerPolicy="no-referrer" src={dep.payment_code} className="w-32 h-32" alt="QRIS Code" />
-                                </div>
-                              )}
-                              
-                              <div className="bg-blue-50 rounded-lg p-2.5 text-[10px] text-blue-900 border border-blue-100">
-                                <strong>Kode/VA VA:</strong> <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 block mt-1 break-all">{dep.payment_code}</code>
-                              </div>
-
-                              <button
-                                type="button"
-                                id={`btn-simulate-pay-${dep.id}`}
-                                onClick={() => onSimulatePayment(dep.id)}
-                                className="w-full bg-slate-900 hover:bg-slate-800 text-white text-[11px] py-2 rounded-lg font-bold transition flex items-center justify-center gap-1.5 shadow"
-                              >
-                                <RefreshCw className="w-3 h-3 animate-spin" /> Simulasi Verifikasi Gateway Instan
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+            <div className="space-y-6" id="finance-tab-content">
+              {/* Top Finance Sub-Tabs Navigation */}
+              <div className="flex p-1.5 bg-slate-100 rounded-2xl border border-slate-200/90 gap-1.5 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setFinanceSubTab('deposit')}
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 cursor-pointer ${
+                    financeSubTab === 'deposit' 
+                      ? 'bg-blue-600 text-white shadow-xs' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <ArrowDownLeft className="w-4 h-4" /> Isi Saldo (Deposit)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFinanceSubTab('withdraw')}
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 cursor-pointer ${
+                    financeSubTab === 'withdraw' 
+                      ? 'bg-blue-600 text-white shadow-xs' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <ArrowUpRight className="w-4 h-4" /> Penarikan (Withdraw)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFinanceSubTab('history')}
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 cursor-pointer ${
+                    financeSubTab === 'history' 
+                      ? 'bg-blue-600 text-white shadow-xs' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  <Clock className="w-4 h-4" /> Riwayat Transaksi
+                </button>
               </div>
 
-              {/* WITHDRAWAL MODULE */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <ArrowUpRight className="text-blue-600 w-5 h-5" /> Penarikan Dana (Withdrawal)
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Tarik dana bonus Anda langsung ke rekening bank lokal Anda.</p>
-                </div>
-
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-xs text-slate-600 space-y-1.5">
-                  <div className="flex justify-between">
-                    <span>Saldo Tersedia:</span>
-                    <strong className="text-slate-950 font-bold">Rp {user.balance.toLocaleString()}</strong>
-                  </div>
-                  <div className="flex justify-between text-[11px]">
-                    <span>Minimal Penarikan:</span>
-                    <span className="text-slate-500">Rp 50.000</span>
-                  </div>
-                  <div className="flex justify-between text-[11px]">
-                    <span>Pencairan Otomatis:</span>
-                    <span className="bg-green-100 text-green-800 font-extrabold px-2 py-0.2 rounded-full text-[9px] uppercase">AKTIF</span>
-                  </div>
-                </div>
-
-                <form onSubmit={handleWithdrawSubmit} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Jumlah Penarikan (Rp)</label>
-                    <input
-                      type="number"
-                      required
-                      min="50000"
-                      max={user.balance}
-                      placeholder="Contoh: 150000"
-                      value={wdAmount}
-                      onChange={(e) => setWdAmount(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 font-extrabold"
-                    />
+              {/* Sub-Tab 1: Deposit */}
+              {financeSubTab === 'deposit' && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6 max-w-3xl mx-auto">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <ArrowDownLeft className="text-blue-600 w-5 h-5" /> Isi Saldo Dompet (Deposit)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Top-up saldo dompet Anda menggunakan gerbang pembayaran QRIS instan atau VA Bank.</p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <form onSubmit={handleDepositSubmit} className="space-y-4">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Bank</label>
-                      <select
-                        value={wdBank}
-                        onChange={(e) => setWdBank(e.target.value)}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs bg-white focus:outline-none"
-                      >
-                        <option value="BCA">BCA (Bank Central Asia)</option>
-                        <option value="MANDIRI">MANDIRI (Bank Mandiri)</option>
-                        <option value="BRI">BRI (Bank Rakyat Indonesia)</option>
-                        <option value="BNI">BNI (Bank Negara Indonesia)</option>
-                        <option value="GOPAY">GOPAY (E-Wallet)</option>
-                      </select>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Jumlah Pengisian (Rp)</label>
+                      <input
+                        type="number"
+                        required
+                        min="50000"
+                        placeholder="Contoh: 550000"
+                        value={depAmount}
+                        onChange={(e) => setDepAmount(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 font-extrabold"
+                      />
+                      <span className="text-[10px] text-slate-400">Minimal deposit adalah Rp 50.000</span>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">No. Rekening / No. HP</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Metode Pembayaran</label>
+                      <div className="grid grid-cols-3 gap-3">
+                        <button
+                          type="button"
+                          id="dep-method-qris"
+                          onClick={() => setDepMethod('qris')}
+                          className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
+                            depMethod === 'qris' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="font-black text-[10px] tracking-tighter text-red-600 block">QRIS</span>
+                          <span className="text-[8px] opacity-75">Saran (Instan)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          id="dep-method-bca"
+                          onClick={() => setDepMethod('bca')}
+                          className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
+                            depMethod === 'bca' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="font-extrabold block">BCA</span>
+                          <span className="text-[8px] opacity-75">VA Otomatis</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          id="dep-method-mandiri"
+                          onClick={() => setDepMethod('mandiri')}
+                          className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
+                            depMethod === 'mandiri' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="font-extrabold block">MANDIRI</span>
+                          <span className="text-[8px] opacity-75">VA Otomatis</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      id="btn-submit-deposit"
+                      disabled={loadingAction}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm shadow flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Send className="w-4 h-4" /> Buat Tagihan Deposit
+                    </button>
+                  </form>
+
+                  {/* Deposits Queue & Simulated QRIS screen */}
+                  <div className="border-t border-slate-100 pt-5 space-y-4">
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Antrean Deposit Pembayaran</h4>
+                    <div className="space-y-3">
+                      {deposits.length === 0 ? (
+                        <p className="text-xs text-slate-400 py-3 text-center">Belum ada aktivitas deposit</p>
+                      ) : (
+                        deposits.map((dep) => (
+                          <div key={dep.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col gap-3">
+                            <div className="flex justify-between items-start text-xs">
+                              <div>
+                                <p className="font-bold text-slate-700">Rp {dep.amount.toLocaleString()}</p>
+                                <p className="text-[10px] text-slate-400 uppercase font-mono">{dep.method} VA • ID #{dep.id}</p>
+                              </div>
+                              <span className={`px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase ${
+                                dep.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {dep.status}
+                              </span>
+                            </div>
+
+                            {dep.status === 'pending' && (
+                              <div className="space-y-3 border-t border-slate-200/60 pt-3">
+                                {dep.method === 'qris' && (
+                                  <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-100">
+                                    <p className="text-[9px] text-red-600 font-bold tracking-widest uppercase mb-1">Pindai Kode QRIS Di Bawah</p>
+                                    <img referrerPolicy="no-referrer" src={dep.payment_code} className="w-32 h-32" alt="QRIS Code" />
+                                  </div>
+                                )}
+                                
+                                <div className="bg-blue-50 rounded-lg p-2.5 text-[10px] text-blue-900 border border-blue-100">
+                                  <strong>Kode/VA VA:</strong> <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 block mt-1 break-all">{dep.payment_code}</code>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  id={`btn-simulate-pay-${dep.id}`}
+                                  onClick={() => onSimulatePayment(dep.id)}
+                                  className="w-full bg-slate-900 hover:bg-slate-800 text-white text-[11px] py-2 rounded-lg font-bold transition flex items-center justify-center gap-1.5 shadow cursor-pointer"
+                                >
+                                  <RefreshCw className="w-3 h-3 animate-spin" /> Simulasi Verifikasi Gateway Instan
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-Tab 2: Withdrawal */}
+              {financeSubTab === 'withdraw' && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6 max-w-3xl mx-auto">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <ArrowUpRight className="text-blue-600 w-5 h-5" /> Penarikan Dana (Withdrawal)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Tarik dana bonus Anda langsung ke rekening bank lokal Anda.</p>
+                  </div>
+
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-xs text-slate-600 space-y-1.5">
+                    <div className="flex justify-between">
+                      <span>Saldo Tersedia:</span>
+                      <strong className="text-slate-950 font-bold">Rp {user.balance.toLocaleString()}</strong>
+                    </div>
+                    <div className="flex justify-between text-[11px]">
+                      <span>Minimal Penarikan:</span>
+                      <span className="text-slate-500">Rp 50.000</span>
+                    </div>
+                    <div className="flex justify-between text-[11px]">
+                      <span>Pencairan Otomatis:</span>
+                      <span className="bg-green-100 text-green-800 font-extrabold px-2 py-0.2 rounded-full text-[9px] uppercase">AKTIF</span>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleWithdrawSubmit} className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Jumlah Penarikan (Rp)</label>
+                      <input
+                        type="number"
+                        required
+                        min="50000"
+                        max={user.balance}
+                        placeholder="Contoh: 150000"
+                        value={wdAmount}
+                        onChange={(e) => setWdAmount(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 font-extrabold"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Bank</label>
+                        <select
+                          value={wdBank}
+                          onChange={(e) => setWdBank(e.target.value)}
+                          className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs bg-white focus:outline-none"
+                        >
+                          <option value="BCA">BCA (Bank Central Asia)</option>
+                          <option value="MANDIRI">MANDIRI (Bank Mandiri)</option>
+                          <option value="BRI">BRI (Bank Rakyat Indonesia)</option>
+                          <option value="BNI">BNI (Bank Negara Indonesia)</option>
+                          <option value="GOPAY">GOPAY (E-Wallet)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">No. Rekening / No. HP</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="1234567890"
+                          value={wdAccount}
+                          onChange={(e) => setWdAccount(e.target.value)}
+                          className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Pemilik Rekening</label>
                       <input
                         type="text"
                         required
-                        placeholder="1234567890"
-                        value={wdAccount}
-                        onChange={(e) => setWdAccount(e.target.value)}
+                        placeholder="Nama Lengkap Pemilik"
+                        value={wdHolder}
+                        onChange={(e) => setWdHolder(e.target.value)}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none"
                       />
                     </div>
-                  </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Pemilik Rekening</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Nama Lengkap Pemilik"
-                      value={wdHolder}
-                      onChange={(e) => setWdHolder(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none"
-                    />
-                  </div>
+                    <button
+                      type="submit"
+                      id="btn-submit-withdraw"
+                      disabled={user.balance < 50000 || loadingAction}
+                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition text-sm shadow flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Send className="w-4 h-4 text-blue-500" /> Ajukan Penarikan Dana
+                    </button>
+                  </form>
 
-                  <button
-                    type="submit"
-                    id="btn-submit-withdraw"
-                    disabled={user.balance < 50000 || loadingAction}
-                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition text-sm shadow flex items-center justify-center gap-2"
-                  >
-                    <Send className="w-4 h-4 text-blue-500" /> Ajukan Penarikan Dana
-                  </button>
-                </form>
-
-                {/* Withdrawals list queue */}
-                <div className="border-t border-slate-100 pt-5 space-y-4">
-                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Antrean Penarikan Dana</h4>
-                  <div className="space-y-3">
-                    {withdrawals.length === 0 ? (
-                      <p className="text-xs text-slate-400 py-3 text-center">Belum ada aktivitas penarikan dana</p>
-                    ) : (
-                      withdrawals.map((wd) => (
-                        <div key={wd.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex justify-between items-center text-xs">
-                          <div>
-                            <p className="font-bold text-slate-800">Rp {wd.amount.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">{wd.bank_name} • Rek: {wd.account_number}</p>
-                            <p className="text-[9px] text-slate-400">{new Date(wd.created_at).toLocaleString('id-ID')}</p>
+                  {/* Withdrawals list queue */}
+                  <div className="border-t border-slate-100 pt-5 space-y-4">
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Antrean Penarikan Dana</h4>
+                    <div className="space-y-3">
+                      {withdrawals.length === 0 ? (
+                        <p className="text-xs text-slate-400 py-3 text-center">Belum ada aktivitas penarikan dana</p>
+                      ) : (
+                        withdrawals.map((wd) => (
+                          <div key={wd.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex justify-between items-center text-xs">
+                            <div>
+                              <p className="font-bold text-slate-800">Rp {wd.amount.toLocaleString()}</p>
+                              <p className="text-[10px] text-slate-500">{wd.bank_name} • Rek: {wd.account_number}</p>
+                              <p className="text-[9px] text-slate-400">{new Date(wd.created_at).toLocaleString('id-ID')}</p>
+                            </div>
+                            <span className={`px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase ${
+                              wd.status === 'success' ? 'bg-green-100 text-green-800' :
+                              wd.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {wd.status}
+                            </span>
                           </div>
-                          <span className={`px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase ${
-                            wd.status === 'success' ? 'bg-green-100 text-green-800' :
-                            wd.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {wd.status}
-                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-Tab 3: Transaction History (2-Column Mobile Format) */}
+              {financeSubTab === 'history' && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <Clock className="text-purple-600 w-5 h-5" /> Riwayat Transaksi Finansial
+                    </h3>
+                    <span className="text-[11px] font-extrabold text-slate-500">
+                      Total {transactions.length} Catatan
+                    </span>
+                  </div>
+
+                  {/* Mobile 1-Row 2-Column List View */}
+                  <div className="block sm:hidden space-y-2">
+                    {transactions.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-8 text-center bg-slate-50 rounded-xl border border-slate-200">
+                        Belum ada riwayat transaksi finansial
+                      </p>
+                    ) : (
+                      transactions.map((t) => (
+                        <div key={t.id} className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-2.5 shadow-2xs flex justify-between items-center gap-2.5 text-left">
+                          {/* Kolom 1: Tanggal & Keterangan Singkat */}
+                          <div className="space-y-0.5 min-w-0 flex-1">
+                            <p className="text-[9px] text-slate-400 font-bold">{new Date(t.created_at).toLocaleDateString('id-ID')}</p>
+                            <p className="text-xs font-bold text-slate-800 truncate">{t.description}</p>
+                          </div>
+
+                          {/* Kolom 2: Jumlah & Jenis */}
+                          <div className="text-right shrink-0 space-y-0.5">
+                            <p className={`text-xs font-mono font-black ${t.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {t.amount >= 0 ? '+' : ''}Rp {t.amount.toLocaleString('id-ID')}
+                            </p>
+                            <span className={`inline-block text-[8px] font-extrabold px-1.5 py-0.2 rounded uppercase ${
+                              t.type.includes('bonus') ? 'bg-emerald-100 text-emerald-800' :
+                              t.type === 'deposit' ? 'bg-blue-100 text-blue-800' :
+                              t.type === 'withdrawal' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-800'
+                            }`}>
+                              {t.type.replace('_', ' ')}
+                            </span>
+                          </div>
                         </div>
                       ))
                     )}
                   </div>
-                </div>
 
-              </div>
+                  {/* Desktop Full Table View */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 uppercase text-[10px] tracking-wider">
+                          <th className="py-3 px-4 font-extrabold">ID</th>
+                          <th className="py-3 px-4 font-extrabold">Tipe</th>
+                          <th className="py-3 px-4 font-extrabold">Deskripsi</th>
+                          <th className="py-3 px-4 font-extrabold">Nominal</th>
+                          <th className="py-3 px-4 font-extrabold">Waktu</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {transactions.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="py-8 text-center text-slate-400">Belum ada riwayat transaksi finansial</td>
+                          </tr>
+                        ) : (
+                          transactions.map((t) => (
+                            <tr key={t.id} className="hover:bg-slate-50/50">
+                              <td className="py-3 px-4 font-mono font-bold text-slate-500">#{t.id}</td>
+                              <td className="py-3 px-4">
+                                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-blue-100 text-blue-800">
+                                  {t.type.replace('_', ' ')}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-bold text-slate-800">{t.description}</td>
+                              <td className={`py-3 px-4 font-mono font-bold ${t.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {t.amount >= 0 ? '+' : ''}Rp {t.amount.toLocaleString('id-ID')}
+                              </td>
+                              <td className="py-3 px-4 text-slate-400">{new Date(t.created_at).toLocaleString('id-ID')}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Free Product Package Badge / Status Banner */}
               <div className="bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-blue-800/80 flex flex-col md:flex-row items-center justify-between gap-6">
@@ -2072,21 +2420,58 @@ export default function UserDashboard({
                   <p className="text-[9px] text-slate-400 font-mono mt-1">Hak Usaha MLM: AKTIF</p>
                 </div>
               </div>
-
             </div>
           )}
 
           {/* TAB 5: REFERRALS SPONSOR */}
           {activeTab === 'referrals' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6" id="referrals-tab-content">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Users className="text-blue-600 w-5 h-5" /> Anggota Yang Anda Sponsori Langsung
-                </h3>
-                <p className="text-xs text-slate-500">Daftar rekan kerja yang mendaftar menggunakan ID Referal Anda. Dapatkan Bonus Sponsor Rp 40.000 ketika mereka melakukan aktifasi premium.</p>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Users className="text-blue-600 w-5 h-5" /> Anggota Yang Anda Sponsori Langsung
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Daftar rekan kerja yang mendaftar menggunakan ID Referal Anda. Dapatkan Bonus Sponsor Rp 40.000 ketika mereka melakukan aktifasi premium.</p>
+                </div>
+                <span className="hidden sm:inline-block text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-100">
+                  Total: {referrals.length} Member
+                </span>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* Mobile 2-Column Per Row Grid View */}
+              <div className="block sm:hidden">
+                {referrals.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-8 text-center bg-slate-50 rounded-xl border border-slate-200">
+                    Belum ada rekan yang mendaftar via referal Anda
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {referrals.map((ref) => (
+                      <div key={ref.id} className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-3 shadow-2xs space-y-2 text-left flex flex-col justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-mono text-[9px] text-blue-600 font-extrabold truncate">@{ref.username.replace(/^@/, '')}</span>
+                            <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase shrink-0 ${
+                              ref.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                            }`}>
+                              {ref.is_active ? 'Aktif' : 'Pasif'}
+                            </span>
+                          </div>
+                          <h4 className="font-extrabold text-xs text-slate-900 leading-tight line-clamp-1">{ref.fullname}</h4>
+                          <p className="text-[10px] text-slate-500 font-mono truncate">{ref.phone}</p>
+                        </div>
+                        <div className="pt-1.5 border-t border-slate-200/60 flex justify-between items-center text-[9px] text-slate-400">
+                          <span>Daftar:</span>
+                          <span className="font-semibold text-slate-600">{new Date(ref.created_at).toLocaleDateString('id-ID')}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop Full Table View */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 uppercase text-[10px] tracking-wider">
@@ -2441,21 +2826,51 @@ export default function UserDashboard({
           {/* TAB 8: PROFIL SAYA */}
           {activeTab === 'profil' && (
             <div className="space-y-6" id="profil-tab-content">
-              {/* Header */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <User className="w-5 h-5 text-blue-600" /> Profil & Pengaturan Akun
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Kelola informasi pribadi, nomor kontak WhatsApp, dan kata sandi keamanan akun Anda.
-                </p>
+              
+              {/* Profile Hero Header Card */}
+              <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 relative overflow-hidden">
+                <div className="absolute right-0 top-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+                
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10 text-center sm:text-left">
+                  {/* User Avatar Circle */}
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 p-1 shrink-0 shadow-lg shadow-blue-500/20">
+                    <div className="w-full h-full bg-slate-900 rounded-xl flex items-center justify-center font-display font-black text-2xl text-white">
+                      {user.fullname ? user.fullname.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase()}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 flex-1">
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                        user.is_active 
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                      }`}>
+                        {user.is_active ? '● MEMBER PREMIUM AKTIF' : '○ UNVERIFIED (PERLU AKTIVASI)'}
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-[10px] font-mono font-extrabold bg-slate-800 text-slate-300 border border-slate-700">
+                        ID: {idPrefix}{String(user.id).padStart(6, '0')}
+                      </span>
+                    </div>
+
+                    <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight">
+                      {user.fullname || user.username}
+                    </h2>
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-slate-400 font-medium">
+                      <span>Username: <strong className="text-white font-mono">@{user.username}</strong></span>
+                      <span>•</span>
+                      <span>Sponsor: <strong className="text-blue-400 font-bold">{user.sponsor_username || 'Perusahaan'}</strong></span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {statusMessage.text && (
                 <div className={`p-4 rounded-2xl border text-xs flex items-center gap-3 ${
                   statusMessage.type === 'success' 
-                    ? 'bg-green-50 border-green-100 text-green-800' 
-                    : 'bg-red-50 border-red-100 text-red-800'
+                    ? 'bg-green-50 border-green-200 text-green-900' 
+                    : 'bg-red-50 border-red-200 text-red-900'
                 }`}>
                   {statusMessage.type === 'success' ? <CheckCircle className="w-5 h-5 text-green-600 shrink-0" /> : <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />}
                   <div>
@@ -2465,108 +2880,127 @@ export default function UserDashboard({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Form Informasi Profil */}
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-1.5 h-3 bg-blue-600 rounded-sm inline-block"></span> Informasi Pribadi
-                  </h4>
-                  
-                  <form onSubmit={handleProfileSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Profile Details Form Grid */}
+              <form onSubmit={handleProfileSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-left">
+                
+                {/* Column 1: Informasi Pribadi & Kontak */}
+                <div className="bg-gradient-to-b from-blue-50/70 via-white to-indigo-50/40 rounded-3xl border border-blue-200/80 p-6 sm:p-7 shadow-sm space-y-5 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="pb-3 border-b border-blue-200/60 flex items-center justify-between">
+                      <h4 className="text-xs font-black text-blue-950 uppercase tracking-wider flex items-center gap-2">
+                        <User className="w-4 h-4 text-blue-600" /> 1. Data Diri & Kontak Member
+                      </h4>
+                      <span className="text-[10px] text-blue-600 font-extrabold bg-blue-100/80 px-2.5 py-0.5 rounded-full">Sesuai KTP</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">ID Member</label>
+                        <label className="text-[10px] font-extrabold text-blue-900/70 uppercase tracking-wider block">ID Member (Sistem)</label>
                         <input
                           type="text"
                           disabled
                           value={`${idPrefix}${String(user.id).padStart(6, '0')}`}
-                          className="w-full text-xs font-mono font-bold bg-slate-50 border border-slate-200 text-blue-600 rounded-xl px-4 py-2.5 cursor-not-allowed"
+                          className="w-full text-xs font-mono font-bold bg-white border border-blue-200 text-blue-600 rounded-xl px-3.5 py-2.5 cursor-not-allowed shadow-2xs"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Username</label>
+                        <label className="text-[10px] font-extrabold text-blue-900/70 uppercase tracking-wider block">Username Unik</label>
                         <input
                           type="text"
                           disabled
                           value={`@${user.username}`}
-                          className="w-full text-xs font-mono bg-slate-50 border border-slate-200 text-slate-500 rounded-xl px-4 py-2.5 cursor-not-allowed"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Nama Lengkap (Sesuai KTP)</label>
-                        <input
-                          type="text"
-                          required
-                          value={profileFullname}
-                          onChange={(e) => setProfileFullname(e.target.value)}
-                          placeholder="Masukkan nama lengkap Anda"
-                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Nomor KTP / NIK (16 Digit)</label>
-                        <input
-                          type="text"
-                          disabled
-                          value={profileKtp || "Belum diisi"}
-                          className="w-full text-xs font-mono bg-slate-50 border border-slate-200 text-slate-500 rounded-xl px-4 py-2.5 cursor-not-allowed"
+                          className="w-full text-xs font-mono bg-white border border-blue-200 text-slate-600 rounded-xl px-3.5 py-2.5 cursor-not-allowed shadow-2xs"
                         />
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Alamat Email</label>
+                      <label className="text-[10px] font-extrabold text-blue-950 uppercase tracking-wider block">Nama Lengkap (Sesuai KTP)</label>
+                      <input
+                        type="text"
+                        required
+                        value={profileFullname}
+                        onChange={(e) => setProfileFullname(e.target.value)}
+                        placeholder="Nama lengkap sesuai KTP"
+                        className="w-full text-xs bg-white border border-blue-200/90 text-slate-900 font-semibold rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 shadow-2xs"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold text-blue-900/70 uppercase tracking-wider block">Nomor KTP / NIK (16 Digit)</label>
+                      <input
+                        type="text"
+                        disabled
+                        value={profileKtp || "Belum diisi"}
+                        className="w-full text-xs font-mono bg-white border border-blue-200 text-slate-500 rounded-xl px-3.5 py-2.5 cursor-not-allowed shadow-2xs"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold text-blue-950 uppercase tracking-wider block">Alamat Email Aktif</label>
                       <input
                         type="email"
                         required
                         value={profileEmail}
                         onChange={(e) => setProfileEmail(e.target.value)}
                         placeholder="nama@email.com"
-                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        className="w-full text-xs bg-white border border-blue-200/90 text-slate-900 font-semibold rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 shadow-2xs"
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">No. HP / Telepon</label>
+                        <label className="text-[10px] font-extrabold text-blue-950 uppercase tracking-wider block">No. HP / Telepon</label>
                         <input
                           type="text"
                           required
                           value={profilePhone}
                           onChange={(e) => setProfilePhone(e.target.value)}
-                          placeholder="Contoh: 0812345678"
-                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          placeholder="08123456789"
+                          className="w-full text-xs bg-white border border-blue-200/90 text-slate-900 font-semibold rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 shadow-2xs"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">No. WhatsApp Aktif</label>
+                        <label className="text-[10px] font-extrabold text-blue-950 uppercase tracking-wider block">No. WhatsApp Aktif</label>
                         <input
                           type="text"
                           required
                           value={profileWhatsapp}
                           onChange={(e) => setProfileWhatsapp(e.target.value)}
-                          placeholder="Contoh: 0812345678"
-                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          placeholder="08123456789"
+                          className="w-full text-xs bg-white border border-blue-200/90 text-slate-900 font-semibold rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 shadow-2xs"
                         />
                       </div>
                     </div>
+                  </div>
 
-                    <div className="border-t border-slate-100 pt-3 space-y-3">
-                      <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Rekening Bank Pencairan Komisi</p>
+                  <div className="pt-2 text-[10px] text-blue-700/80 italic font-medium">
+                    *Gunakan nomor WhatsApp aktif untuk menerima konfirmasi penarikan saldo dan resi pengiriman produk.
+                  </div>
+                </div>
+
+                {/* Column 2: Bank & Alamat Pengiriman */}
+                <div className="bg-gradient-to-b from-emerald-50/70 via-white to-teal-50/40 rounded-3xl border border-emerald-200/80 p-6 sm:p-7 shadow-sm space-y-5 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="pb-3 border-b border-emerald-200/60 flex items-center justify-between">
+                      <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-emerald-600" /> 2. Rekening Bank & Alamat Kirim
+                      </h4>
+                      <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-100/80 px-2.5 py-0.5 rounded-full">Transfer Bonus</span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-extrabold text-emerald-900/80 uppercase tracking-wider">Pencairan Komisi / Bonus</p>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="space-y-1">
-                          <label className="text-[9px] font-extrabold text-slate-400 uppercase block">Nama Bank</label>
+                          <label className="text-[9px] font-extrabold text-emerald-950 uppercase block">Nama Bank</label>
                           <select
                             value={profileBankName}
                             onChange={(e) => setProfileBankName(e.target.value)}
-                            className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                            className="w-full text-xs bg-white border border-emerald-200/90 text-slate-900 font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 shadow-2xs"
                           >
                             <option value="BCA">BCA</option>
                             <option value="MANDIRI">MANDIRI</option>
@@ -2579,118 +3013,129 @@ export default function UserDashboard({
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[9px] font-extrabold text-slate-400 uppercase block">No. Rekening</label>
+                          <label className="text-[9px] font-extrabold text-emerald-950 uppercase block">No. Rekening</label>
                           <input
                             type="text"
                             value={profileBankAccount}
                             onChange={(e) => setProfileBankAccount(e.target.value)}
                             placeholder="1234567890"
-                            className="w-full text-xs font-mono bg-white border border-slate-200 text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                            className="w-full text-xs font-mono bg-white border border-emerald-200/90 text-slate-900 font-bold rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 shadow-2xs"
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[9px] font-extrabold text-slate-400 uppercase block">Atas Nama Bank</label>
+                          <label className="text-[9px] font-extrabold text-emerald-950 uppercase block">Atas Nama Bank</label>
                           <input
                             type="text"
                             value={profileBankHolder}
                             onChange={(e) => setProfileBankHolder(e.target.value)}
                             placeholder="Atas nama..."
-                            className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                            className="w-full text-xs bg-white border border-emerald-200/90 text-slate-900 font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 shadow-2xs"
                           />
                         </div>
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-100 pt-3 space-y-3">
-                      <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Alamat Pengiriman Produk</p>
+                    <div className="space-y-3 pt-3 border-t border-emerald-200/60">
+                      <p className="text-[10px] font-extrabold text-emerald-900/80 uppercase tracking-wider">Alamat Pengiriman Produk RO</p>
                       
                       <div className="space-y-1">
-                        <label className="text-[9px] font-extrabold text-slate-400 uppercase block">Alamat Lengkap (Jalan, RT/RW, No. Rumah, Kel/Kec)</label>
+                        <label className="text-[9px] font-extrabold text-emerald-950 uppercase block">Alamat Lengkap (Jalan, RT/RW, Kel/Kec)</label>
                         <textarea
                           rows={2}
                           value={profileAddress}
                           onChange={(e) => setProfileAddress(e.target.value)}
                           placeholder="Masukkan alamat lengkap pengiriman..."
-                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          className="w-full text-xs bg-white border border-emerald-200/90 text-slate-900 font-medium rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 shadow-2xs"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[9px] font-extrabold text-slate-400 uppercase block">Kota / Kabupaten & Provinsi</label>
+                        <label className="text-[9px] font-extrabold text-slate-600 uppercase block">Kota / Kabupaten & Provinsi</label>
                         <input
                           type="text"
                           value={profileCity}
                           onChange={(e) => setProfileCity(e.target.value)}
                           placeholder="Contoh: Jakarta Selatan, DKI Jakarta"
-                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                         />
                       </div>
                     </div>
+                  </div>
 
+                  <div className="pt-4">
                     <button
                       type="submit"
                       disabled={loadingAction}
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold transition shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                     >
-                      {loadingAction ? "Memproses..." : "Simpan Perubahan"}
+                      {loadingAction ? "Memproses..." : "💾 Simpan Perubahan Data Profil"}
                     </button>
-                  </form>
+                  </div>
                 </div>
 
-                {/* Form Reset Password */}
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-1.5 h-3 bg-blue-600 rounded-sm inline-block"></span> Atur Ulang Kata Sandi
-                  </h4>
+              </form>
 
-                  <form onSubmit={handlePasswordReset} className="space-y-4">
+              {/* Card 3: Keamanan Kata Sandi */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 max-w-3xl">
+                <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-red-600" /> Keamanan & Kata Sandi
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-bold">Ubah Kata Sandi Akun</span>
+                </div>
+
+                <form onSubmit={handlePasswordReset} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Kata Sandi Saat Ini</label>
+                      <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">Sandi Saat Ini</label>
                       <input
                         type="password"
                         required
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Kata Sandi Baru</label>
+                      <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">Sandi Baru</label>
                       <input
                         type="password"
                         required
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Minimal 6 karakter"
-                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        placeholder="Min. 6 Karakter"
+                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Konfirmasi Kata Sandi Baru</label>
+                      <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">Ulangi Sandi Baru</label>
                       <input
                         type="password"
                         required
                         value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        placeholder="Ulangi kata sandi baru"
-                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        placeholder="Samakan sandi"
+                        className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                     </div>
+                  </div>
 
+                  <div className="flex justify-end pt-2">
                     <button
                       type="submit"
                       disabled={loadingAction}
-                      className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
+                      className="w-full sm:w-auto px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      {loadingAction ? "Memproses..." : "Perbarui Kata Sandi"}
+                      {loadingAction ? "Memproses..." : "🔒 Perbarui Kata Sandi"}
                     </button>
-                  </form>
-                </div>
+                  </div>
+                </form>
               </div>
+
             </div>
           )}
 
@@ -2698,39 +3143,39 @@ export default function UserDashboard({
 
         {/* REPEAT ORDER (RO) CHECKOUT MODAL */}
         {purchaseModalProduct && (
-          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white max-w-lg w-full max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl border border-slate-200 relative animate-fadeIn text-left">
+          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white max-w-lg w-full max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-200 relative animate-fadeIn text-left">
               <button
                 onClick={() => setPurchaseModalProduct(null)}
-                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-900 rounded-full hover:bg-slate-100 transition"
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 p-1.5 text-slate-400 hover:text-slate-900 rounded-full hover:bg-slate-100 transition cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
 
-              <div className="flex items-center gap-3 border-b border-slate-100 pb-4 mb-4">
-                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
-                  <ShoppingBag className="w-6 h-6" />
+              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-2.5 mb-3">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl shrink-0">
+                  <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base text-slate-900">CHECKOUT REPEAT ORDER (RO)</h3>
-                  <p className="text-xs text-slate-500">Pilih metode pembayaran & konfirmasi pengiriman</p>
+                  <h3 className="font-extrabold text-xs sm:text-base text-slate-900">CHECKOUT REPEAT ORDER (RO)</h3>
+                  <p className="text-[10px] sm:text-xs text-slate-500">Pilih metode pembayaran & konfirmasi pengiriman</p>
                 </div>
               </div>
 
               {/* Product Summary */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex gap-4 items-center mb-5">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 flex gap-3 items-center mb-3">
                 <img
                   src={purchaseModalProduct.image}
                   alt={purchaseModalProduct.name}
-                  className="w-16 h-20 object-cover rounded-xl border border-slate-200 bg-white shrink-0"
+                  className="w-12 h-14 sm:w-16 sm:h-20 object-cover rounded-lg border border-slate-200 bg-white shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-extrabold text-sm text-slate-900 line-clamp-1">{purchaseModalProduct.name}</h4>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-slate-400 line-through">Rp {purchaseModalProduct.price.toLocaleString('id-ID')}</span>
-                    <span className="text-blue-600 font-extrabold text-sm">Rp {purchaseModalProduct.member_price.toLocaleString('id-ID')}</span>
+                  <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 line-clamp-1">{purchaseModalProduct.name}</h4>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[9px] sm:text-xs text-slate-400 line-through">Rp {purchaseModalProduct.price.toLocaleString('id-ID')}</span>
+                    <span className="text-blue-600 font-extrabold text-xs sm:text-sm font-mono">Rp {purchaseModalProduct.member_price.toLocaleString('id-ID')}</span>
                   </div>
-                  <span className="inline-block mt-1 text-[10px] font-black bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                  <span className="inline-block mt-0.5 text-[8px] sm:text-[10px] font-black bg-green-100 text-green-700 px-2 py-0.2 rounded-full">
                     Diskon Spesial Member Premium
                   </span>
                 </div>
@@ -2741,35 +3186,35 @@ export default function UserDashboard({
                   e.preventDefault();
                   handleProductPurchase(purchaseModalProduct.id, purchasePaymentMethod, purchaseAddress);
                 }}
-                className="space-y-4"
+                className="space-y-3"
               >
                 {/* Shipping Address */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                  <label className="block text-[10px] sm:text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
                     Alamat Lengkap Pengiriman Produk
                   </label>
                   <textarea
                     rows={2}
                     value={purchaseAddress}
                     onChange={(e) => setPurchaseAddress(e.target.value)}
-                    placeholder="Masukkan alamat pengiriman lengkap (Jalan, No. Rumah, RT/RW, Kecamatan, Kota, Kode Pos)"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white"
+                    placeholder="Alamat pengiriman (Jalan, No., RT/RW, Kec, Kota, Kode Pos)"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white"
                     required
                   />
                 </div>
 
                 {/* Payment Method Option */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
+                  <label className="block text-[10px] sm:text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
                     Pilih Metode Pembayaran
                   </label>
                   
-                  <div className="grid grid-cols-1 gap-2.5">
+                  <div className="grid grid-cols-1 gap-2">
                     {/* Option 1: Potong Saldo Akun */}
                     <label
-                      className={`border rounded-2xl p-3.5 flex items-start gap-3 cursor-pointer transition ${
+                      className={`border rounded-xl p-2.5 sm:p-3 flex items-start gap-2.5 cursor-pointer transition ${
                         purchasePaymentMethod === 'saldo'
-                          ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                          ? 'border-blue-600 bg-blue-50/50 shadow-2xs'
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
@@ -2779,28 +3224,28 @@ export default function UserDashboard({
                         value="saldo"
                         checked={purchasePaymentMethod === 'saldo'}
                         onChange={() => setPurchasePaymentMethod('saldo')}
-                        className="mt-1 text-blue-600 focus:ring-blue-500"
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500"
                       />
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center">
-                          <span className="font-extrabold text-xs text-slate-900">💳 Potong Saldo Member Account</span>
-                          <span className="text-[11px] font-mono font-bold text-blue-600">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center gap-1">
+                          <span className="font-extrabold text-[11px] sm:text-xs text-slate-900 truncate">💳 Potong Saldo Member</span>
+                          <span className="text-[10px] sm:text-[11px] font-mono font-bold text-blue-600 shrink-0">
                             Saldo: Rp {user.balance.toLocaleString('id-ID')}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
                           {user.balance >= purchaseModalProduct.member_price
-                            ? '✅ Saldo mencukupi. Pemotongan saldo instan tanpa perlu upload bukti.'
-                            : '⚠️ Saldo tidak mencukupi (Silakan deposit dulu atau pilih Transfer Bank)'}
+                            ? '✅ Saldo mencukupi. Pemotongan instan.'
+                            : '⚠️ Saldo tidak mencukupi (Deposit / Transfer Bank)'}
                         </p>
                       </div>
                     </label>
 
                     {/* Option 2: Transfer Bank / QRIS */}
                     <label
-                      className={`border rounded-2xl p-3.5 flex items-start gap-3 cursor-pointer transition ${
+                      className={`border rounded-xl p-2.5 sm:p-3 flex items-start gap-2.5 cursor-pointer transition ${
                         purchasePaymentMethod === 'transfer'
-                          ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                          ? 'border-blue-600 bg-blue-50/50 shadow-2xs'
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
@@ -2810,12 +3255,12 @@ export default function UserDashboard({
                         value="transfer"
                         checked={purchasePaymentMethod === 'transfer'}
                         onChange={() => setPurchasePaymentMethod('transfer')}
-                        className="mt-1 text-blue-600 focus:ring-blue-500"
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500"
                       />
-                      <div className="flex-1">
-                        <span className="font-extrabold text-xs text-slate-900 block">🏦 Transfer Bank / QRIS Direct</span>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Transfer via BCA / Mandiri / BRI / QRIS. Pesanan langsung diteruskan ke Admin Area.
+                      <div className="flex-1 min-w-0">
+                        <span className="font-extrabold text-[11px] sm:text-xs text-slate-900 block">🏦 Transfer Bank / QRIS Direct</span>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                          BCA / Mandiri / BRI / QRIS. Pesanan otomatis ke Admin Area.
                         </p>
                       </div>
                     </label>
@@ -2824,51 +3269,48 @@ export default function UserDashboard({
 
                 {/* Bank Transfer Details Box when Transfer is chosen */}
                 {purchasePaymentMethod === 'transfer' && (
-                  <div className="bg-slate-900 text-white rounded-2xl p-4 text-xs space-y-2.5">
-                    <span className="text-[10px] font-extrabold uppercase text-blue-400 tracking-wider block">
-                      REKENING TUJUAN TRANSFER BANK / QRIS ADMIN
+                  <div className="bg-slate-900 text-white rounded-xl p-3 text-xs space-y-2">
+                    <span className="text-[9px] font-extrabold uppercase text-blue-400 tracking-wider block">
+                      REKENING TUJUAN TRANSFER ADMIN
                     </span>
-                    <div className="space-y-1.5 font-mono text-[11px]">
-                      <div className="flex justify-between border-b border-slate-800 pb-1">
-                        <span className="text-slate-400">BANK BCA:</span>
+                    <div className="space-y-1 font-mono text-[10px] sm:text-[11px]">
+                      <div className="flex justify-between border-b border-slate-800 pb-0.5">
+                        <span className="text-slate-400">BCA:</span>
                         <span className="font-extrabold text-white">1234-5678-90 (PT HEDTRO)</span>
                       </div>
-                      <div className="flex justify-between border-b border-slate-800 pb-1">
-                        <span className="text-slate-400">BANK MANDIRI:</span>
+                      <div className="flex justify-between border-b border-slate-800 pb-0.5">
+                        <span className="text-slate-400">MANDIRI:</span>
                         <span className="font-extrabold text-white">0987-6543-21 (PT HEDTRO)</span>
                       </div>
-                      <div className="flex justify-between border-b border-slate-800 pb-1">
-                        <span className="text-slate-400">BANK BRI:</span>
+                      <div className="flex justify-between border-b border-slate-800 pb-0.5">
+                        <span className="text-slate-400">BRI:</span>
                         <span className="font-extrabold text-white">5544-3322-11 (PT HEDTRO)</span>
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-400 italic">
-                      * Transfer tepat sejumlah Rp {purchaseModalProduct.member_price.toLocaleString('id-ID')}. Pesanan otomatis terdata di Admin Area.
-                    </p>
                   </div>
                 )}
 
                 {/* Total & Submit */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-4">
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-3">
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Pembayaran</span>
-                    <span className="text-lg font-black text-blue-600 font-mono">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Total Pembayaran</span>
+                    <span className="text-xs sm:text-base font-black text-blue-600 font-mono">
                       Rp {purchaseModalProduct.member_price.toLocaleString('id-ID')}
                     </span>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <button
                       type="button"
                       onClick={() => setPurchaseModalProduct(null)}
-                      className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
                     >
                       Batal
                     </button>
                     <button
                       type="submit"
                       disabled={loadingAction || (purchasePaymentMethod === 'saldo' && user.balance < purchaseModalProduct.member_price)}
-                      className={`px-6 py-3 font-extrabold rounded-xl text-xs transition shadow-md flex items-center gap-2 ${
+                      className={`px-4 py-2 font-extrabold rounded-xl text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer ${
                         purchasePaymentMethod === 'saldo' && user.balance < purchaseModalProduct.member_price
                           ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                           : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 active:scale-95'

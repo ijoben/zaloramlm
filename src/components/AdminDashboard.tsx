@@ -1170,64 +1170,111 @@ export default function AdminDashboard({
           {activeTab === 'financials' && (
             <div className="space-y-6" id="admin-financials-panel">
               
-              {/* Financial Metrics Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                
-                {/* Total Turnover Cashflow */}
-                <div className="bg-gradient-to-br from-slate-950 to-slate-850 text-white rounded-2xl p-6 shadow-md border border-slate-800">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Omset Kotor Perusahaan</span>
-                      <h3 className="text-2xl sm:text-3xl font-display font-bold mt-1 tracking-tight">Rp {metrics.totalTurnover.toLocaleString()}</h3>
+              {/* Financial Metrics Cards - Mobile Carousel / PC Grid */}
+              <div className="relative">
+                <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 pt-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
+                  
+                  {/* Card 1: Total Turnover Cashflow */}
+                  <div className="w-[86vw] xs:w-[320px] sm:w-auto shrink-0 snap-center sm:shrink bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 relative overflow-hidden flex flex-col justify-between group">
+                  <div className="absolute -right-10 -top-10 w-36 h-36 bg-blue-600/15 rounded-full blur-2xl pointer-events-none"></div>
+
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[9px] text-blue-400 font-extrabold uppercase tracking-widest block">Omset Kotor Perusahaan</span>
+                        <p className="text-[11px] font-bold text-slate-300">Total Akumulasi Masuk</p>
+                      </div>
+                      <div className="p-2 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30 shrink-0">
+                        <TrendingUp className="w-4 h-4" />
+                      </div>
                     </div>
-                    <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl">
-                      <TrendingUp className="w-5 h-5" />
+
+                    <div>
+                      <h3 className="text-2xl sm:text-3xl font-display font-black tracking-tight text-white">
+                        <span className="text-blue-400 text-base font-sans mr-1">Rp</span>
+                        {metrics.totalTurnover.toLocaleString()}
+                      </h3>
                     </div>
                   </div>
-                  <div className="border-t border-slate-800 pt-3 mt-5 flex justify-between text-[10px] text-slate-400 font-medium">
-                    <span>Omset Aktifasi Member:</span>
-                    <strong className="text-white">Rp {(metrics.activeMembers * 550000).toLocaleString()}</strong>
+
+                  <div className="border-t border-slate-800/80 pt-2.5 mt-3 flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                    <span>Omset Aktivasi ({metrics.activeMembers} Member):</span>
+                    <strong className="text-emerald-400 font-mono">Rp {(metrics.activeMembers * 550000).toLocaleString()}</strong>
                   </div>
                 </div>
 
-                {/* Total MLM Commissions Paid */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.01)] flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Beban Komisi Terbayar</span>
-                      <h3 className="text-2xl sm:text-3xl font-display font-bold text-slate-950 mt-1 tracking-tight">Rp {metrics.totalBonusesPaid.toLocaleString()}</h3>
+                {/* Card 2: Total MLM Commissions Paid */}
+                <div className="w-[86vw] xs:w-[320px] sm:w-auto shrink-0 snap-center sm:shrink bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[9px] text-red-600 font-extrabold uppercase tracking-widest block">Beban Komisi Terbayar</span>
+                        <p className="text-[11px] font-bold text-slate-900">Total Bonus Keluar Ke Member</p>
+                      </div>
+                      <div className="p-2 bg-red-50 text-red-600 rounded-xl border border-red-100 shrink-0">
+                        <ArrowUpRight className="w-4 h-4" />
+                      </div>
                     </div>
-                    <div className="p-3 bg-red-50 text-red-600 rounded-xl">
-                      <ArrowUpRight className="w-5 h-5" />
+
+                    <div>
+                      <h3 className="text-2xl sm:text-3xl font-display font-black text-slate-950 tracking-tight">
+                        <span className="text-red-500 text-base font-sans mr-1">Rp</span>
+                        {metrics.totalBonusesPaid.toLocaleString()}
+                      </h3>
                     </div>
                   </div>
-                  <div className="border-t border-slate-100 pt-3 mt-5 flex justify-between text-[10px] text-slate-500 font-medium">
-                    <span>Rasio Beban MLM:</span>
-                    <span className="font-extrabold text-red-600">
+
+                  <div className="border-t border-slate-100 pt-2.5 mt-3 flex justify-between items-center text-[10px] text-slate-500 font-medium">
+                    <span>Rasio Beban Bonus:</span>
+                    <span className="font-extrabold text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
                       {metrics.totalTurnover > 0 ? Math.round((metrics.totalBonusesPaid / metrics.totalTurnover) * 100) : 0}% dari Omset
                     </span>
                   </div>
                 </div>
 
-                {/* Profit Cash */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
+                {/* Card 3: Profit Cash */}
+                <div className="w-[86vw] xs:w-[320px] sm:w-auto shrink-0 snap-center sm:shrink bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-emerald-900/40 relative overflow-hidden flex flex-col justify-between group">
+                  <div className="absolute -right-10 -bottom-10 w-36 h-36 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none"></div>
+
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-widest block">Kas Bersih Perusahaan (Profit)</span>
+                        <p className="text-[11px] font-bold text-slate-300">Surplus Bersih Admin</p>
+                      </div>
+                      <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30 shrink-0">
+                        <DollarSign className="w-4 h-4" />
+                      </div>
+                    </div>
+
                     <div>
-                      <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">Kas Bersih Perusahaan (Profit)</span>
-                      <h3 className="text-2xl sm:text-3xl font-black text-green-600 mt-1">
-                        Rp {(metrics.totalTurnover - metrics.totalBonusesPaid).toLocaleString()}
+                      <h3 className="text-2xl sm:text-3xl font-display font-black text-emerald-400 tracking-tight">
+                        <span className="text-emerald-500 text-base font-sans mr-1">Rp</span>
+                        {(metrics.totalTurnover - metrics.totalBonusesPaid).toLocaleString()}
                       </h3>
                     </div>
-                    <div className="p-3 bg-green-50 text-green-600 rounded-xl">
-                      <DollarSign className="w-5 h-5" />
-                    </div>
                   </div>
-                  <div className="border-t border-slate-100 pt-3 mt-5 flex justify-between text-[10px] text-slate-500 font-medium">
-                    <span>Arus Kas Bersih:</span>
-                    <span className="font-extrabold text-green-600">Surplus Kas</span>
+
+                  <div className="border-t border-slate-800/80 pt-2.5 mt-3 flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                    <span>Status Arus Kas:</span>
+                    <span className="font-extrabold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                      SURPLUS POSITIF
+                    </span>
                   </div>
                 </div>
+
               </div>
+
+              {/* Mobile Slide Dot Indicator */}
+              <div className="flex sm:hidden justify-center items-center gap-2 pt-1.5 pb-1">
+                <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Geser Card 👉</span>
+                <div className="flex gap-1.5 items-center">
+                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                  <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                  <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                </div>
+              </div>
+            </div>
 
               {/* Monthly Visual Sales Chart Simulator */}
               <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
@@ -2559,135 +2606,179 @@ export default function AdminDashboard({
           {activeTab === 'profil' && (
             <div className="space-y-6" id="admin-profile-panel">
               
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <User className="text-blue-600 w-5 h-5" /> Pengaturan Profil Admin
-                  </h3>
-                  <p className="text-xs text-slate-500">Kelola informasi nama lengkap, email resmi, nomor WA, serta verifikasi profil administrator Anda.</p>
+              {/* Admin Hero Header Card */}
+              <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 relative overflow-hidden">
+                <div className="absolute right-0 top-0 w-72 h-72 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+                
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10 text-center sm:text-left">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-indigo-500 to-blue-600 p-1 shrink-0 shadow-lg shadow-indigo-500/20">
+                    <div className="w-full h-full bg-slate-950 rounded-xl flex items-center justify-center font-display font-black text-2xl text-indigo-400">
+                      {user?.fullname ? user.fullname.charAt(0).toUpperCase() : 'A'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 flex-1">
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        🛡️ SYSTEM ADMINISTRATOR
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-[10px] font-mono font-extrabold bg-slate-800 text-slate-300 border border-slate-700">
+                        @{user?.username || 'admin'}
+                      </span>
+                    </div>
+
+                    <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight">
+                      {user?.fullname || 'Administrator Area'}
+                    </h2>
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-slate-400 font-medium">
+                      <span>Email: <strong className="text-white font-mono">{user?.email || '-'}</strong></span>
+                      <span>•</span>
+                      <span>WhatsApp: <strong className="text-emerald-400 font-mono">{user?.phone || '-'}</strong></span>
+                    </div>
+                  </div>
                 </div>
-
-                <form onSubmit={handleProfileSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Nama Lengkap Admin</label>
-                      <input
-                        type="text"
-                        required
-                        value={profileFullname}
-                        onChange={(e) => setProfileFullname(e.target.value)}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Alamat Email Resmi</label>
-                      <input
-                        type="email"
-                        required
-                        value={profileEmail}
-                        onChange={(e) => setProfileEmail(e.target.value)}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Nomor HP / WhatsApp</label>
-                      <input
-                        type="text"
-                        required
-                        value={profilePhone}
-                        onChange={(e) => setProfilePhone(e.target.value)}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono text-blue-600"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-slate-50 border border-slate-200/50 rounded-2xl space-y-2">
-                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Verifikasi Kata Sandi Saat Ini</label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="Masukkan sandi Anda saat ini untuk menyimpan perubahan profil"
-                      value={profilePassword}
-                      onChange={(e) => setProfilePassword(e.target.value)}
-                      className="w-full max-w-md border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500 font-mono bg-white"
-                    />
-                    <p className="text-[10px] text-slate-400">Keamanan ekstra: Diperlukan kata sandi aktif untuk mengubah parameter profil utama admin.</p>
-                  </div>
-
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="submit"
-                      id="btn-submit-save-profile"
-                      disabled={loading}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl transition text-xs shadow-md cursor-pointer"
-                    >
-                      💾 Simpan Profil Admin
-                    </button>
-                  </div>
-                </form>
               </div>
 
-              {/* PASSWORD RESET FORM */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <Lock className="text-red-600 w-5 h-5" /> Reset Kata Sandi Baru
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">Lakukan penggantian kata sandi secara periodik untuk menjaga integritas dan keamanan dashboard admin.</p>
+              {/* Profile & Security Form Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Form 1: Informasi Admin */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <User className="w-4 h-4 text-blue-600" /> Informasi Akun Admin
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-bold">Identitas Resmi</span>
+                    </div>
+
+                    <form onSubmit={handleProfileSubmit} className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">Nama Lengkap Admin</label>
+                        <input
+                          type="text"
+                          required
+                          value={profileFullname}
+                          onChange={(e) => setProfileFullname(e.target.value)}
+                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">Email Resmi Admin</label>
+                          <input
+                            type="email"
+                            required
+                            value={profileEmail}
+                            onChange={(e) => setProfileEmail(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">No. WA Official</label>
+                          <input
+                            type="text"
+                            required
+                            value={profilePhone}
+                            onChange={(e) => setProfilePhone(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono text-blue-600 font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 border border-slate-200/60 rounded-2xl space-y-2">
+                        <label className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider block">Konfirmasi Kata Sandi Aktif</label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="Masukkan kata sandi saat ini"
+                          value={profilePassword}
+                          onChange={(e) => setProfilePassword(e.target.value)}
+                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
+                        />
+                        <p className="text-[10px] text-slate-400">Verifikasi keamanan opsional untuk mencegah akses ilegal perubahan data master admin.</p>
+                      </div>
+
+                      <button
+                        type="submit"
+                        id="btn-submit-save-profile"
+                        disabled={loading}
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold transition shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                      >
+                        {loading ? "Memproses..." : "💾 Simpan Profil Admin"}
+                      </button>
+                    </form>
+                  </div>
                 </div>
 
-                <form onSubmit={handlePasswordReset} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Kata Sandi Lama / Saat Ini</label>
-                      <input
-                        type="password"
-                        required
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-red-500"
-                      />
+                {/* Form 2: Reset Password Admin */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-red-600" /> Keamanan & Kata Sandi
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-bold">Privasi Akses System</span>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Kata Sandi Baru</label>
-                      <input
-                        type="password"
-                        required
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Minimal 6 karakter"
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
+                    <form onSubmit={handlePasswordReset} className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">Kata Sandi Saat Ini</label>
+                        <input
+                          type="password"
+                          required
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 font-mono"
+                        />
+                      </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Konfirmasi Kata Sandi Baru</label>
-                      <input
-                        type="password"
-                        required
-                        value={confirmNewPassword}
-                        onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        placeholder="Ulangi sandi baru"
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">Kata Sandi Baru</label>
+                          <input
+                            type="password"
+                            required
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Min. 6 Karakter"
+                            className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider block">Ulangi Sandi Baru</label>
+                          <input
+                            type="password"
+                            required
+                            value={confirmNewPassword}
+                            onChange={(e) => setConfirmNewPassword(e.target.value)}
+                            placeholder="Samakan sandi"
+                            className="w-full text-xs bg-white border border-slate-200 text-slate-900 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-2 text-[10px] text-slate-400 italic">
+                        *Ganti kata sandi secara berkala untuk menjaga kerahasiaan seluruh database member dan kas perusahaan.
+                      </div>
+
+                      <button
+                        type="submit"
+                        id="btn-submit-reset-password"
+                        disabled={loading}
+                        className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {loading ? "Memproses..." : "🔒 Perbarui Kata Sandi Admin"}
+                      </button>
+                    </form>
                   </div>
+                </div>
 
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="submit"
-                      id="btn-submit-reset-password"
-                      disabled={loading}
-                      className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-6 rounded-xl transition text-xs shadow-md cursor-pointer"
-                    >
-                      🔒 Perbarui Kata Sandi Admin
-                    </button>
-                  </div>
-                </form>
               </div>
 
             </div>

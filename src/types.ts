@@ -8,6 +8,7 @@ export interface MLMUser {
   upline_id: number | null; // Parent in binary tree
   position: 'L' | 'R' | null; // Left or Right leg of parent
   sponsor_id: number | null; // Who invited them
+  sponsor_username?: string;
   balance: number;
   sponsor_bonus: number;
   pairing_bonus: number;
@@ -48,6 +49,7 @@ export interface Transaction {
   type: 'activation' | 'purchase' | 'sponsor_bonus' | 'pairing_bonus' | 'level_bonus' | 'ro_bonus' | 'deposit' | 'withdrawal' | 'refund' | 'bonus_produk';
   amount: number;
   description: string;
+  status?: 'pending' | 'success' | 'failed';
   created_at: string;
 }
 
