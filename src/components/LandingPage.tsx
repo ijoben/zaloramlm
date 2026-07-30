@@ -4,7 +4,7 @@ import { DEFAULT_PRODUCTS } from "../data/defaultProducts";
 import { 
   ShoppingBag, Heart, Search, Truck, ChevronLeft, ChevronRight, ChevronDown, HelpCircle,
   X, Check, Menu, Filter, ArrowRight, User, ShieldCheck, Sparkles,
-  Tag, Clock, MapPin, Eye, RefreshCw, Star, Package
+  Tag, Clock, MapPin, Eye, RefreshCw, Star, Package, LayoutGrid, List
 } from "lucide-react";
 
 interface LandingPageProps {
@@ -43,6 +43,7 @@ export default function LandingPage({
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   // E-Commerce Functional States
+  const [mobileGridCols, setMobileGridCols] = useState<2 | 1>(2);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all"); // 'all' | 'pria' | 'wanita' | 'aksesoris' | 'diskon'
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -465,17 +466,19 @@ export default function LandingPage({
               <button
                 id="btn-header-dashboard"
                 onClick={onDashboardClick}
-                className="bg-neutral-900 hover:bg-[#C41230] text-white px-2 sm:px-3.5 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs shrink-0"
+                className="bg-neutral-900 hover:bg-[#C41230] text-white p-2 sm:px-3.5 sm:py-2 text-[10px] sm:text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs shrink-0"
+                title="Member Area"
               >
-                <User className="w-3.5 h-3.5" /> <span className="hidden sm:inline">MEMBER AREA</span><span className="sm:hidden">MEMBER</span>
+                <User className="w-4 h-4 sm:w-3.5 sm:h-3.5" /> <span className="hidden sm:inline">MEMBER AREA</span>
               </button>
             ) : (
               <button
                 id="btn-header-login"
                 onClick={onLoginClick}
-                className="bg-[#C41230] hover:bg-[#A00E26] text-white px-2 sm:px-3.5 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black uppercase tracking-wider transition shadow-xs flex items-center gap-1 shrink-0"
+                className="bg-[#C41230] hover:bg-[#A00E26] text-white p-2 sm:px-3.5 sm:py-2 text-[10px] sm:text-xs font-black uppercase tracking-wider transition shadow-xs flex items-center gap-1 shrink-0"
+                title="Login Member"
               >
-                <User className="w-3.5 h-3.5" /> <span className="hidden sm:inline">LOGIN</span><span className="sm:hidden">LOGIN</span>
+                <User className="w-4 h-4 sm:w-3.5 sm:h-3.5" /> <span className="hidden sm:inline">LOGIN</span>
               </button>
             )}
 
@@ -497,7 +500,7 @@ export default function LandingPage({
               <Search className="w-5 h-5 text-[#C41230] shrink-0" />
               <input
                 type="text"
-                placeholder="Cari produk denim, celana 501®, jaket trucker, atau ukuran..."
+                placeholder="Cari produk..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-transparent border-none text-white text-sm focus:outline-none font-medium placeholder-neutral-500"
@@ -802,21 +805,46 @@ export default function LandingPage({
       </section>
 
       {/* 6. Main Product Catalog Section (Katalog Utama) */}
-      <section id="katalog-produk" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <section id="katalog-produk" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
         
         {/* Section Header & Category Filter Bar */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6 border-b border-neutral-200 pb-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 sm:mb-10 gap-4 sm:gap-6 border-b border-neutral-200 pb-4 sm:pb-6">
           <div className="space-y-1">
             <span className="text-[10px] font-black tracking-widest text-[#C41230] uppercase">
               {settings?.catalogSubtitle || "HEDTRO JEANS CATALOGUE"}
             </span>
-            <h2 className="text-2xl sm:text-3xl font-black font-display text-neutral-900 uppercase tracking-tight">
+            <h2 className="text-xl sm:text-3xl font-black font-display text-neutral-900 uppercase tracking-tight">
               {settings?.catalogTitle || "PRODUK BARU & KOLEKSI EKSKLUSIF"}
             </h2>
           </div>
 
-          {/* Category Filter Tabs */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Grid View Toggle (Mobile View Option) */}
+          <div className="flex sm:hidden items-center justify-between gap-2 bg-neutral-100 p-1.5 rounded border border-neutral-200 w-full">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-600 pl-1">Views Grid</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setMobileGridCols(2)}
+                className={`p-1.5 text-[10px] font-black uppercase rounded flex items-center justify-center transition ${
+                  mobileGridCols === 2 ? "bg-[#C41230] text-white shadow-xs" : "bg-white text-neutral-700 hover:text-neutral-900 border border-neutral-200"
+                }`}
+                title="Tampilan 2 Kolom"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setMobileGridCols(1)}
+                className={`p-1.5 text-[10px] font-black uppercase rounded flex items-center justify-center transition ${
+                  mobileGridCols === 1 ? "bg-[#C41230] text-white shadow-xs" : "bg-white text-neutral-700 hover:text-neutral-900 border border-neutral-200"
+                }`}
+                title="Tampilan 1 Kolom"
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Category Filter Tabs (Horizontal Sliding) */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 max-w-full whitespace-nowrap scrollbar-none snap-x touch-pan-x w-full md:w-auto">
             {[
               { id: "all", label: "SEMUA PRODUK" },
               { id: "pria", label: "PRIA" },
@@ -827,7 +855,7 @@ export default function LandingPage({
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
-                className={`px-4 py-2 text-xs font-black uppercase tracking-wider transition ${
+                className={`px-3.5 sm:px-4 py-2 text-xs font-black uppercase tracking-wider transition shrink-0 snap-start ${
                   activeCategory === cat.id
                     ? "bg-[#C41230] text-white shadow-xs"
                     : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
@@ -856,14 +884,14 @@ export default function LandingPage({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className={`grid ${mobileGridCols === 2 ? "grid-cols-2" : "grid-cols-1"} sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-8`}>
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
-                className="bg-white border border-neutral-200 flex flex-col hover:border-[#C41230] transition duration-300 group shadow-xs"
+                className="bg-white border border-neutral-200 flex flex-col hover:border-[#C41230] transition duration-300 group shadow-xs rounded-none"
               >
                 {/* Image & Badges */}
-                <div className="h-80 w-full overflow-hidden relative bg-neutral-100">
+                <div className="h-44 sm:h-80 w-full overflow-hidden relative bg-neutral-100">
                   <img
                     referrerPolicy="no-referrer"
                     src={product.image}
@@ -872,50 +900,50 @@ export default function LandingPage({
                   />
                   
                   {/* Red Tab Tag */}
-                  <div className="absolute top-3 left-0 bg-[#C41230] text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 shadow-md">
+                  <div className="absolute top-2 sm:top-3 left-0 bg-[#C41230] text-white text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 sm:px-2.5 py-0.5 sm:py-1 shadow-md">
                     LEVI'S® RED TAB™
                   </div>
 
                   {/* Wishlist Button */}
                   <button
                     onClick={() => toggleWishlist(product.id)}
-                    className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition ${
+                    className={`absolute top-2 sm:top-3 right-2 sm:right-3 p-1.5 sm:p-2 rounded-full backdrop-blur-md transition ${
                       wishlist.includes(product.id)
                         ? "bg-[#C41230] text-white"
                         : "bg-white/80 text-neutral-700 hover:text-[#C41230]"
                     }`}
                     title="Simpan ke Wishlist"
                   >
-                    <Heart className="w-4 h-4 fill-current" />
+                    <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                   </button>
 
-                  <div className="absolute bottom-3 left-3 bg-neutral-900/90 text-white text-[10px] font-mono px-2 py-0.5">
-                    STOK: {product.stock} PCS
+                  <div className="absolute bottom-2 sm:bottom-3 left-2 sm:left-3 bg-neutral-900/90 text-white text-[8px] sm:text-[10px] font-mono px-1.5 sm:px-2 py-0.5">
+                    STOK: {product.stock}
                   </div>
                 </div>
 
                 {/* Details & Prices */}
-                <div className="p-5 flex flex-col flex-1 justify-between space-y-4">
-                  <div className="space-y-1">
-                    <h3 className="font-black text-sm uppercase tracking-wide text-neutral-900 group-hover:text-[#C41230] transition">
+                <div className="p-2.5 sm:p-5 flex flex-col flex-1 justify-between space-y-2.5 sm:space-y-4">
+                  <div className="space-y-0.5 sm:space-y-1">
+                    <h3 className="font-black text-xs sm:text-sm uppercase tracking-wide text-neutral-900 group-hover:text-[#C41230] transition line-clamp-1">
                       {product.name}
                     </h3>
-                    <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed">
+                    <p className="text-[10px] sm:text-xs text-neutral-500 line-clamp-2 leading-relaxed">
                       {product.description}
                     </p>
                   </div>
 
-                  <div className="space-y-3 pt-3 border-t border-neutral-100">
-                    <div className="flex justify-between items-baseline">
+                  <div className="space-y-2 sm:space-y-3 pt-2 sm:pt-3 border-t border-neutral-100">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline gap-0.5">
                       <div>
-                        <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-wider">Harga Normal</p>
-                        <p className="text-neutral-400 line-through font-bold text-xs">
+                        <p className="text-[8px] sm:text-[9px] text-neutral-400 font-bold uppercase tracking-wider">Harga Normal</p>
+                        <p className="text-neutral-400 line-through font-bold text-[10px] sm:text-xs">
                           Rp {product.price.toLocaleString()}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[9px] text-[#C41230] font-black uppercase tracking-wider">Harga Member</p>
-                        <p className="text-[#C41230] font-black font-display text-lg">
+                      <div className="sm:text-right">
+                        <p className="text-[8px] sm:text-[9px] text-[#C41230] font-black uppercase tracking-wider">Harga Member</p>
+                        <p className="text-[#C41230] font-black font-display text-xs sm:text-lg">
                           Rp {product.member_price.toLocaleString()}
                         </p>
                       </div>
@@ -923,9 +951,9 @@ export default function LandingPage({
 
                     <button
                       onClick={() => addToCart(product)}
-                      className="w-full bg-neutral-900 hover:bg-[#C41230] text-white text-xs font-black uppercase tracking-widest py-3 transition text-center rounded-none flex items-center justify-center gap-1.5"
+                      className="w-full bg-neutral-900 hover:bg-[#C41230] text-white text-[10px] sm:text-xs font-black uppercase tracking-wider py-2 sm:py-3 transition text-center rounded-none flex items-center justify-center gap-1 sm:gap-1.5"
                     >
-                      <ShoppingBag className="w-4 h-4" /> TAMBAH KE KERANJANG
+                      <ShoppingBag className="w-3.5 h-3.5" /> <span>+ KERANJANG</span>
                     </button>
                   </div>
                 </div>
@@ -1423,7 +1451,7 @@ export default function LandingPage({
           {settings?.footerAbout && (
             <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-xs text-neutral-300 leading-relaxed text-left">
               <strong className="text-white font-black uppercase text-[10px] tracking-wider block mb-1 text-[#C41230]">
-                Mengenai {webName}:
+                Tentang Kami:
               </strong>
               {settings.footerAbout}
             </div>
