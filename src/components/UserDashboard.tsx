@@ -543,18 +543,34 @@ export default function UserDashboard({
               </div>
 
               {/* User Profile Details */}
-              <div className="bg-slate-900 p-4 rounded-xl flex items-center gap-3 border border-slate-800">
-                <div className="w-10 h-10 rounded-lg bg-blue-600 text-white font-display font-black flex items-center justify-center text-sm shadow-md shadow-blue-600/10 shrink-0">
-                  {user.username.slice(0, 2).toUpperCase()}
+              <div className="bg-slate-900 p-3.5 rounded-xl flex items-center gap-3 border border-slate-800">
+                <div className="w-11 h-11 rounded-xl bg-blue-600 text-white font-display font-black flex items-center justify-center text-sm shadow-md shadow-blue-600/10 shrink-0 overflow-hidden relative border border-slate-700">
+                  {user.profile_photo ? (
+                    <img src={user.profile_photo} alt={user.fullname} className="w-full h-full object-cover" />
+                  ) : (
+                    user.username.replace(/^@/, '').slice(0, 2).toUpperCase()
+                  )}
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-white truncate">{user.fullname}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5 truncate font-mono">
                     ID: {idPrefix}{String(user.id).padStart(6, '0')} • {user.username.replace(/^@/, '')}
                   </p>
-                  <span className="text-[9px] font-bold text-blue-400 block mt-0.5">
-                    {user.is_active ? 'Member Premium Active' : 'Lisensi Belum Aktif'}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      user.is_active 
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    }`}>
+                      {user.is_active ? 'PREMIUM' : 'FREE'}
+                    </span>
+                    {user.is_active && (
+                      <span className="text-[9px] font-extrabold text-blue-400 flex items-center gap-0.5">
+                        <span>Verified</span>
+                        <CheckCircle className="w-3 h-3 text-blue-400 fill-blue-500/30" />
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1117,26 +1133,28 @@ export default function UserDashboard({
                         );
                       })()}
 
-                      {/* Volume Boxes */}
+                      {/* Compact Volume Boxes */}
                       <div className="grid grid-cols-2 gap-2 pt-0.5">
-                        <div className="bg-blue-50/70 rounded-xl p-2.5 border border-blue-100">
-                          <span className="text-[9px] text-blue-700 font-black uppercase tracking-wider block">
+                        <div className="bg-blue-50/80 rounded-xl p-2 sm:p-2.5 border border-blue-100 text-left">
+                          <span className="text-[10px] text-blue-700 font-black tracking-wide block">
                             👈 TIM KIRI
                           </span>
-                          <p className="text-lg font-black text-slate-900">
-                            {displayLeftSales} <span className="text-[10px] font-extrabold text-slate-400">pt</span>
-                          </p>
-                          <p className="text-[9px] text-slate-500 font-bold">{displayLeftCount} member</p>
+                          <div className="flex items-baseline gap-1 my-0.5">
+                            <span className="text-base sm:text-lg font-black text-slate-900">{displayLeftSales}</span>
+                            <span className="text-[10px] font-bold text-slate-500">pt</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-semibold block">{displayLeftCount} member</span>
                         </div>
 
-                        <div className="bg-indigo-50/70 rounded-xl p-2.5 border border-indigo-100">
-                          <span className="text-[9px] text-indigo-700 font-black uppercase tracking-wider block">
+                        <div className="bg-indigo-50/80 rounded-xl p-2 sm:p-2.5 border border-indigo-100 text-left">
+                          <span className="text-[10px] text-indigo-700 font-black tracking-wide block">
                             TIM KANAN 👉
                           </span>
-                          <p className="text-lg font-black text-slate-900">
-                            {displayRightSales} <span className="text-[10px] font-extrabold text-slate-400">pt</span>
-                          </p>
-                          <p className="text-[9px] text-slate-500 font-bold">{displayRightCount} member</p>
+                          <div className="flex items-baseline gap-1 my-0.5">
+                            <span className="text-base sm:text-lg font-black text-slate-900">{displayRightSales}</span>
+                            <span className="text-[10px] font-bold text-slate-500">pt</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-semibold block">{displayRightCount} member</span>
                         </div>
                       </div>
                     </div>
