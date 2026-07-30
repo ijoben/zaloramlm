@@ -1031,16 +1031,22 @@ export default function UserDashboard({
                     <div className="absolute -right-10 -top-10 w-36 h-36 bg-blue-600/15 rounded-full blur-2xl pointer-events-none"></div>
 
                     <div className="space-y-3">
-                      {/* Top Bar: Chip / Brand Badge */}
+                      {/* Top Bar: Chip / Brand Badge & User Photo */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-5 rounded bg-gradient-to-tr from-amber-400 to-yellow-200 p-0.5 flex flex-col justify-between shadow-xs">
-                            <div className="w-full h-0.5 bg-amber-600/40 rounded-xs"></div>
-                            <div className="w-2/3 h-0.5 bg-amber-600/40 rounded-xs"></div>
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-display font-black flex items-center justify-center text-xs overflow-hidden border border-slate-700 shrink-0">
+                            {user.profile_photo ? (
+                              <img src={user.profile_photo} alt={user.fullname} className="w-full h-full object-cover" />
+                            ) : (
+                              user.username.replace(/^@/, '').slice(0, 2).toUpperCase()
+                            )}
                           </div>
-                          <span className="text-[9px] font-mono font-extrabold tracking-widest text-slate-400 uppercase">
-                            MEMBER ACCOUNT
-                          </span>
+                          <div>
+                            <span className="text-[9px] font-mono font-extrabold tracking-widest text-slate-400 uppercase block leading-none">
+                              MEMBER ACCOUNT
+                            </span>
+                            <span className="text-xs font-bold text-white truncate max-w-[120px] block leading-tight mt-0.5">{user.fullname}</span>
+                          </div>
                         </div>
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
                           user.is_active 

@@ -1631,13 +1631,20 @@ app.get("/api/admin/settings/payout", (req, res) => {
 // User Profile Update Endpoint
 app.post("/api/user/:userId/profile", async (req, res) => {
   const userId = Number(req.params.userId);
-  const { fullname, email, phone, password } = req.body;
+  const { fullname, email, phone, password, whatsapp, bank_name, bank_account, bank_holder, address, city, profile_photo } = req.body;
   const user = users.find(u => u.id === userId);
   if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
 
   if (fullname !== undefined) user.fullname = String(fullname);
   if (email !== undefined) user.email = String(email);
   if (phone !== undefined) user.phone = String(phone);
+  if (whatsapp !== undefined) (user as any).whatsapp = String(whatsapp);
+  if (bank_name !== undefined) user.bank_name = String(bank_name);
+  if (bank_account !== undefined) user.bank_account = String(bank_account);
+  if (bank_holder !== undefined) user.bank_holder = String(bank_holder);
+  if (address !== undefined) (user as any).address = String(address);
+  if (city !== undefined) (user as any).city = String(city);
+  if (profile_photo !== undefined) user.profile_photo = String(profile_photo);
   if (password !== undefined && password !== "") {
     (user as any).password = String(password);
   }

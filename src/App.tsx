@@ -2156,6 +2156,15 @@ export default function App() {
 
   const handleUpdateProfile = async (data: { fullname: string; email: string; phone: string; whatsapp?: string; bank_name?: string; bank_account?: string; bank_holder?: string; address?: string; city?: string; password?: string; profile_photo?: string }): Promise<boolean> => {
     if (!currentUser) return false;
+
+    // 1. Update Firestore directly
+    try {
+      await updateFirestoreUserProfile(currentUser.id, data);
+    } catch (fsErr) {
+      console.warn("Direct Firestore profile update warning:", fsErr);
+    }
+
+    // 2. Call server endpoint
     try {
       const res = await fetch(`/api/user/${currentUser.id}/profile`, {
         method: "POST",
@@ -2164,14 +2173,16 @@ export default function App() {
       });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("json")) {
-        fetchDashboardData();
-        return true;
+        const resData = await res.json();
+        if (resData.user) {
+          setCurrentUser(resData.user);
+        }
       }
     } catch (err) {
-      console.warn("Profile update API unreachable, updating directly in Firestore...", err);
+      console.warn("Profile update API unreachable:", err);
     }
 
-    await updateFirestoreUserProfile(currentUser.id, data);
+    // 3. Immediately reflect changes in current local state
     setCurrentUser(prev => prev ? ({
       ...prev,
       fullname: data.fullname || prev.fullname,
@@ -2186,7 +2197,8 @@ export default function App() {
       profile_photo: data.profile_photo !== undefined ? data.profile_photo : prev.profile_photo,
       ...(data.password ? { password: data.password } : {})
     }) : null);
-    await fetchDashboardData();
+
+    fetchDashboardData();
     return true;
   };
 
