@@ -115,36 +115,70 @@ export default function UserDashboard({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setStatusMessage({ text: "Ukuran foto maksimal 5MB", type: "error" });
+    if (file.size > 10 * 1024 * 1024) {
+      setStatusMessage({ text: "Ukuran foto maksimal 10MB", type: "error" });
       return;
     }
 
     setUploadingPhoto(true);
     const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64String = reader.result as string;
-      if (onUpdateProfile) {
-        try {
-          await onUpdateProfile({
-            fullname: profileFullname || user.fullname,
-            email: profileEmail || user.email,
-            phone: profilePhone || user.phone,
-            whatsapp: profileWhatsapp,
-            bank_name: profileBankName,
-            bank_account: profileBankAccount,
-            bank_holder: profileBankHolder,
-            address: profileAddress,
-            city: profileCity,
-            profile_photo: base64String
-          });
-          setStatusMessage({ text: "Foto profil berhasil diperbarui!", type: "success" });
-          onRefresh();
-        } catch (err: any) {
-          setStatusMessage({ text: "Gagal menyimpan foto profil", type: "error" });
+    reader.onloadend = () => {
+      const rawBase64 = reader.result as string;
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 400;
+        const MAX_HEIGHT = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
         }
-      }
-      setUploadingPhoto(false);
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
+
+        if (onUpdateProfile) {
+          try {
+            await onUpdateProfile({
+              fullname: profileFullname || user.fullname,
+              email: profileEmail || user.email,
+              phone: profilePhone || user.phone,
+              whatsapp: profileWhatsapp,
+              bank_name: profileBankName,
+              bank_account: profileBankAccount,
+              bank_holder: profileBankHolder,
+              address: profileAddress,
+              city: profileCity,
+              profile_photo: compressedBase64
+            });
+            setStatusMessage({ text: "Foto profil berhasil diperbarui & disimpan!", type: "success" });
+            onRefresh();
+          } catch (err: any) {
+            setStatusMessage({ text: "Gagal menyimpan foto profil", type: "error" });
+          }
+        }
+        setUploadingPhoto(false);
+      };
+      img.onerror = () => {
+        setStatusMessage({ text: "Gagal memproses gambar foto profil", type: "error" });
+        setUploadingPhoto(false);
+      };
+      img.src = rawBase64;
     };
     reader.readAsDataURL(file);
   };
@@ -484,7 +518,14 @@ export default function UserDashboard({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-display font-black flex items-center justify-center text-xs overflow-hidden border border-slate-700 shrink-0">
+              {user.profile_photo ? (
+                <img src={user.profile_photo} alt={user.fullname} className="w-full h-full object-cover" />
+              ) : (
+                user.username.replace(/^@/, '').slice(0, 2).toUpperCase()
+              )}
+            </div>
             <div className="text-right">
               <p className="text-xs font-bold text-neutral-100">{user.fullname}</p>
               <p className="text-[10px] text-neutral-400 font-mono">ID: {idPrefix}{String(user.id).padStart(6, '0')} • {user.username.replace(/^@/, '')} • {user.is_active ? 'Member Premium' : 'Inactive'}</p>

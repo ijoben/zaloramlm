@@ -84,7 +84,10 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
           whatsapp: data.whatsapp || "",
           bank_name: data.bank_name || "",
           bank_account: data.bank_account || "",
-          bank_holder: data.bank_holder || ""
+          bank_holder: data.bank_holder || "",
+          address: data.address || "",
+          city: data.city || "",
+          profile_photo: data.profile_photo || ""
         });
       }
     });
