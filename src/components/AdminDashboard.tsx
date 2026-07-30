@@ -130,6 +130,7 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'orders' | 'settings' | 'landing-editor' | 'profil'>('financials');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [selectedUserDetail, setSelectedUserDetail] = useState<MLMUser | null>(null);
   
   // Product edit & modal states
   const [editingModalProduct, setEditingModalProduct] = useState<Product | null>(null);
@@ -1727,15 +1728,30 @@ export default function AdminDashboard({
                     return (
                       <div key={u.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
                         <div>
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="font-extrabold text-blue-600 truncate text-xs">{u.username.replace(/^@/, '')}</span>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {u.profile_photo ? (
+                                <img
+                                  src={u.profile_photo}
+                                  alt={u.fullname || u.username}
+                                  className="w-8 h-8 rounded-full object-cover border border-slate-300 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold flex items-center justify-center text-xs shrink-0">
+                                  {(u.fullname || u.username).charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <span className="font-extrabold text-blue-600 truncate text-xs block">{u.username.replace(/^@/, '')}</span>
+                                <p className="font-bold text-slate-900 text-xs truncate">{u.fullname || u.username}</p>
+                              </div>
+                            </div>
                             <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
                               u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                             }`}>
                               {u.is_active ? 'Aktif' : 'Non-Aktif'}
                             </span>
                           </div>
-                          <p className="font-extrabold text-slate-900 text-xs truncate">{u.fullname || u.username}</p>
                           <p className="text-[10px] font-mono text-slate-500">ID Member: #{u.id}</p>
                         </div>
 
@@ -1753,6 +1769,13 @@ export default function AdminDashboard({
                             <strong className="font-mono text-green-600 font-extrabold">Rp {totalBonus.toLocaleString('id-ID')}</strong>
                           </div>
                         </div>
+
+                        <button
+                          onClick={() => setSelectedUserDetail(u)}
+                          className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 rounded-lg transition shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Lihat Detail User
+                        </button>
                       </div>
                     );
                   })
@@ -1765,7 +1788,7 @@ export default function AdminDashboard({
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 uppercase text-[9px] tracking-wider font-extrabold">
                       <th className="py-3 px-4">ID</th>
-                      <th className="py-3 px-4">Nama Lengkap</th>
+                      <th className="py-3 px-4">Foto & Member</th>
                       <th className="py-3 px-4">Username & Telp</th>
                       <th className="py-3 px-4">Upline & Sponsor</th>
                       <th className="py-3 px-4 text-center">Lisensi</th>
@@ -1773,12 +1796,13 @@ export default function AdminDashboard({
                       <th className="py-3 px-4 text-center">Omset L/R</th>
                       <th className="py-3 px-4 text-right">Sisa Saldo</th>
                       <th className="py-3 px-4 text-right">Total Bonus</th>
+                      <th className="py-3 px-4 text-center">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-8 text-center text-slate-400">Tidak ada data anggota ditemukan</td>
+                        <td colSpan={10} className="py-8 text-center text-slate-400">Tidak ada data anggota ditemukan</td>
                       </tr>
                     ) : (
                       filteredUsers
@@ -1791,8 +1815,28 @@ export default function AdminDashboard({
                           <tr key={u.id} className="hover:bg-slate-50/50">
                             <td className="py-3.5 px-4 font-mono text-slate-400">#{u.id}</td>
                             <td className="py-3.5 px-4 font-extrabold text-slate-900 leading-tight">
-                              {u.fullname || u.username}
-                              <span className="block text-[9px] text-slate-400 font-normal">Daftar: {u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID') : '-'}</span>
+                              <div className="flex items-center gap-2.5">
+                                {u.profile_photo ? (
+                                  <img
+                                    src={u.profile_photo}
+                                    alt={u.fullname || u.username}
+                                    className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0 shadow-2xs"
+                                  />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black flex items-center justify-center text-xs shrink-0 shadow-2xs">
+                                    {(u.fullname || u.username).charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                                <div>
+                                  <button
+                                    onClick={() => setSelectedUserDetail(u)}
+                                    className="font-extrabold text-slate-900 hover:text-blue-600 text-left transition cursor-pointer"
+                                  >
+                                    {u.fullname || u.username}
+                                  </button>
+                                  <span className="block text-[9px] text-slate-400 font-normal">Daftar: {u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID') : '-'}</span>
+                                </div>
+                              </div>
                             </td>
                             <td className="py-3.5 px-4 leading-normal">
                               <span className="font-bold text-blue-600 block">{u.username.replace(/^@/, '')}</span>
@@ -1826,6 +1870,14 @@ export default function AdminDashboard({
                             </td>
                             <td className="py-3.5 px-4 text-right font-black text-green-600">
                               Rp {totalBonus.toLocaleString('id-ID')}
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <button
+                                onClick={() => setSelectedUserDetail(u)}
+                                className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold text-[11px] transition inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5" /> Detail
+                              </button>
                             </td>
                           </tr>
                         );
@@ -4348,6 +4400,222 @@ export default function AdminDashboard({
 
         </main>
       </div>
+
+      {/* USER DETAIL POPUP MODAL */}
+      {selectedUserDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 p-4 sm:p-5 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center text-blue-300 shrink-0">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base sm:text-lg text-white leading-tight">
+                    Detail Anggota Jaringan
+                  </h3>
+                  <p className="text-xs text-slate-300 font-mono">
+                    ID Member: #{selectedUserDetail.id} • Registered {selectedUserDetail.created_at ? new Date(selectedUserDetail.created_at).toLocaleDateString('id-ID') : '-'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserDetail(null)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable) */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-6">
+              
+              {/* Profile Header Card with Photo */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                {/* Photo Preview */}
+                <div className="relative shrink-0">
+                  {selectedUserDetail.profile_photo ? (
+                    <img
+                      src={selectedUserDetail.profile_photo}
+                      alt={selectedUserDetail.fullname || selectedUserDetail.username}
+                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-white shadow-md"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-3xl font-black shadow-md border-2 border-white">
+                      {(selectedUserDetail.fullname || selectedUserDetail.username).charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className={`absolute -bottom-1 -right-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border-2 border-white shadow-2xs ${
+                    selectedUserDetail.is_active ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                  }`}>
+                    {selectedUserDetail.is_active ? 'Aktif' : 'Non-Aktif'}
+                  </span>
+                </div>
+
+                {/* Main Metadata */}
+                <div className="flex-1 text-center sm:text-left space-y-1">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <h4 className="text-base sm:text-lg font-black text-slate-900">{selectedUserDetail.fullname || selectedUserDetail.username}</h4>
+                    <span className="px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[10px] font-extrabold uppercase tracking-wide">
+                      {selectedUserDetail.role === 'admin' ? 'Administrator' : 'Member Premium'}
+                    </span>
+                  </div>
+                  <p className="text-xs font-bold text-blue-600 font-mono">@{selectedUserDetail.username.replace(/^@/, '')}</p>
+                  
+                  <div className="pt-2 flex flex-wrap gap-2 justify-center sm:justify-start text-xs text-slate-600 font-medium">
+                    <span className="bg-white border border-slate-200 px-2.5 py-1 rounded-lg">
+                      📧 {selectedUserDetail.email || '-'}
+                    </span>
+                    <span className="bg-white border border-slate-200 px-2.5 py-1 rounded-lg">
+                      📱 {selectedUserDetail.phone || selectedUserDetail.whatsapp || '-'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid Info Sections */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* 1. Informasi Pribadi & Kontak */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+                  <h5 className="font-extrabold text-xs uppercase tracking-wider text-slate-400 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                    <FileText className="w-3.5 h-3.5 text-blue-600" /> Informasi Diri & Kontak
+                  </h5>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">No. KTP / NIK</span>
+                      <span className="font-bold text-slate-900 font-mono">{selectedUserDetail.ktp || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">WhatsApp</span>
+                      <span className="font-bold text-slate-900 font-mono">{selectedUserDetail.whatsapp || selectedUserDetail.phone || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Kota / Kabupaten</span>
+                      <span className="font-bold text-slate-900">{selectedUserDetail.city || '-'}</span>
+                    </div>
+                    <div className="py-1">
+                      <span className="text-slate-500 font-medium block mb-0.5">Alamat Lengkap</span>
+                      <span className="font-semibold text-slate-800 text-[11px] leading-snug block bg-slate-50 p-2 rounded-lg border border-slate-200/80">
+                        {selectedUserDetail.address || 'Belum melengkapi alamat.'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Informasi Rekening Bank */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+                  <h5 className="font-extrabold text-xs uppercase tracking-wider text-slate-400 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                    <CreditCard className="w-3.5 h-3.5 text-blue-600" /> Bank & Rekening Pencairan
+                  </h5>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Nama Bank</span>
+                      <span className="font-bold text-slate-900 uppercase">{selectedUserDetail.bank_name || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">No. Rekening</span>
+                      <span className="font-bold text-blue-600 font-mono">{selectedUserDetail.bank_account || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Atas Nama</span>
+                      <span className="font-bold text-slate-900">{selectedUserDetail.bank_holder || '-'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Posisi Struktur & Sponsor */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+                  <h5 className="font-extrabold text-xs uppercase tracking-wider text-slate-400 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                    <Users className="w-3.5 h-3.5 text-blue-600" /> Posisi Struktur Binary & Sponsor
+                  </h5>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Upline Direct</span>
+                      <span className="font-bold text-slate-900">
+                        {(() => {
+                          const uplineUser = (users || []).find(x => Number(x.id) === Number(selectedUserDetail.upline_id));
+                          return uplineUser ? `@${uplineUser.username.replace(/^@/, '')}` : 'Root (Teratas)';
+                        })()}
+                        <span className="text-blue-600 ml-1 font-mono font-black">({selectedUserDetail.position || 'L'})</span>
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Sponsor Direct</span>
+                      <span className="font-bold text-slate-900">
+                        {(() => {
+                          const sponsorUser = (users || []).find(x => Number(x.id) === Number(selectedUserDetail.sponsor_id));
+                          return sponsorUser ? `@${sponsorUser.username.replace(/^@/, '')}` : (selectedUserDetail.sponsor_username || '-');
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Tim Member (L / R)</span>
+                      <span className="font-bold text-slate-900 font-mono">{selectedUserDetail.left_count || 0} Kiri / {selectedUserDetail.right_count || 0} Kanan</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Omset Poin (L / R)</span>
+                      <span className="font-bold text-slate-900 font-mono">{selectedUserDetail.left_sales || 0} Kiri / {selectedUserDetail.right_sales || 0} Kanan</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Rincian Saldo & Bonus Terakumulasi */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+                  <h5 className="font-extrabold text-xs uppercase tracking-wider text-slate-400 flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                    <DollarSign className="w-3.5 h-3.5 text-green-600" /> Saldo & Perolehan Bonus
+                  </h5>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Saldo Dompet Tersedia</span>
+                      <span className="font-black text-slate-900 font-mono text-sm">Rp {(selectedUserDetail.balance || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Bonus Sponsor</span>
+                      <span className="font-bold text-slate-800 font-mono">Rp {(selectedUserDetail.sponsor_bonus || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Bonus Pasangan (Pairing)</span>
+                      <span className="font-bold text-slate-800 font-mono">Rp {(selectedUserDetail.pairing_bonus || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Bonus Level (10 Generasi)</span>
+                      <span className="font-bold text-slate-800 font-mono">Rp {(selectedUserDetail.level_bonus || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Bonus Repeat Order (RO)</span>
+                      <span className="font-bold text-slate-800 font-mono">Rp {(selectedUserDetail.ro_bonus || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 pt-2 border-t border-slate-200 text-slate-900 font-black bg-green-50 p-2.5 rounded-lg border border-green-200">
+                      <span>Total Bonus Terakumulasi</span>
+                      <span className="text-green-700 font-mono text-sm">
+                        Rp {((selectedUserDetail.sponsor_bonus || 0) + (selectedUserDetail.pairing_bonus || 0) + (selectedUserDetail.level_bonus || 0) + (selectedUserDetail.ro_bonus || 0)).toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 border-t border-slate-200 p-4 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedUserDetail(null)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs transition cursor-pointer shadow-sm"
+              >
+                Tutup Detail
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Workflow Diagram & PDF Generator Modal */}
       <WorkflowModal
