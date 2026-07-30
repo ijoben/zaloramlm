@@ -1750,13 +1750,13 @@ export default function App() {
     setActiveView('dashboard');
   };
 
-  const handleBuyProduct = async (productId: number) => {
+  const handleBuyProduct = async (productId: number, paymentMethod: 'saldo' | 'transfer' = 'saldo', customAddress?: string) => {
     if (!currentUser) return;
     const prod = products.find(p => p.id === productId);
     const priceToPay = currentUser.is_active ? (prod?.member_price || prod?.price || 120000) : (prod?.price || 150000);
 
-    if (currentUser.balance < priceToPay) {
-      alert(`Saldo Anda (Rp ${currentUser.balance.toLocaleString("id-ID")}) tidak mencukupi untuk membeli ${prod?.name || 'produk'} seharga Rp ${priceToPay.toLocaleString("id-ID")}. Silakan Lakukan Deposit terlebih dahulu!`);
+    if (paymentMethod === 'saldo' && currentUser.balance < priceToPay) {
+      alert(`Saldo Anda (Rp ${currentUser.balance.toLocaleString("id-ID")}) tidak mencukupi untuk membeli ${prod?.name || 'produk'} seharga Rp ${priceToPay.toLocaleString("id-ID")}. Silakan Lakukan Deposit terlebih dahulu atau pilih metode Transfer Bank!`);
       return;
     }
 
@@ -1765,26 +1765,23 @@ export default function App() {
       return;
     }
 
-    const txBuy: Transaction = {
-      id: Date.now(),
-      user_id: currentUser.id,
-      username: currentUser.username,
-      type: "purchase",
-      amount: -priceToPay,
-      description: `Pembelian Produk: ${prod?.name || 'HEDTRO JEANS'} (-Rp ${priceToPay.toLocaleString("id-ID")})`,
-      created_at: new Date().toISOString()
-    };
-
     let apiSuccess = false;
+    let returnedOrder: Order | null = null;
     try {
       const res = await fetch("/api/user/purchase", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUser.id, productId })
+        body: JSON.stringify({ 
+          userId: currentUser.id, 
+          productId, 
+          paymentMethod,
+          address: customAddress 
+        })
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         apiSuccess = true;
+        if (data.order) returnedOrder = data.order;
       } else if (data.message) {
         alert(data.message);
         return;
@@ -1793,19 +1790,65 @@ export default function App() {
       console.warn("Purchase API unreachable, processing purchase direct in Firestore...", err);
     }
 
+    const payMethodText = paymentMethod === 'saldo' ? "Potong Saldo Member Account" : "Transfer Bank / QRIS";
+
     if (!apiSuccess) {
-      const updatedBal = Math.max(0, currentUser.balance - priceToPay);
-      await updateFirestoreUserProfile(currentUser.id, { balance: updatedBal } as any);
+      const newOrdId = Date.now();
+      const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
+      const fallbackOrder: Order = {
+        id: newOrdId,
+        invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
+        user_id: currentUser.id,
+        username: currentUser.username,
+        fullname: currentUser.fullname,
+        phone: currentUser.phone || "-",
+        address: customAddress || `${currentUser.address || 'Alamat Member'}${currentUser.city ? ', ' + currentUser.city : ''}`,
+        product_name: `Repeat Order (RO) - ${prod?.name || 'Hedtro Jeans Premium'}`,
+        amount: priceToPay,
+        payment_method: payMethodText,
+        status: "DIPROSES",
+        courier: "JNE REGULER",
+        tracking_number: newResi,
+        notes: `Repeat Order (RO) via ${payMethodText}. Terhubung ke admin area.`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        steps: [
+          { title: `Pembelian RO Berhasil (${payMethodText})`, time: new Date().toLocaleString("id-ID"), done: true, description: "Invoice diterbitkan" },
+          { title: "Verifikasi Gudang & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: "Menyiapkan produk jeans" },
+          { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "Sedang Diproses", done: false, description: `Nomor Resi: ${newResi}` },
+          { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
+          { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
+        ]
+      };
+
+      await saveFirestoreOrder(fallbackOrder);
+      setOrders(prev => [fallbackOrder, ...prev]);
+
+      if (paymentMethod === 'saldo') {
+        const updatedBal = Math.max(0, currentUser.balance - priceToPay);
+        await updateFirestoreUserProfile(currentUser.id, { balance: updatedBal } as any);
+        
+        const txBuy: Transaction = {
+          id: Date.now(),
+          user_id: currentUser.id,
+          username: currentUser.username,
+          type: "purchase",
+          amount: -priceToPay,
+          description: `Pembelian RO: ${prod?.name || 'HEDTRO JEANS'} (-Rp ${priceToPay.toLocaleString("id-ID")})`,
+          created_at: new Date().toISOString()
+        };
+        await createFirestoreTransaction(txBuy);
+        setCurrentUser(prev => prev ? ({ ...prev, balance: updatedBal }) : null);
+      }
 
       if (prod) {
         await updateFirestoreProduct(prod.id, Math.max(0, prod.stock - 1), prod.price, prod.member_price);
       }
-
-      await createFirestoreTransaction(txBuy);
-      setCurrentUser(prev => prev ? ({ ...prev, balance: updatedBal }) : null);
-      alert(`Pembelian ${prod?.name || 'Produk'} berhasil! Sisa saldo Anda: Rp ${updatedBal.toLocaleString("id-ID")}`);
     } else {
-      await createFirestoreTransaction(txBuy);
+      if (returnedOrder) {
+        await saveFirestoreOrder(returnedOrder);
+        setOrders(prev => [returnedOrder!, ...prev.filter(o => o.id !== returnedOrder!.id)]);
+      }
     }
 
     await fetchProducts();

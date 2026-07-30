@@ -19,7 +19,7 @@ interface UserDashboardProps {
   orders?: Order[];
   onLogout: () => void;
   onRefresh: () => void;
-  onBuyProduct: (productId: number) => Promise<void>;
+  onBuyProduct: (productId: number, paymentMethod?: 'saldo' | 'transfer', customAddress?: string) => Promise<void>;
   onDeposit: (amount: number, method: 'qris' | 'bca' | 'mandiri') => Promise<void>;
   onWithdraw: (amount: number, bank: string, accountNum: string, holder: string) => Promise<void>;
   onSimulatePayment: (depositId: number) => Promise<void>;
@@ -92,6 +92,11 @@ export default function UserDashboard({
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [syncingOrderId, setSyncingOrderId] = useState<number | string | null>(null);
+
+  // Repeat Order Checkout Modal States
+  const [purchaseModalProduct, setPurchaseModalProduct] = useState<Product | null>(null);
+  const [purchasePaymentMethod, setPurchasePaymentMethod] = useState<'saldo' | 'transfer'>('saldo');
+  const [purchaseAddress, setPurchaseAddress] = useState(user.address || '');
 
   const handleUserSyncTracking = async (ord: Order) => {
     setSyncingOrderId(ord.id);
@@ -346,15 +351,17 @@ export default function UserDashboard({
     }
   };
 
-  const handleProductPurchase = async (productId: number) => {
+  const handleProductPurchase = async (productId: number, method: 'saldo' | 'transfer' = 'saldo', addressInput?: string) => {
     if (!user.is_active) {
-      alert("Aktifkan akun premium Rp 550.000 terlebih dahulu!");
+      alert("Aktifkan akun premium Rp 550.000 terlebih dahulu untuk menikmati harga diskon member!");
       return;
     }
     setLoadingAction(true);
     try {
-      await onBuyProduct(productId);
-      setStatusMessage({ text: "Pembelian celana jeans premium berhasil! Stok diperbarui, bonus sponsor & RO mengalir.", type: "success" });
+      await onBuyProduct(productId, method, addressInput);
+      setStatusMessage({ text: "🎉 Pembelian Repeat Order (RO) berhasil! Pesanan telah masuk ke sistem pengiriman & terdaftar di Admin Area.", type: "success" });
+      setPurchaseModalProduct(null);
+      setActiveTab('orders');
     } catch (err: any) {
       setStatusMessage({ text: err.message || "Gagal melakukan pembelian", type: "error" });
     } finally {
@@ -1648,7 +1655,11 @@ export default function UserDashboard({
                           
                           <button
                             id={`btn-buy-product-${p.id}`}
-                            onClick={() => handleProductPurchase(p.id)}
+                            onClick={() => {
+                              setPurchaseModalProduct(p);
+                              setPurchaseAddress(user.address || '');
+                              setPurchasePaymentMethod('saldo');
+                            }}
                             disabled={p.stock < 1 || loadingAction}
                             className={`w-full py-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer ${
                               p.stock < 1 
@@ -1657,7 +1668,7 @@ export default function UserDashboard({
                             }`}
                           >
                             <ShoppingBag className="w-4 h-4" /> 
-                            {p.stock < 1 ? 'Stok Tidak Tersedia' : 'Beli Sekarang (Potong Saldo)'}
+                            {p.stock < 1 ? 'Stok Tidak Tersedia' : 'Beli Sekarang'}
                           </button>
                         </div>
                       </div>
@@ -2684,6 +2695,193 @@ export default function UserDashboard({
           )}
 
         </main>
+
+        {/* REPEAT ORDER (RO) CHECKOUT MODAL */}
+        {purchaseModalProduct && (
+          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white max-w-lg w-full max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl border border-slate-200 relative animate-fadeIn text-left">
+              <button
+                onClick={() => setPurchaseModalProduct(null)}
+                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-900 rounded-full hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4 mb-4">
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                  <ShoppingBag className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900">CHECKOUT REPEAT ORDER (RO)</h3>
+                  <p className="text-xs text-slate-500">Pilih metode pembayaran & konfirmasi pengiriman</p>
+                </div>
+              </div>
+
+              {/* Product Summary */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex gap-4 items-center mb-5">
+                <img
+                  src={purchaseModalProduct.image}
+                  alt={purchaseModalProduct.name}
+                  className="w-16 h-20 object-cover rounded-xl border border-slate-200 bg-white shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-extrabold text-sm text-slate-900 line-clamp-1">{purchaseModalProduct.name}</h4>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-slate-400 line-through">Rp {purchaseModalProduct.price.toLocaleString('id-ID')}</span>
+                    <span className="text-blue-600 font-extrabold text-sm">Rp {purchaseModalProduct.member_price.toLocaleString('id-ID')}</span>
+                  </div>
+                  <span className="inline-block mt-1 text-[10px] font-black bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                    Diskon Spesial Member Premium
+                  </span>
+                </div>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleProductPurchase(purchaseModalProduct.id, purchasePaymentMethod, purchaseAddress);
+                }}
+                className="space-y-4"
+              >
+                {/* Shipping Address */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                    Alamat Lengkap Pengiriman Produk
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={purchaseAddress}
+                    onChange={(e) => setPurchaseAddress(e.target.value)}
+                    placeholder="Masukkan alamat pengiriman lengkap (Jalan, No. Rumah, RT/RW, Kecamatan, Kota, Kode Pos)"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white"
+                    required
+                  />
+                </div>
+
+                {/* Payment Method Option */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
+                    Pilih Metode Pembayaran
+                  </label>
+                  
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {/* Option 1: Potong Saldo Akun */}
+                    <label
+                      className={`border rounded-2xl p-3.5 flex items-start gap-3 cursor-pointer transition ${
+                        purchasePaymentMethod === 'saldo'
+                          ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="saldo"
+                        checked={purchasePaymentMethod === 'saldo'}
+                        onChange={() => setPurchasePaymentMethod('saldo')}
+                        className="mt-1 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-extrabold text-xs text-slate-900">💳 Potong Saldo Member Account</span>
+                          <span className="text-[11px] font-mono font-bold text-blue-600">
+                            Saldo: Rp {user.balance.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {user.balance >= purchaseModalProduct.member_price
+                            ? '✅ Saldo mencukupi. Pemotongan saldo instan tanpa perlu upload bukti.'
+                            : '⚠️ Saldo tidak mencukupi (Silakan deposit dulu atau pilih Transfer Bank)'}
+                        </p>
+                      </div>
+                    </label>
+
+                    {/* Option 2: Transfer Bank / QRIS */}
+                    <label
+                      className={`border rounded-2xl p-3.5 flex items-start gap-3 cursor-pointer transition ${
+                        purchasePaymentMethod === 'transfer'
+                          ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="transfer"
+                        checked={purchasePaymentMethod === 'transfer'}
+                        onChange={() => setPurchasePaymentMethod('transfer')}
+                        className="mt-1 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <span className="font-extrabold text-xs text-slate-900 block">🏦 Transfer Bank / QRIS Direct</span>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Transfer via BCA / Mandiri / BRI / QRIS. Pesanan langsung diteruskan ke Admin Area.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Bank Transfer Details Box when Transfer is chosen */}
+                {purchasePaymentMethod === 'transfer' && (
+                  <div className="bg-slate-900 text-white rounded-2xl p-4 text-xs space-y-2.5">
+                    <span className="text-[10px] font-extrabold uppercase text-blue-400 tracking-wider block">
+                      REKENING TUJUAN TRANSFER BANK / QRIS ADMIN
+                    </span>
+                    <div className="space-y-1.5 font-mono text-[11px]">
+                      <div className="flex justify-between border-b border-slate-800 pb-1">
+                        <span className="text-slate-400">BANK BCA:</span>
+                        <span className="font-extrabold text-white">1234-5678-90 (PT HEDTRO)</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-800 pb-1">
+                        <span className="text-slate-400">BANK MANDIRI:</span>
+                        <span className="font-extrabold text-white">0987-6543-21 (PT HEDTRO)</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-800 pb-1">
+                        <span className="text-slate-400">BANK BRI:</span>
+                        <span className="font-extrabold text-white">5544-3322-11 (PT HEDTRO)</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 italic">
+                      * Transfer tepat sejumlah Rp {purchaseModalProduct.member_price.toLocaleString('id-ID')}. Pesanan otomatis terdata di Admin Area.
+                    </p>
+                  </div>
+                )}
+
+                {/* Total & Submit */}
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Pembayaran</span>
+                    <span className="text-lg font-black text-blue-600 font-mono">
+                      Rp {purchaseModalProduct.member_price.toLocaleString('id-ID')}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPurchaseModalProduct(null)}
+                      className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loadingAction || (purchasePaymentMethod === 'saldo' && user.balance < purchaseModalProduct.member_price)}
+                      className={`px-6 py-3 font-extrabold rounded-xl text-xs transition shadow-md flex items-center gap-2 ${
+                        purchasePaymentMethod === 'saldo' && user.balance < purchaseModalProduct.member_price
+                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 active:scale-95'
+                      }`}
+                    >
+                      {loadingAction ? 'Memproses Order...' : 'Bayar Sekarang'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

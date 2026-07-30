@@ -1766,7 +1766,7 @@ app.post("/api/admin/products", async (req, res) => {
 
 // Member Product Purchase (Repeat Order)
 app.post("/api/user/purchase", async (req, res) => {
-  const { userId, productId } = req.body;
+  const { userId, productId, paymentMethod = 'saldo', address } = req.body;
   const user = users.find(u => u.id === userId);
   const prod = products.find(p => p.id === productId);
 
@@ -1783,34 +1783,39 @@ app.post("/api/user/purchase", async (req, res) => {
 
   const purchasePrice = user.is_active ? prod.member_price : prod.price;
 
-  if (user.balance < purchasePrice) {
-    return res.status(400).json({ message: `Saldo tidak mencukupi. Silakan lakukan deposit terlebih dahulu. Harga member: Rp ${purchasePrice.toLocaleString()}` });
+  if (paymentMethod === 'saldo') {
+    if (user.balance < purchasePrice) {
+      return res.status(400).json({ message: `Saldo tidak mencukupi. Silakan lakukan deposit terlebih dahulu atau pilih metode Transfer Bank. Harga member: Rp ${purchasePrice.toLocaleString()}` });
+    }
+    // Deduct Balance
+    user.balance -= purchasePrice;
+
+    // Log Transaction
+    const purchaseTx: Transaction = {
+      id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
+      user_id: user.id,
+      username: user.username,
+      type: "purchase",
+      amount: -purchasePrice,
+      description: `Pembelian RO: ${prod.name} (Harga Member)`,
+      created_at: new Date().toISOString()
+    };
+    transactions.push(purchaseTx);
+    await syncTransactionToFirestore(purchaseTx);
   }
 
-  // Deduct Balance and Stock
-  user.balance -= purchasePrice;
+  // Deduct Stock
   prod.stock -= 1;
   await syncUserToFirestore(user);
   await syncProductToFirestore(prod);
 
-  // Log Transaction
-  const purchaseTx: Transaction = {
-    id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
-    user_id: user.id,
-    username: user.username,
-    type: "purchase",
-    amount: -purchasePrice,
-    description: `Pembelian Celana ${prod.name} (Harga Member)`,
-    created_at: new Date().toISOString()
-  };
-  transactions.push(purchaseTx);
-  await syncTransactionToFirestore(purchaseTx);
+  const payMethodText = paymentMethod === 'saldo' ? "Potong Saldo Member Account" : "Transfer Bank / QRIS";
 
   const purchaseNotif: MLMNotification = {
     id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
     user_id: user.id,
-    title: "Pembelian Berhasil!",
-    message: `Terima kasih! Pembelian ${prod.name} berhasil. Kurir kami sedang menyiapkan pengiriman.`,
+    title: "Pembelian Repeat Order Berhasil!",
+    message: `Terima kasih! Pembelian ${prod.name} via ${payMethodText} berhasil terdata. Pesanan terhubung ke sistem pengiriman.`,
     type: "success",
     created_at: new Date().toISOString()
   };
@@ -1820,6 +1825,8 @@ app.post("/api/user/purchase", async (req, res) => {
   // Generate Order Record for this purchase
   const newOrderId = Math.max(...orders.map(o => Number(o.id) || 0), 1000) + 1;
   const resiNo = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
+  const finalAddress = address || `${user.address || 'Alamat Utama'}${user.city ? ', ' + user.city : ''}`;
+
   const purchaseOrder: Order = {
     id: newOrderId,
     invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(newOrderId).slice(-3)}`,
@@ -1827,18 +1834,18 @@ app.post("/api/user/purchase", async (req, res) => {
     username: user.username,
     fullname: user.fullname,
     phone: user.phone || "-",
-    address: `${user.address || 'Alamat Utama'}${user.city ? ', ' + user.city : ''}`,
-    product_name: prod.name,
+    address: finalAddress,
+    product_name: `Repeat Order (RO) - ${prod.name}`,
     amount: purchasePrice,
-    payment_method: "Saldo Member Account",
+    payment_method: payMethodText,
     status: "DIPROSES",
     courier: "JNE REGULER",
     tracking_number: resiNo,
-    notes: `Pembelian produk ${prod.name} via saldo member. Sedang disiapkan di gudang.`,
+    notes: `Pembelian Repeat Order (RO) ${prod.name} via ${payMethodText}. Sedang disiapkan di gudang.`,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     steps: [
-      { title: "Pembelian Berhasil (Saldo Dipotong)", time: new Date().toLocaleString("id-ID"), done: true, description: "Invoice diterbitkan" },
+      { title: `Pembelian RO Berhasil (${payMethodText})`, time: new Date().toLocaleString("id-ID"), done: true, description: "Invoice diterbitkan" },
       { title: "Paking Gudang & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: "Celana denim diperiksa" },
       { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "Sedang Diproses", done: false, description: `Nomor Resi: ${resiNo}` },
       { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
@@ -1881,7 +1888,7 @@ app.post("/api/user/purchase", async (req, res) => {
     }
   }
 
-  res.json({ message: `Sukses membeli ${prod.name}! Saldo terpotong Rp ${purchasePrice.toLocaleString()}`, user, product: prod, products });
+  res.json({ message: `Sukses membeli ${prod.name}! Pesanan telah dikirim ke admin area.`, user, product: prod, products, order: purchaseOrder });
 });
 
 // ==========================================

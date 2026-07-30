@@ -1007,43 +1007,43 @@ export default function LandingPage({
 
       {/* 8. Track Pesanan Modal */}
       {isTrackModalOpen && (
-        <div className="fixed inset-0 z-50 bg-neutral-900/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white max-w-lg w-full p-6 sm:p-8 shadow-2xl border-t-4 border-[#C41230] relative animate-fadeIn">
+        <div className="fixed inset-0 z-50 bg-neutral-900/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-2xl border-t-4 border-[#C41230] relative animate-fadeIn rounded-xs text-left">
             <button
               onClick={() => setIsTrackModalOpen(false)}
-              className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-neutral-900"
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 text-neutral-400 hover:text-neutral-900"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="flex items-center gap-3 border-b border-neutral-100 pb-4 mb-6">
-              <div className="p-3 bg-[#C41230]/10 text-[#C41230]">
-                <Truck className="w-6 h-6" />
+            <div className="flex items-center gap-3 border-b border-neutral-100 pb-3 mb-4 pr-6">
+              <div className="p-2.5 sm:p-3 bg-[#C41230]/10 text-[#C41230] shrink-0">
+                <Truck className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div>
-                <h3 className="font-black text-lg uppercase tracking-wider text-neutral-900">
+                <h3 className="font-black text-sm sm:text-base uppercase tracking-wider text-neutral-900">
                   LACAK PESANAN DENIM
                 </h3>
-                <p className="text-xs text-neutral-500">Cek status pengiriman real-time pesanan anda</p>
+                <p className="text-[11px] sm:text-xs text-neutral-500">Cek status pengiriman real-time pesanan anda</p>
               </div>
             </div>
 
-            <form onSubmit={handleTrackOrder} className="space-y-4">
+            <form onSubmit={handleTrackOrder} className="space-y-3">
               <div>
-                <label className="block text-xs font-black uppercase tracking-wider text-neutral-700 mb-1">
+                <label className="block text-[11px] sm:text-xs font-black uppercase tracking-wider text-neutral-700 mb-1">
                   Nomor Resi / Invoice Transaksi
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     placeholder="Contoh: INV-20260728-001"
                     value={trackingNumber}
                     onChange={(e) => setTrackingNumber(e.target.value)}
-                    className="flex-1 bg-neutral-50 border border-neutral-300 p-3 text-sm focus:outline-none focus:border-[#C41230] font-mono"
+                    className="flex-1 bg-neutral-50 border border-neutral-300 p-2.5 sm:p-3 text-xs sm:text-sm focus:outline-none focus:border-[#C41230] font-mono min-w-0"
                   />
                   <button
                     type="submit"
-                    className="bg-[#C41230] hover:bg-[#a00e26] text-white px-5 py-3 font-black text-xs uppercase tracking-widest shrink-0"
+                    className="bg-[#C41230] hover:bg-[#a00e26] text-white px-5 py-2.5 sm:py-3 font-black text-xs uppercase tracking-widest shrink-0 w-full sm:w-auto"
                   >
                     LACAK
                   </button>
