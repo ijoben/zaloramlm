@@ -5,8 +5,9 @@ import {
   Copy, Check, ShoppingBag, ShieldAlert, CheckCircle, RefreshCw, 
   CreditCard, Send, LogOut, Bell, HelpCircle, Award, Percent, Menu, X,
   User, Lock, Sparkles, Truck, Package, Clock, ChevronLeft, ChevronRight,
-  LayoutGrid, LayoutList, Camera
+  LayoutGrid, LayoutList, Camera, FileText
 } from "lucide-react";
+import WorkflowModal from "./WorkflowModal";
 
 interface UserDashboardProps {
   user: MLMUser;
@@ -68,6 +69,7 @@ export default function UserDashboard({
   const idPrefix = settings?.memberIdPrefix || 'HDT-';
   const [activeTab, setActiveTab] = useState<'overview' | 'tree' | 'shop' | 'orders' | 'finance' | 'referrals' | 'bonuses' | 'panduan' | 'profil'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
   
   const [refPage, setRefPage] = useState(1);
   const refPageSize = 5;
@@ -518,6 +520,14 @@ export default function UserDashboard({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={() => setIsWorkflowModalOpen(true)}
+            className="bg-[#C41230] hover:bg-[#A00E26] text-white px-2.5 py-1.5 rounded text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs"
+            title="Bagan Alur Kerja & Unduh PDF"
+          >
+            <FileText className="w-3.5 h-3.5" /> <span className="hidden xs:inline">ALUR KERJA (PDF)</span>
+          </button>
+
           <div className="hidden sm:flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-display font-black flex items-center justify-center text-xs overflow-hidden border border-slate-700 shrink-0">
               {user.profile_photo ? (
@@ -758,6 +768,17 @@ export default function UserDashboard({
                   <span className="flex items-center gap-2.5">
                     <User className="w-4 h-4 text-blue-400" /> Profil Saya
                   </span>
+                </button>
+
+                <button
+                  id="tab-workflow-mobile"
+                  onClick={() => { setIsWorkflowModalOpen(true); setIsMobileMenuOpen(false); }}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition text-amber-400 hover:bg-slate-800 hover:text-white"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <FileText className="w-4 h-4 text-amber-400" /> Bagan Alur Kerja (PDF)
+                  </span>
+                  <span className="bg-amber-500/20 text-amber-300 text-[9px] px-2 py-0.5 rounded font-black uppercase">PDF</span>
                 </button>
               </nav>
 
@@ -1001,6 +1022,15 @@ export default function UserDashboard({
             >
               <User className="w-4 h-4 text-blue-400" />
               <span>Profil Saya</span>
+            </button>
+
+            <button
+              id="tab-workflow"
+              onClick={() => setIsWorkflowModalOpen(true)}
+              className="w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-amber-400 hover:bg-slate-800 hover:text-white"
+            >
+              <FileText className="w-4 h-4 text-amber-400" />
+              <span>Bagan Alur Kerja (PDF)</span>
             </button>
 
             <div className="pt-2 border-t border-slate-800">
@@ -3512,6 +3542,13 @@ export default function UserDashboard({
             </div>
           </div>
         )}
+
+        {/* Workflow Diagram & PDF Generator Modal */}
+        <WorkflowModal
+          isOpen={isWorkflowModalOpen}
+          onClose={() => setIsWorkflowModalOpen(false)}
+          webName={settings?.webName || "HEDTRO JEANS"}
+        />
       </div>
     </div>
   );

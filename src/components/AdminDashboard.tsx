@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, Order, OrderStep } from "../types";
 import { 
   Shield, Users, DollarSign, Package, TrendingUp, HelpCircle, 
   CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, 
   ArrowUpRight, ArrowDownLeft, RefreshCw, BarChart2, Search, Percent,
-  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck
+  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck, FileText, ChevronLeft, ChevronRight
 } from "lucide-react";
+import WorkflowModal from "./WorkflowModal";
 
 interface AdminDashboardProps {
   user?: MLMUser;
@@ -54,6 +55,51 @@ interface AdminDashboardProps {
   onUpdateSettings?: (newSettings: any) => Promise<boolean>;
   onRefreshProducts?: () => void;
 }
+
+const PaginationControls = ({
+  currentPage,
+  totalItems,
+  itemsPerPage = 10,
+  onPageChange
+}: {
+  currentPage: number;
+  totalItems: number;
+  itemsPerPage?: number;
+  onPageChange: (page: number) => void;
+}) => {
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-4 border-t border-slate-200/80 text-xs text-slate-600">
+      <div className="text-[11px] font-medium text-slate-500">
+        Menampilkan <strong className="font-bold text-slate-900">{startItem} - {endItem}</strong> dari <strong className="font-bold text-slate-900">{totalItems}</strong> data
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          disabled={currentPage <= 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" /> Prev
+        </button>
+        <span className="px-3 py-1 font-extrabold text-blue-600 bg-blue-50 border border-blue-200/80 rounded-lg text-xs font-mono">
+          {currentPage} / {totalPages}
+        </span>
+        <button
+          type="button"
+          disabled={currentPage >= totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+        >
+          Next <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export default function AdminDashboard({
   user,
@@ -120,9 +166,32 @@ export default function AdminDashboard({
   // User search query
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Pagination states (10 items per page)
+  const [pageTransactions, setPageTransactions] = useState(1);
+  const [pageWithdrawals, setPageWithdrawals] = useState(1);
+  const [pageMembers, setPageMembers] = useState(1);
+  const [pageProducts, setPageProducts] = useState(1);
+  const [pageDeposits, setPageDeposits] = useState(1);
+  const [pageOrders, setPageOrders] = useState(1);
+
   // Status logs
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+
+  const finCardsRef = useRef<HTMLDivElement>(null);
+
+  const scrollFinLeft = () => {
+    if (finCardsRef.current) {
+      finCardsRef.current.scrollBy({ left: -280, behavior: 'smooth' });
+    }
+  };
+
+  const scrollFinRight = () => {
+    if (finCardsRef.current) {
+      finCardsRef.current.scrollBy({ left: 280, behavior: 'smooth' });
+    }
+  };
 
   // Web and MLM configuration states
   const [formWebName, setFormWebName] = useState(settings?.webName || 'Hedtro Jeans Official');
@@ -801,6 +870,14 @@ export default function AdminDashboard({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={() => setIsWorkflowModalOpen(true)}
+            className="bg-[#C41230] hover:bg-[#A00E26] text-white px-2.5 py-1.5 rounded text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs"
+            title="Bagan Alur Kerja & Unduh PDF"
+          >
+            <FileText className="w-3.5 h-3.5" /> <span className="hidden xs:inline">ALUR KERJA (PDF)</span>
+          </button>
+
           <div className="hidden sm:flex items-center gap-2">
             <span className="p-1.5 bg-[#C41230]/20 text-red-400 border border-[#C41230]/30">
               <Shield className="w-4 h-4" />
@@ -999,6 +1076,17 @@ export default function AdminDashboard({
                     <User className="w-4 h-4" /> Profil Saya & Sandi
                   </span>
                 </button>
+
+                <button
+                  id="admin-tab-workflow-mobile"
+                  onClick={() => { setIsWorkflowModalOpen(true); setIsMobileMenuOpen(false); }}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition text-amber-400 hover:bg-slate-800 hover:text-white"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <FileText className="w-4 h-4 text-amber-400" /> Bagan Alur Kerja (PDF)
+                  </span>
+                  <span className="bg-amber-500/20 text-amber-300 text-[9px] px-2 py-0.5 rounded font-black uppercase">PDF</span>
+                </button>
               </nav>
             </div>
 
@@ -1138,6 +1226,15 @@ export default function AdminDashboard({
               <span>Profil Saya & Sandi</span>
             </button>
 
+            <button
+              id="admin-tab-workflow"
+              onClick={() => setIsWorkflowModalOpen(true)}
+              className="w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-amber-400 hover:bg-slate-800 hover:text-white"
+            >
+              <FileText className="w-4 h-4 text-amber-400" />
+              <span>Bagan Alur Kerja (PDF)</span>
+            </button>
+
             <div className="pt-2 border-t border-slate-800">
               <button
                 id="admin-sidebar-btn-logout"
@@ -1170,114 +1267,131 @@ export default function AdminDashboard({
           {activeTab === 'financials' && (
             <div className="space-y-6" id="admin-financials-panel">
               
-              {/* Financial Metrics Cards - Mobile Carousel / PC Grid */}
-              <div className="relative">
-                <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 pt-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
+              {/* Financial Metrics Cards - Mobile Horizontal Slide Carousel & PC Grid */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    📊 Ringkasan Laporan Laba Rugi & Kas
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={scrollFinLeft}
+                      className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 active:scale-90 transition border border-slate-200 shadow-2xs cursor-pointer flex items-center justify-center"
+                      title="Geser Kiri"
+                    >
+                      <ChevronLeft className="w-4 h-4 text-slate-800" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={scrollFinRight}
+                      className="p-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white active:scale-90 transition shadow-xs cursor-pointer flex items-center justify-center"
+                      title="Geser Kanan"
+                    >
+                      <ChevronRight className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                </div>
+
+                <div 
+                  ref={finCardsRef}
+                  className="flex sm:grid sm:grid-cols-3 gap-3.5 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 pt-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none"
+                >
                   
                   {/* Card 1: Total Turnover Cashflow */}
-                  <div className="w-[86vw] xs:w-[320px] sm:w-auto shrink-0 snap-center sm:shrink bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 relative overflow-hidden flex flex-col justify-between group">
-                  <div className="absolute -right-10 -top-10 w-36 h-36 bg-blue-600/15 rounded-full blur-2xl pointer-events-none"></div>
+                  <div className="w-[82vw] xs:w-[310px] sm:w-auto shrink-0 snap-center sm:shrink bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 relative overflow-hidden flex flex-col justify-between group">
+                    <div className="absolute -right-10 -top-10 w-36 h-36 bg-blue-600/15 rounded-full blur-2xl pointer-events-none"></div>
 
-                  <div className="space-y-2.5">
-                    <div className="flex justify-between items-start">
+                    <div className="space-y-2.5">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[9px] text-blue-400 font-extrabold uppercase tracking-widest block">Omset Kotor Perusahaan</span>
+                          <p className="text-[11px] font-bold text-slate-300">Total Akumulasi Masuk</p>
+                        </div>
+                        <div className="p-2 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30 shrink-0">
+                          <TrendingUp className="w-4 h-4" />
+                        </div>
+                      </div>
+
                       <div>
-                        <span className="text-[9px] text-blue-400 font-extrabold uppercase tracking-widest block">Omset Kotor Perusahaan</span>
-                        <p className="text-[11px] font-bold text-slate-300">Total Akumulasi Masuk</p>
-                      </div>
-                      <div className="p-2 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30 shrink-0">
-                        <TrendingUp className="w-4 h-4" />
+                        <h3 className="text-2xl sm:text-3xl font-display font-black tracking-tight text-white leading-tight">
+                          <span className="text-blue-400 text-sm sm:text-base font-sans mr-1">Rp</span>
+                          {metrics.totalTurnover.toLocaleString()}
+                        </h3>
                       </div>
                     </div>
 
-                    <div>
-                      <h3 className="text-2xl sm:text-3xl font-display font-black tracking-tight text-white">
-                        <span className="text-blue-400 text-base font-sans mr-1">Rp</span>
-                        {metrics.totalTurnover.toLocaleString()}
-                      </h3>
+                    <div className="border-t border-slate-800/80 pt-2.5 mt-3 flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                      <span>Omset Aktivasi ({metrics.activeMembers}):</span>
+                      <strong className="text-emerald-400 font-mono">Rp {(metrics.activeMembers * 550000).toLocaleString()}</strong>
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-800/80 pt-2.5 mt-3 flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                    <span>Omset Aktivasi ({metrics.activeMembers} Member):</span>
-                    <strong className="text-emerald-400 font-mono">Rp {(metrics.activeMembers * 550000).toLocaleString()}</strong>
-                  </div>
-                </div>
+                  {/* Card 2: Total MLM Commissions Paid */}
+                  <div className="w-[82vw] xs:w-[310px] sm:w-auto shrink-0 snap-center sm:shrink bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+                    <div className="space-y-2.5">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[9px] text-red-600 font-extrabold uppercase tracking-widest block">Beban Komisi Terbayar</span>
+                          <p className="text-[11px] font-bold text-slate-900">Total Bonus Member</p>
+                        </div>
+                        <div className="p-2 bg-red-50 text-red-600 rounded-xl border border-red-100 shrink-0">
+                          <ArrowUpRight className="w-4 h-4" />
+                        </div>
+                      </div>
 
-                {/* Card 2: Total MLM Commissions Paid */}
-                <div className="w-[86vw] xs:w-[320px] sm:w-auto shrink-0 snap-center sm:shrink bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
-                  <div className="space-y-2.5">
-                    <div className="flex justify-between items-start">
                       <div>
-                        <span className="text-[9px] text-red-600 font-extrabold uppercase tracking-widest block">Beban Komisi Terbayar</span>
-                        <p className="text-[11px] font-bold text-slate-900">Total Bonus Keluar Ke Member</p>
-                      </div>
-                      <div className="p-2 bg-red-50 text-red-600 rounded-xl border border-red-100 shrink-0">
-                        <ArrowUpRight className="w-4 h-4" />
+                        <h3 className="text-2xl sm:text-3xl font-display font-black text-slate-950 tracking-tight leading-tight">
+                          <span className="text-red-500 text-sm sm:text-base font-sans mr-1">Rp</span>
+                          {metrics.totalBonusesPaid.toLocaleString()}
+                        </h3>
                       </div>
                     </div>
 
-                    <div>
-                      <h3 className="text-2xl sm:text-3xl font-display font-black text-slate-950 tracking-tight">
-                        <span className="text-red-500 text-base font-sans mr-1">Rp</span>
-                        {metrics.totalBonusesPaid.toLocaleString()}
-                      </h3>
+                    <div className="border-t border-slate-100 pt-2.5 mt-3 flex justify-between items-center text-[10px] text-slate-500 font-medium">
+                      <span>Rasio Beban Bonus:</span>
+                      <span className="font-extrabold text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
+                        {metrics.totalTurnover > 0 ? Math.round((metrics.totalBonusesPaid / metrics.totalTurnover) * 100) : 0}% dari Omset
+                      </span>
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-100 pt-2.5 mt-3 flex justify-between items-center text-[10px] text-slate-500 font-medium">
-                    <span>Rasio Beban Bonus:</span>
-                    <span className="font-extrabold text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
-                      {metrics.totalTurnover > 0 ? Math.round((metrics.totalBonusesPaid / metrics.totalTurnover) * 100) : 0}% dari Omset
-                    </span>
-                  </div>
-                </div>
+                  {/* Card 3: Profit Cash */}
+                  <div className="w-[82vw] xs:w-[310px] sm:w-auto shrink-0 snap-center sm:shrink bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-emerald-900/40 relative overflow-hidden flex flex-col justify-between group">
+                    <div className="absolute -right-10 -bottom-10 w-36 h-36 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none"></div>
 
-                {/* Card 3: Profit Cash */}
-                <div className="w-[86vw] xs:w-[320px] sm:w-auto shrink-0 snap-center sm:shrink bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-emerald-900/40 relative overflow-hidden flex flex-col justify-between group">
-                  <div className="absolute -right-10 -bottom-10 w-36 h-36 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none"></div>
+                    <div className="space-y-2.5">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-widest block">Kas Bersih Perusahaan (Profit)</span>
+                          <p className="text-[11px] font-bold text-slate-300">Surplus Bersih Admin</p>
+                        </div>
+                        <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30 shrink-0">
+                          <DollarSign className="w-4 h-4" />
+                        </div>
+                      </div>
 
-                  <div className="space-y-2.5">
-                    <div className="flex justify-between items-start">
                       <div>
-                        <span className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-widest block">Kas Bersih Perusahaan (Profit)</span>
-                        <p className="text-[11px] font-bold text-slate-300">Surplus Bersih Admin</p>
-                      </div>
-                      <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30 shrink-0">
-                        <DollarSign className="w-4 h-4" />
+                        <h3 className="text-2xl sm:text-3xl font-display font-black text-emerald-400 tracking-tight leading-tight">
+                          <span className="text-emerald-500 text-sm sm:text-base font-sans mr-1">Rp</span>
+                          {(metrics.totalTurnover - metrics.totalBonusesPaid).toLocaleString()}
+                        </h3>
                       </div>
                     </div>
 
-                    <div>
-                      <h3 className="text-2xl sm:text-3xl font-display font-black text-emerald-400 tracking-tight">
-                        <span className="text-emerald-500 text-base font-sans mr-1">Rp</span>
-                        {(metrics.totalTurnover - metrics.totalBonusesPaid).toLocaleString()}
-                      </h3>
+                    <div className="border-t border-slate-800/80 pt-2.5 mt-3 flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                      <span>Status Arus Kas:</span>
+                      <span className="font-extrabold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                        SURPLUS POSITIF
+                      </span>
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-800/80 pt-2.5 mt-3 flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                    <span>Status Arus Kas:</span>
-                    <span className="font-extrabold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                      SURPLUS POSITIF
-                    </span>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Mobile Slide Dot Indicator */}
-              <div className="flex sm:hidden justify-center items-center gap-2 pt-1.5 pb-1">
-                <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Geser Card 👉</span>
-                <div className="flex gap-1.5 items-center">
-                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                  <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                  <span className="w-2 h-2 rounded-full bg-slate-300"></span>
                 </div>
               </div>
-            </div>
 
               {/* Monthly Visual Sales Chart Simulator */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6">
                 <div>
                   <h4 className="text-sm font-bold text-slate-900">Perkembangan Kas Bulanan (Simulasi Buku Besar)</h4>
                   <p className="text-xs text-slate-500">Representasi grafis bulanan dari omset masuk dan komisi keluar MLM.</p>
@@ -1317,19 +1431,55 @@ export default function AdminDashboard({
                   {/* Chart Legend */}
                   <div className="absolute top-3 right-4 flex gap-4 text-[9px] font-bold">
                     <div className="flex items-center gap-1">
-                      <span className="w-2.5 h-2.5 bg-blue-600 rounded"></span> <span className="text-slate-600">Omset Masuk (HU + Produk)</span>
+                      <span className="w-2.5 h-2.5 bg-blue-600 rounded"></span> <span className="text-slate-600">Omset Masuk</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="w-2.5 h-2.5 bg-red-400 rounded"></span> <span className="text-slate-600">Komisi MLM Keluar</span>
+                      <span className="w-2.5 h-2.5 bg-red-400 rounded"></span> <span className="text-slate-600">Komisi MLM</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Transactions log ledger */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm">
                 <h4 className="text-sm font-bold text-slate-900 mb-4">Semua Aliran Kas Transaksi Sistem</h4>
-                <div className="overflow-x-auto">
+
+                {/* Mobile View: 1 Column per Row */}
+                <div className="grid grid-cols-1 gap-2.5 sm:hidden">
+                  {transactions
+                    .slice()
+                    .reverse()
+                    .slice((pageTransactions - 1) * 10, pageTransactions * 10)
+                    .map((tx) => (
+                    <div key={tx.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-1.5">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="font-extrabold text-slate-900 truncate text-xs">{tx.username.replace(/^@/, '')}</span>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase shrink-0 ${
+                            tx.type.endsWith('_bonus') ? 'bg-green-100 text-green-800' :
+                            tx.type === 'deposit' ? 'bg-blue-100 text-blue-800' :
+                            tx.type === 'withdrawal' ? 'bg-red-100 text-red-800' : 'bg-slate-200 text-slate-700'
+                          }`}>
+                            {tx.type.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 line-clamp-2 leading-tight">{tx.description}</p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400 font-medium">{new Date(tx.created_at).toLocaleDateString('id-ID')}</span>
+                        <span className={`font-black font-mono text-xs ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {tx.amount > 0 ? '+' : ''}Rp {tx.amount.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {transactions.length === 0 && (
+                    <div className="py-6 text-center text-slate-400 text-xs">Belum ada transaksi recorded.</div>
+                  )}
+                </div>
+
+                {/* Desktop View: Table */}
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 uppercase text-[9px] tracking-wider font-extrabold">
@@ -1341,7 +1491,11 @@ export default function AdminDashboard({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {transactions.slice().reverse().map((tx) => (
+                      {transactions
+                        .slice()
+                        .reverse()
+                        .slice((pageTransactions - 1) * 10, pageTransactions * 10)
+                        .map((tx) => (
                         <tr key={tx.id} className="hover:bg-slate-50/50">
                           <td className="py-3 px-4 text-slate-500 whitespace-nowrap">{new Date(tx.created_at).toLocaleString('id-ID')}</td>
                           <td className="py-3 px-4 font-bold text-slate-800">{tx.username.replace(/^@/, '')}</td>
@@ -1362,9 +1516,21 @@ export default function AdminDashboard({
                           </td>
                         </tr>
                       ))}
+                      {transactions.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-slate-400">Belum ada transaksi recorded.</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
+
+                <PaginationControls
+                  currentPage={pageTransactions}
+                  totalItems={transactions.length}
+                  itemsPerPage={10}
+                  onPageChange={setPageTransactions}
+                />
               </div>
 
             </div>
@@ -1372,7 +1538,7 @@ export default function AdminDashboard({
 
           {/* TAB 2: WITHDRAWAL PROCESSING */}
           {activeTab === 'withdrawals' && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6" id="admin-withdrawals-panel">
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6" id="admin-withdrawals-panel">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <ArrowUpRight className="text-blue-600 w-5 h-5" /> Verifikasi Pembayaran Bonus (Withdrawal)
@@ -1380,7 +1546,67 @@ export default function AdminDashboard({
                 <p className="text-xs text-slate-500">Kelola permintaan pencairan saldo komisi MLM member. Anda dapat mengaktifkan sistem "Otomatis" di sidebar untuk bypass verifikasi manual.</p>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* Mobile View: 1 Column per Row */}
+              <div className="grid grid-cols-1 gap-3 sm:hidden">
+                {withdrawals.length === 0 ? (
+                  <div className="py-6 text-center text-slate-400 text-xs font-medium">
+                    Belum ada aktivitas penarikan dana (Withdrawal)
+                  </div>
+                ) : (
+                  withdrawals
+                    .slice()
+                    .reverse()
+                    .slice((pageWithdrawals - 1) * 10, pageWithdrawals * 10)
+                    .map((wd) => (
+                    <div key={wd.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="font-extrabold text-slate-900 truncate text-xs">{wd.username.replace(/^@/, '')}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase shrink-0 ${
+                            wd.status === 'success' ? 'bg-green-100 text-green-800' :
+                            wd.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {wd.status}
+                          </span>
+                        </div>
+                        <p className="font-bold text-slate-900 text-xs truncate">{wd.account_holder}</p>
+                        <p className="text-[10px] text-slate-500 font-mono uppercase truncate">{wd.bank_name} • {wd.account_number}</p>
+                        <p className="text-sm font-black text-slate-950 mt-1">Rp {wd.amount.toLocaleString()}</p>
+                      </div>
+
+                      <div>
+                        {wd.status === 'pending' ? (
+                          <div className="flex items-center gap-2 pt-2 border-t border-slate-200/80">
+                            <button
+                              id={`btn-approve-wd-mob-${wd.id}`}
+                              onClick={() => handleWDApproval(wd.id, 'approve')}
+                              disabled={loading}
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" /> Setujui
+                            </button>
+                            <button
+                              id={`btn-reject-wd-mob-${wd.id}`}
+                              onClick={() => handleWDApproval(wd.id, 'reject')}
+                              disabled={loading}
+                              className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 font-extrabold py-1.5 rounded-lg text-xs transition border border-red-200 flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Tolak
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="block text-center text-[10px] text-slate-400 font-extrabold uppercase pt-1.5 border-t border-slate-200/60">
+                            Selesai
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop View: Table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 uppercase text-[9px] tracking-wider font-extrabold">
@@ -1398,7 +1624,11 @@ export default function AdminDashboard({
                         <td colSpan={6} className="py-8 text-center text-slate-400">Belum ada aktivitas penarikan dana (Withdrawal)</td>
                       </tr>
                     ) : (
-                      withdrawals.slice().reverse().map((wd) => (
+                      withdrawals
+                        .slice()
+                        .reverse()
+                        .slice((pageWithdrawals - 1) * 10, pageWithdrawals * 10)
+                        .map((wd) => (
                         <tr key={wd.id} className="hover:bg-slate-50/50">
                           <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
                             {new Date(wd.created_at).toLocaleString('id-ID')}
@@ -1449,12 +1679,19 @@ export default function AdminDashboard({
                   </tbody>
                 </table>
               </div>
+
+              <PaginationControls
+                currentPage={pageWithdrawals}
+                totalItems={withdrawals.length}
+                itemsPerPage={10}
+                onPageChange={setPageWithdrawals}
+              />
             </div>
           )}
 
           {/* TAB 3: MEMBERS DATABASE */}
           {activeTab === 'members' && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6" id="admin-members-panel">
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6" id="admin-members-panel">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -1476,7 +1713,54 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* Mobile View: 1 Column per Row */}
+              <div className="grid grid-cols-1 gap-2.5 sm:hidden">
+                {filteredUsers.length === 0 ? (
+                  <div className="py-6 text-center text-slate-400 text-xs font-medium">
+                    Tidak ada data anggota ditemukan
+                  </div>
+                ) : (
+                  filteredUsers
+                    .slice((pageMembers - 1) * 10, pageMembers * 10)
+                    .map((u) => {
+                    const totalBonus = (u.sponsor_bonus || 0) + (u.pairing_bonus || 0) + (u.level_bonus || 0) + (u.ro_bonus || 0);
+                    return (
+                      <div key={u.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="font-extrabold text-blue-600 truncate text-xs">{u.username.replace(/^@/, '')}</span>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
+                              u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {u.is_active ? 'Aktif' : 'Non-Aktif'}
+                            </span>
+                          </div>
+                          <p className="font-extrabold text-slate-900 text-xs truncate">{u.fullname || u.username}</p>
+                          <p className="text-[10px] font-mono text-slate-500">ID Member: #{u.id}</p>
+                        </div>
+
+                        <div className="text-[11px] space-y-1 pt-2 border-t border-slate-200/80 text-slate-600">
+                          <div className="flex justify-between items-center">
+                            <span>Anggota Tim L/R:</span>
+                            <strong className="font-mono text-slate-900 font-bold">{u.left_count || 0} / {u.right_count || 0}</strong>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>Saldo Utama:</span>
+                            <strong className="font-mono text-slate-900 font-bold">Rp {(u.balance || 0).toLocaleString('id-ID')}</strong>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>Total Bonus Terakumulasi:</span>
+                            <strong className="font-mono text-green-600 font-extrabold">Rp {totalBonus.toLocaleString('id-ID')}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Desktop View: Table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 uppercase text-[9px] tracking-wider font-extrabold">
@@ -1497,7 +1781,9 @@ export default function AdminDashboard({
                         <td colSpan={9} className="py-8 text-center text-slate-400">Tidak ada data anggota ditemukan</td>
                       </tr>
                     ) : (
-                      filteredUsers.map((u) => {
+                      filteredUsers
+                        .slice((pageMembers - 1) * 10, pageMembers * 10)
+                        .map((u) => {
                         const totalBonus = (u.sponsor_bonus || 0) + (u.pairing_bonus || 0) + (u.level_bonus || 0) + (u.ro_bonus || 0);
                         const uplineUser = (users || []).find(x => Number(x.id) === Number(u.upline_id));
                         const sponsorUser = (users || []).find(x => Number(x.id) === Number(u.sponsor_id));
@@ -1548,12 +1834,19 @@ export default function AdminDashboard({
                   </tbody>
                 </table>
               </div>
+
+              <PaginationControls
+                currentPage={pageMembers}
+                totalItems={filteredUsers.length}
+                itemsPerPage={10}
+                onPageChange={setPageMembers}
+              />
             </div>
           )}
 
           {/* TAB 4: WAREHOUSE & STOCK CONTROLS (COMPACT TABLE & POPUP CRUD) */}
           {activeTab === 'products' && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6" id="admin-products-panel">
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6" id="admin-products-panel">
               {/* Header & Quick Action */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                 <div>
@@ -1594,8 +1887,60 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              {/* Compact Product Table */}
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              {/* Mobile View: 1 Column Compact per Product */}
+              <div className="grid grid-cols-1 gap-3 sm:hidden">
+                {products
+                  .filter(p => !productSearchQuery || p.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
+                  .slice((pageProducts - 1) * 10, pageProducts * 10)
+                  .map((p) => (
+                    <div key={p.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 shadow-2xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img referrerPolicy="no-referrer" src={p.image} className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0 bg-white" alt={p.name} />
+                        <div className="min-w-0">
+                          <h4 className="font-extrabold text-slate-900 text-xs truncate">{p.name}</h4>
+                          <div className="flex items-center gap-2 mt-0.5 text-[10px]">
+                            <span className="text-slate-600 font-medium">Retail: <strong>Rp {p.price.toLocaleString('id-ID')}</strong></span>
+                            <span className="text-blue-600 font-extrabold">Member: Rp {p.member_price.toLocaleString('id-ID')}</span>
+                          </div>
+                          <div className="mt-1">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
+                              p.stock > 10 ? 'bg-green-100 text-green-800' :
+                              p.stock > 0 ? 'bg-amber-100 text-amber-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              Stok: {p.stock > 0 ? `${p.stock} Pcs` : 'Habis'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <button
+                          id={`btn-edit-popup-product-mob-${p.id}`}
+                          onClick={() => setEditingModalProduct({ ...p })}
+                          className="p-1.5 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg transition border border-slate-200 cursor-pointer flex items-center justify-center shadow-2xs"
+                          title="Edit Produk (Popup)"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          id={`btn-delete-popup-product-mob-${p.id}`}
+                          onClick={() => setDeletingProduct(p)}
+                          className="p-1.5 bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 rounded-lg transition border border-slate-200 cursor-pointer flex items-center justify-center shadow-2xs"
+                          title="Hapus Produk"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                {products.length === 0 && (
+                  <div className="py-6 text-center text-slate-400 text-xs">Belum ada data produk di gudang.</div>
+                )}
+              </div>
+
+              {/* Desktop View: Compact Table */}
+              <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                     <tr>
@@ -1609,6 +1954,7 @@ export default function AdminDashboard({
                   <tbody className="divide-y divide-slate-100">
                     {products
                       .filter(p => !productSearchQuery || p.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
+                      .slice((pageProducts - 1) * 10, pageProducts * 10)
                       .map((p) => (
                         <tr key={p.id} className="hover:bg-slate-50/80 transition">
                           <td className="py-3 px-4">
@@ -1665,12 +2011,19 @@ export default function AdminDashboard({
                   </tbody>
                 </table>
               </div>
+
+              <PaginationControls
+                currentPage={pageProducts}
+                totalItems={products.filter(p => !productSearchQuery || p.name.toLowerCase().includes(productSearchQuery.toLowerCase())).length}
+                itemsPerPage={10}
+                onPageChange={setPageProducts}
+              />
             </div>
           )}
 
           {/* TAB: DEPOSITS VALIDATION */}
           {activeTab === 'deposits' && (
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+            <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <ArrowDownLeft className="text-amber-500 w-5 h-5" /> Validasi Deposit Transfer Manual
@@ -1680,7 +2033,66 @@ export default function AdminDashboard({
                 </p>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              {/* Mobile View: 1 Column per Row */}
+              <div className="grid grid-cols-1 gap-3 sm:hidden">
+                {deposits.length === 0 ? (
+                  <div className="py-6 text-center text-slate-400 text-xs font-medium">
+                    Tidak ada riwayat deposit
+                  </div>
+                ) : (
+                  deposits
+                    .slice((pageDeposits - 1) * 10, pageDeposits * 10)
+                    .map((dep) => (
+                    <div key={dep.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="font-extrabold text-slate-900 truncate text-xs">{dep.username.replace(/^@/, '')}</span>
+                          <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ${
+                            dep.status === 'success' ? 'bg-green-100 text-green-800' :
+                            dep.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            'bg-amber-100 text-amber-800'
+                          }`}>
+                            {dep.status === 'success' ? 'SUCCESS' : dep.status === 'failed' ? 'FAILED' : 'PENDING'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono">Kode Ref: #DEP-{dep.id}</p>
+                        <p className="text-sm font-mono font-black text-slate-900 mt-1">Rp {dep.amount.toLocaleString()}</p>
+                        <p className="text-[10px] text-slate-500 uppercase font-semibold mt-0.5">{dep.method.startsWith('manual') ? "Transfer Manual" : dep.method}</p>
+                      </div>
+
+                      <div>
+                        {dep.status === 'pending' ? (
+                          <div className="flex items-center gap-2 pt-2 border-t border-slate-200/80">
+                            <button
+                              id={`btn-approve-dep-mob-${dep.id}`}
+                              disabled={loading}
+                              onClick={() => handleProcessDeposit(dep.id, 'approve')}
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Setujui
+                            </button>
+                            <button
+                              id={`btn-reject-dep-mob-${dep.id}`}
+                              disabled={loading}
+                              onClick={() => handleProcessDeposit(dep.id, 'reject')}
+                              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" /> Tolak
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="block text-center text-[10px] text-slate-400 font-extrabold uppercase pt-1.5 border-t border-slate-200/60">
+                            Terproses
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop View: Table */}
+              <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
@@ -1698,7 +2110,9 @@ export default function AdminDashboard({
                         <td colSpan={6} className="text-center py-8 text-slate-400 font-medium">Tidak ada riwayat deposit</td>
                       </tr>
                     ) : (
-                      deposits.map((dep) => (
+                      deposits
+                        .slice((pageDeposits - 1) * 10, pageDeposits * 10)
+                        .map((dep) => (
                         <tr key={dep.id} className="hover:bg-slate-50/50">
                           <td className="px-4 py-3.5">
                             <p className="font-bold text-slate-800 font-mono">#DEP-{dep.id}</p>
@@ -1761,6 +2175,13 @@ export default function AdminDashboard({
                   </tbody>
                 </table>
               </div>
+
+              <PaginationControls
+                currentPage={pageDeposits}
+                totalItems={deposits.length}
+                itemsPerPage={10}
+                onPageChange={setPageDeposits}
+              />
             </div>
           )}
 
@@ -2636,6 +3057,16 @@ export default function AdminDashboard({
                       <span>•</span>
                       <span>WhatsApp: <strong className="text-emerald-400 font-mono">{user?.phone || '-'}</strong></span>
                     </div>
+
+                    <div className="pt-3 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsWorkflowModalOpen(true)}
+                        className="bg-[#C41230] hover:bg-[#A00E26] text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center gap-2 shadow-md cursor-pointer"
+                      >
+                        <FileText className="w-4 h-4" /> Unduh / Lihat Bagan Alur Kerja (PDF)
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2905,8 +3336,82 @@ export default function AdminDashboard({
                 </div>
               </div>
 
+              {/* Orders Mobile View (1 Column) */}
+              <div className="grid grid-cols-1 gap-3 sm:hidden">
+                {orders
+                  .filter(o => {
+                    if (orderStatusFilter !== 'ALL' && o.status !== orderStatusFilter) return false;
+                    if (!orderSearchQuery) return true;
+                    const q = orderSearchQuery.toLowerCase();
+                    return (
+                      (o.invoice_no && o.invoice_no.toLowerCase().includes(q)) ||
+                      (o.fullname && o.fullname.toLowerCase().includes(q)) ||
+                      (o.username && o.username.toLowerCase().includes(q)) ||
+                      (o.tracking_number && o.tracking_number.toLowerCase().includes(q)) ||
+                      (o.phone && o.phone.toLowerCase().includes(q))
+                    );
+                  })
+                  .slice((pageOrders - 1) * 10, pageOrders * 10)
+                  .map((ord) => (
+                    <div key={ord.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="font-bold font-mono text-slate-900 text-xs">{ord.invoice_no}</span>
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                            ord.status === 'TERIMA' ? 'bg-green-100 text-green-800' :
+                            ord.status === 'DIKIRIM' ? 'bg-blue-100 text-blue-800' :
+                            ord.status === 'BATAL' ? 'bg-red-100 text-red-800' :
+                            'bg-amber-100 text-amber-800'
+                          }`}>
+                            {ord.status === 'TERIMA' ? 'SELESAI' : ord.status === 'DIKIRIM' ? 'DIKIRIM' : ord.status === 'BATAL' ? 'BATAL' : 'DIPROSES'}
+                          </span>
+                        </div>
+                        <p className="font-bold text-slate-900 text-xs">{ord.fullname} <span className="text-blue-600 font-normal">(@{ord.username})</span></p>
+                        <p className="text-[11px] text-slate-700 font-medium mt-0.5">{ord.product_name} - <strong className="text-blue-600 font-mono">Rp {(ord.amount || 0).toLocaleString('id-ID')}</strong></p>
+                        <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{ord.address}</p>
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-slate-600 bg-slate-200/80 px-2 py-0.5 rounded">{ord.courier || 'JNE'}</span>
+                          {ord.tracking_number ? (
+                            <span className="font-mono font-bold text-blue-600 text-[10px] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                              Resi: {ord.tracking_number}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-amber-600 italic">Belum ada resi</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between gap-2">
+                        {settings?.shippingTrackingMode !== 'MANUAL' && (
+                          <button
+                            onClick={() => handleSyncShippingApi(ord)}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <RefreshCw className="w-3 h-3" /> Auto-Sync
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleOpenEditOrderModal(ord)}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Edit className="w-3 h-3" /> Edit
+                        </button>
+                        <button
+                          onClick={() => setDeletingOrderId(ord.id)}
+                          className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition border border-red-200 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                {orders.length === 0 && (
+                  <div className="py-8 text-center text-slate-400 text-xs">Belum ada data order pesanan.</div>
+                )}
+              </div>
+
               {/* Orders Table */}
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-left text-xs text-slate-600">
                   <thead className="bg-slate-50 border-b border-slate-200 uppercase font-extrabold text-[10px] text-slate-500 tracking-wider">
                     <tr>
@@ -2932,6 +3437,7 @@ export default function AdminDashboard({
                           (o.phone && o.phone.toLowerCase().includes(q))
                         );
                       })
+                      .slice((pageOrders - 1) * 10, pageOrders * 10)
                       .map((ord) => (
                         <tr key={ord.id} className="hover:bg-slate-50/60 transition">
                           <td className="px-4 py-3.5 align-top">
@@ -3022,6 +3528,24 @@ export default function AdminDashboard({
                   </tbody>
                 </table>
               </div>
+
+              <PaginationControls
+                currentPage={pageOrders}
+                totalItems={orders.filter(o => {
+                  if (orderStatusFilter !== 'ALL' && o.status !== orderStatusFilter) return false;
+                  if (!orderSearchQuery) return true;
+                  const q = orderSearchQuery.toLowerCase();
+                  return (
+                    (o.invoice_no && o.invoice_no.toLowerCase().includes(q)) ||
+                    (o.fullname && o.fullname.toLowerCase().includes(q)) ||
+                    (o.username && o.username.toLowerCase().includes(q)) ||
+                    (o.tracking_number && o.tracking_number.toLowerCase().includes(q)) ||
+                    (o.phone && o.phone.toLowerCase().includes(q))
+                  );
+                }).length}
+                itemsPerPage={10}
+                onPageChange={setPageOrders}
+              />
             </div>
           )}
 
@@ -3824,6 +4348,13 @@ export default function AdminDashboard({
 
         </main>
       </div>
+
+      {/* Workflow Diagram & PDF Generator Modal */}
+      <WorkflowModal
+        isOpen={isWorkflowModalOpen}
+        onClose={() => setIsWorkflowModalOpen(false)}
+        webName={settings?.webName || "HEDTRO JEANS"}
+      />
     </div>
   );
 }
