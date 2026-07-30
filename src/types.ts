@@ -30,6 +30,7 @@ export interface MLMUser {
   bank_account?: string;
   bank_holder?: string;
   wishlist?: number[];
+  profile_photo?: string;
 }
 
 export interface Product {

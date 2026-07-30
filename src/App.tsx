@@ -705,7 +705,7 @@ async function deleteFirestoreProduct(productId: number): Promise<void> {
   }
 }
 
-async function updateFirestoreUserProfile(userId: number, updateData: { fullname?: string; email?: string; phone?: string; whatsapp?: string; bank_name?: string; bank_account?: string; bank_holder?: string; address?: string; city?: string; password?: string; balance?: number; is_active?: boolean; sponsor_bonus?: number; pairing_bonus?: number; level_bonus?: number; ro_bonus?: number; wishlist?: number[] }): Promise<void> {
+async function updateFirestoreUserProfile(userId: number, updateData: { fullname?: string; email?: string; phone?: string; whatsapp?: string; bank_name?: string; bank_account?: string; bank_holder?: string; address?: string; city?: string; password?: string; balance?: number; is_active?: boolean; sponsor_bonus?: number; pairing_bonus?: number; level_bonus?: number; ro_bonus?: number; wishlist?: number[]; profile_photo?: string }): Promise<void> {
   if (db) {
     try {
       const cleanData: any = {};
@@ -726,6 +726,7 @@ async function updateFirestoreUserProfile(userId: number, updateData: { fullname
       if (updateData.pairing_bonus !== undefined) cleanData.pairing_bonus = updateData.pairing_bonus;
       if (updateData.level_bonus !== undefined) cleanData.level_bonus = updateData.level_bonus;
       if (updateData.ro_bonus !== undefined) cleanData.ro_bonus = updateData.ro_bonus;
+      if (updateData.profile_photo !== undefined) cleanData.profile_photo = updateData.profile_photo;
 
       await setDoc(doc(db, "users", String(userId)), cleanData, { merge: true });
     } catch (e) {
@@ -2153,7 +2154,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateProfile = async (data: { fullname: string; email: string; phone: string; whatsapp?: string; bank_name?: string; bank_account?: string; bank_holder?: string; address?: string; city?: string; password?: string }): Promise<boolean> => {
+  const handleUpdateProfile = async (data: { fullname: string; email: string; phone: string; whatsapp?: string; bank_name?: string; bank_account?: string; bank_holder?: string; address?: string; city?: string; password?: string; profile_photo?: string }): Promise<boolean> => {
     if (!currentUser) return false;
     try {
       const res = await fetch(`/api/user/${currentUser.id}/profile`, {
@@ -2182,6 +2183,7 @@ export default function App() {
       bank_holder: data.bank_holder !== undefined ? data.bank_holder : prev.bank_holder,
       address: data.address !== undefined ? data.address : prev.address,
       city: data.city !== undefined ? data.city : prev.city,
+      profile_photo: data.profile_photo !== undefined ? data.profile_photo : prev.profile_photo,
       ...(data.password ? { password: data.password } : {})
     }) : null);
     await fetchDashboardData();

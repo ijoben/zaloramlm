@@ -5,7 +5,7 @@ import {
   Copy, Check, ShoppingBag, ShieldAlert, CheckCircle, RefreshCw, 
   CreditCard, Send, LogOut, Bell, HelpCircle, Award, Percent, Menu, X,
   User, Lock, Sparkles, Truck, Package, Clock, ChevronLeft, ChevronRight,
-  LayoutGrid, LayoutList
+  LayoutGrid, LayoutList, Camera
 } from "lucide-react";
 
 interface UserDashboardProps {
@@ -35,7 +35,8 @@ interface UserDashboardProps {
     bank_holder?: string;
     address?: string;
     city?: string;
-    password?: string 
+    password?: string;
+    profile_photo?: string;
   }) => Promise<boolean>;
   onResetPassword?: (currentPass: string, newPass: string) => Promise<boolean>;
   serverUrl: string;
@@ -108,6 +109,45 @@ export default function UserDashboard({
   const [profileAddress, setProfileAddress] = useState(user.address || '');
   const [profileCity, setProfileCity] = useState(user.city || '');
   const [profilePassword, setProfilePassword] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setStatusMessage({ text: "Ukuran foto maksimal 5MB", type: "error" });
+      return;
+    }
+
+    setUploadingPhoto(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      if (onUpdateProfile) {
+        try {
+          await onUpdateProfile({
+            fullname: profileFullname || user.fullname,
+            email: profileEmail || user.email,
+            phone: profilePhone || user.phone,
+            whatsapp: profileWhatsapp,
+            bank_name: profileBankName,
+            bank_account: profileBankAccount,
+            bank_holder: profileBankHolder,
+            address: profileAddress,
+            city: profileCity,
+            profile_photo: base64String
+          });
+          setStatusMessage({ text: "Foto profil berhasil diperbarui!", type: "success" });
+          onRefresh();
+        } catch (err: any) {
+          setStatusMessage({ text: "Gagal menyimpan foto profil", type: "error" });
+        }
+      }
+      setUploadingPhoto(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -706,8 +746,12 @@ export default function UserDashboard({
           {/* User Status Profile */}
           <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-xl space-y-4 text-slate-100">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-blue-600 text-white font-display font-black flex items-center justify-center text-lg shadow-md shadow-blue-600/10">
-                {user.username.replace(/^@/, '').slice(0, 2).toUpperCase()}
+              <div className="w-12 h-12 rounded-xl bg-blue-600 text-white font-display font-black flex items-center justify-center text-lg shadow-md shadow-blue-600/10 shrink-0 overflow-hidden relative">
+                {user.profile_photo ? (
+                  <img src={user.profile_photo} alt={user.fullname} className="w-full h-full object-cover" />
+                ) : (
+                  user.username.replace(/^@/, '').slice(0, 2).toUpperCase()
+                )}
               </div>
               <div>
                 <h4 className="font-display font-bold text-white leading-tight">{user.fullname}</h4>
@@ -723,12 +767,17 @@ export default function UserDashboard({
             {user.is_active ? (
               <div className="bg-emerald-950/60 border border-emerald-800/80 text-emerald-200 rounded-xl p-3.5 flex items-start gap-2.5">
                 <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                <div className="text-xs leading-normal font-medium">
-                  <span className="font-extrabold block text-white text-sm">Member Premium Active</span>
+                <div className="text-xs leading-normal font-medium flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-white text-base tracking-wide">PREMIUM</span>
+                    <div className="inline-flex items-center gap-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full text-[10px] font-extrabold">
+                      <span>Verified</span>
+                      <CheckCircle className="w-3 h-3 text-blue-400 fill-blue-500/30" />
+                    </div>
+                  </div>
                   <span className="inline-block my-1 px-2 py-0.5 rounded bg-emerald-900/80 text-emerald-300 font-mono font-bold text-[10px] border border-emerald-700/50">
                     ID MEMBER: {idPrefix}{String(user.id).padStart(6, '0')}
                   </span>
-                  <p className="text-[11px] text-emerald-300/90 mt-0.5 font-semibold">Status Afiliasi Reseller Terverifikasi!</p>
                 </div>
               </div>
             ) : (
@@ -736,11 +785,11 @@ export default function UserDashboard({
                 <div className="flex items-start gap-2">
                   <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                   <div className="text-xs leading-normal font-medium">
-                    <span className="font-extrabold block text-white text-sm">Lisensi Belum Aktif</span>
+                    <span className="font-black text-amber-400 text-base tracking-wide">FREE</span>
                     <span className="inline-block my-1 px-2 py-0.5 rounded bg-amber-900/80 text-amber-300 font-mono font-bold text-[10px] border border-amber-700/50">
                       ID MEMBER: {idPrefix}{String(user.id).padStart(6, '0')}
                     </span>
-                    <p className="text-[11px] text-amber-300/90 mt-0.5">Wajib aktifasi Rp 550.000 untuk bonus komisi & belanja.</p>
+                    <p className="text-[11px] text-amber-300/90 mt-0.5">Wajib aktivasi Rp 550.000 untuk bonus komisi & belanja.</p>
                   </div>
                 </div>
                 <button
@@ -982,7 +1031,7 @@ export default function UserDashboard({
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
                             : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                         }`}>
-                          {user.is_active ? '● PREMIUM' : '○ UNVERIFIED'}
+                          {user.is_active ? '● PREMIUM' : '○ FREE'}
                         </span>
                       </div>
 
@@ -2857,10 +2906,26 @@ export default function UserDashboard({
                 
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10 text-center sm:text-left">
                   {/* User Avatar Circle */}
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 p-1 shrink-0 shadow-lg shadow-blue-500/20">
-                    <div className="w-full h-full bg-slate-900 rounded-xl flex items-center justify-center font-display font-black text-2xl text-white">
-                      {user.fullname ? user.fullname.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase()}
+                  <div className="relative group shrink-0">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 p-1 shadow-lg shadow-blue-500/20 overflow-hidden">
+                      <div className="w-full h-full bg-slate-900 rounded-xl flex items-center justify-center font-display font-black text-2xl text-white overflow-hidden relative">
+                        {user.profile_photo ? (
+                          <img src={user.profile_photo} alt={user.fullname} className="w-full h-full object-cover" />
+                        ) : (
+                          user.fullname ? user.fullname.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase()
+                        )}
+                      </div>
                     </div>
+                    <label className="absolute -bottom-1 -right-1 bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-xl cursor-pointer shadow-lg transition border border-slate-900 flex items-center justify-center active:scale-95" title="Upload Foto Profil">
+                      <Camera className="w-4 h-4 text-white" />
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handlePhotoUpload} 
+                        className="hidden" 
+                        disabled={uploadingPhoto}
+                      />
+                    </label>
                   </div>
 
                   <div className="space-y-2 flex-1">
@@ -2870,21 +2935,27 @@ export default function UserDashboard({
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
                           : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                       }`}>
-                        {user.is_active ? '● MEMBER PREMIUM AKTIF' : '○ UNVERIFIED (PERLU AKTIVASI)'}
+                        {user.is_active ? '● PREMIUM' : '○ FREE'}
                       </span>
+                      {user.is_active && (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                          <span>Verified</span>
+                          <CheckCircle className="w-3.5 h-3.5 text-blue-400 fill-blue-500/30" />
+                        </span>
+                      )}
                       <span className="px-3 py-1 rounded-full text-[10px] font-mono font-extrabold bg-slate-800 text-slate-300 border border-slate-700">
                         ID: {idPrefix}{String(user.id).padStart(6, '0')}
                       </span>
                     </div>
 
                     <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight">
-                      {user.fullname || user.username}
+                      {user.fullname || user.username.replace(/^@/, '')}
                     </h2>
 
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-slate-400 font-medium">
-                      <span>Username: <strong className="text-white font-mono">@{user.username}</strong></span>
+                      <span>Username: <strong className="text-white font-mono">{user.username.replace(/^@/, '')}</strong></span>
                       <span>•</span>
-                      <span>Sponsor: <strong className="text-blue-400 font-bold">{user.sponsor_username || 'Perusahaan'}</strong></span>
+                      <span>Sponsor: <strong className="text-blue-400 font-bold">{user.sponsor_username ? user.sponsor_username.replace(/^@/, '') : 'Perusahaan'}</strong></span>
                     </div>
                   </div>
                 </div>
@@ -2917,6 +2988,34 @@ export default function UserDashboard({
                       <span className="text-[10px] text-blue-600 font-extrabold bg-blue-100/80 px-2.5 py-0.5 rounded-full">Sesuai KTP</span>
                     </div>
 
+                    {/* Foto Profil Upload Box */}
+                    <div className="space-y-1 bg-blue-100/40 p-3.5 rounded-2xl border border-blue-200/80">
+                      <label className="text-[10px] font-extrabold text-blue-950 uppercase tracking-wider block">Foto Profil Member</label>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center text-white font-bold text-sm">
+                          {user.profile_photo ? (
+                            <img src={user.profile_photo} alt={user.fullname} className="w-full h-full object-cover" />
+                          ) : (
+                            user.fullname ? user.fullname.charAt(0).toUpperCase() : user.username.replace(/^@/, '').charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs cursor-pointer transition active:scale-95">
+                            <Camera className="w-4 h-4 text-white" />
+                            <span>{uploadingPhoto ? "Mengunggah..." : "Upload Foto Profil"}</span>
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={handlePhotoUpload} 
+                              className="hidden" 
+                              disabled={uploadingPhoto}
+                            />
+                          </label>
+                          <p className="text-[10px] text-slate-500 font-medium mt-1">Format foto JPG/PNG (maks 5MB)</p>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                       <div className="space-y-1">
                         <label className="text-[10px] font-extrabold text-blue-900/70 uppercase tracking-wider block">ID Member (Sistem)</label>
@@ -2933,7 +3032,7 @@ export default function UserDashboard({
                         <input
                           type="text"
                           disabled
-                          value={`@${user.username}`}
+                          value={user.username.replace(/^@/, '')}
                           className="w-full text-xs font-mono bg-white border border-blue-200 text-slate-600 rounded-xl px-3.5 py-2.5 cursor-not-allowed shadow-2xs"
                         />
                       </div>
