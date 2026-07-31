@@ -118,7 +118,7 @@ export default function LandingPage({
     }
   }, [settings]);
 
-  const slides = [
+  const defaultSlides = [
     {
       id: 1,
       title: settings?.heroTitle || "501® ORIGINAL DENIM",
@@ -147,6 +147,10 @@ export default function LandingPage({
       categoryTarget: "diskon"
     }
   ];
+
+  const slides = (settings?.heroSliders && Array.isArray(settings.heroSliders) && settings.heroSliders.length > 0)
+    ? settings.heroSliders
+    : defaultSlides;
 
   // Auto-play hero slider
   useEffect(() => {

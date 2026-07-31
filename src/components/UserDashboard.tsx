@@ -67,7 +67,60 @@ export default function UserDashboard({
   settings
 }: UserDashboardProps) {
   const idPrefix = settings?.memberIdPrefix || 'HDT-';
-  const [activeTab, setActiveTab] = useState<'overview' | 'tree' | 'shop' | 'orders' | 'finance' | 'referrals' | 'bonuses' | 'panduan' | 'profil'>('overview');
+  const getInitialUserTab = (): 'overview' | 'tree' | 'shop' | 'orders' | 'finance' | 'referrals' | 'bonuses' | 'panduan' | 'profil' => {
+    try {
+      const validTabs = ['overview', 'tree', 'shop', 'orders', 'finance', 'referrals', 'bonuses', 'panduan', 'profil'];
+      const rawHash = window.location.hash || '';
+      const cleanHash = rawHash.replace(/^[#/]+/, '').split('?')[0].split('/')[0].trim();
+      if (cleanHash && validTabs.includes(cleanHash)) {
+        return cleanHash as any;
+      }
+      const saved = localStorage.getItem('user_active_tab');
+      if (saved && validTabs.includes(saved)) {
+        return saved as any;
+      }
+    } catch {}
+    return 'overview';
+  };
+
+  const getInitialFinanceSubTab = (): 'deposit' | 'withdraw' | 'history' => {
+    try {
+      const saved = localStorage.getItem('user_finance_sub_tab');
+      if (saved && ['deposit', 'withdraw', 'history'].includes(saved)) {
+        return saved as any;
+      }
+    } catch {}
+    return 'deposit';
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialUserTab);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('user_active_tab', activeTab);
+      if (window.location.hash !== `#${activeTab}`) {
+        window.location.hash = activeTab;
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {}
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    const handleHashChange = () => {
+      try {
+        const validTabs = ['overview', 'tree', 'shop', 'orders', 'finance', 'referrals', 'bonuses', 'panduan', 'profil'];
+        const rawHash = window.location.hash || '';
+        const cleanHash = rawHash.replace(/^[#/]+/, '').split('?')[0].split('/')[0].trim();
+        if (cleanHash && validTabs.includes(cleanHash)) {
+          setActiveTab(cleanHash as any);
+        }
+      } catch {}
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
   
@@ -77,7 +130,13 @@ export default function UserDashboard({
   // Custom Refs & View Modes
   const overviewCardsRef = React.useRef<HTMLDivElement>(null);
   const [shopGridView, setShopGridView] = useState<'1col' | '2col'>('2col');
-  const [financeSubTab, setFinanceSubTab] = useState<'deposit' | 'withdraw' | 'history'>('deposit');
+  const [financeSubTab, setFinanceSubTab] = useState<'deposit' | 'withdraw' | 'history'>(getInitialFinanceSubTab);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('user_finance_sub_tab', financeSubTab);
+    } catch {}
+  }, [financeSubTab]);
 
   const scrollCardsLeft = () => {
     if (overviewCardsRef.current) {
@@ -197,6 +256,7 @@ export default function UserDashboard({
   const [purchaseModalProduct, setPurchaseModalProduct] = useState<Product | null>(null);
   const [purchasePaymentMethod, setPurchasePaymentMethod] = useState<'saldo' | 'transfer'>('saldo');
   const [purchaseAddress, setPurchaseAddress] = useState(user.address || '');
+  const [addressSource, setAddressSource] = useState<'profile' | 'manual'>('profile');
 
   const handleUserSyncTracking = async (ord: Order) => {
     setSyncingOrderId(ord.id);
@@ -1018,6 +1078,55 @@ export default function UserDashboard({
  
         {/* Dashboard Panels */}
         <main className="flex-1 min-w-0 space-y-6" id="user-main-panel">
+          {/* Quick Horizontal Tab Bar for Mobile & Tablet View */}
+          <div className="lg:hidden w-full bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-lg overflow-hidden">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none snap-x touch-pan-x py-0.5 px-0.5">
+              {[
+                { id: 'overview', label: 'Ringkasan', icon: TrendingUp },
+                { id: 'tree', label: 'Pohon Jaringan', icon: TreePine, badge: 'Binary' },
+                { id: 'shop', label: 'Belanja Jeans', icon: ShoppingBag },
+                { id: 'orders', label: 'Pengiriman & Resi', icon: Truck, count: orders && orders.filter(o => o.username === user.username || o.phone === user.phone).length },
+                { id: 'finance', label: 'Depo & WD', icon: CreditCard },
+                { id: 'referrals', label: 'Sponsor', icon: Users, count: referrals.length },
+                { id: 'bonuses', label: 'Komisi', icon: Award },
+                { id: 'panduan', label: 'Panduan', icon: HelpCircle },
+                { id: 'profil', label: 'Profil Saya', icon: User }
+              ].map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    id={`quick-tab-${item.id}`}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(item.id as any);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-black'
+                        : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <span>{item.label}</span>
+                    {item.badge && (
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold ${isActive ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
+                        {item.badge}
+                      </span>
+                    )}
+                    {item.count !== undefined && item.count > 0 && (
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold ${isActive ? 'bg-blue-500 text-white' : 'bg-blue-950 text-blue-300 border border-blue-800'}`}>
+                        {item.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Status Message alert banner */}
           {statusMessage.text && (
             <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 shadow-sm ${
@@ -2011,7 +2120,9 @@ export default function UserDashboard({
                           id={`btn-buy-product-${p.id}`}
                           onClick={() => {
                             setPurchaseModalProduct(p);
-                            setPurchaseAddress(user.address || '');
+                            const fullAddr = [user.address, user.city].filter(Boolean).join(', ');
+                            setPurchaseAddress(fullAddr || '');
+                            setAddressSource('profile');
                             setPurchasePaymentMethod('saldo');
                           }}
                           disabled={p.stock < 1 || loadingAction}
@@ -3388,66 +3499,97 @@ export default function UserDashboard({
                 className="space-y-3"
               >
                 {/* Shipping Address */}
-                <div>
-                  <label className="block text-[10px] sm:text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
-                    Pilih Alamat Pengiriman
+                <div className="space-y-2">
+                  <label className="block text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Pilihan Alamat Pengiriman Produk
                   </label>
 
                   {/* Option Choice Buttons */}
-                  <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => setPurchaseAddress(user.address || '')}
+                      onClick={() => {
+                        setAddressSource('profile');
+                        const fullAddr = [user.address, user.city].filter(Boolean).join(', ');
+                        setPurchaseAddress(fullAddr || '');
+                      }}
                       className={`p-2.5 rounded-xl text-left border text-[11px] transition cursor-pointer ${
-                        purchaseAddress === user.address && user.address
+                        addressSource === 'profile'
                           ? 'border-blue-600 bg-blue-50/80 text-blue-900 font-bold shadow-2xs'
                           : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-extrabold flex items-center gap-1">🏠 Alamat Profil</span>
-                        {purchaseAddress === user.address && user.address && (
+                        {addressSource === 'profile' && (
                           <CheckCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                         )}
                       </div>
                       <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5 font-normal">
-                        {user.address ? user.address : 'Belum diisi di profil'}
+                        {user.address ? [user.address, user.city].filter(Boolean).join(', ') : 'Belum diisi di profil'}
                       </p>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => {
-                        if (purchaseAddress === user.address) {
+                        setAddressSource('manual');
+                        if (addressSource === 'profile') {
                           setPurchaseAddress('');
                         }
                       }}
                       className={`p-2.5 rounded-xl text-left border text-[11px] transition cursor-pointer ${
-                        purchaseAddress !== user.address || !user.address
+                        addressSource === 'manual'
                           ? 'border-blue-600 bg-blue-50/80 text-blue-900 font-bold shadow-2xs'
                           : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-extrabold flex items-center gap-1">✏️ Input Manual</span>
-                        {(purchaseAddress !== user.address || !user.address) && (
+                        <span className="font-extrabold flex items-center gap-1">✏️ Kolom Manual</span>
+                        {addressSource === 'manual' && (
                           <CheckCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                         )}
                       </div>
                       <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5 font-normal">
-                        Kirim ke alamat lain
+                        Ketik alamat lain
                       </p>
                     </button>
                   </div>
 
-                  <textarea
-                    rows={2}
-                    value={purchaseAddress}
-                    onChange={(e) => setPurchaseAddress(e.target.value)}
-                    placeholder="Alamat pengiriman lengkap (Jalan, No., RT/RW, Kec, Kota, Kode Pos)"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white"
-                    required
-                  />
+                  {addressSource === 'profile' ? (
+                    <div className="bg-blue-50/70 border border-blue-200/90 rounded-xl p-3 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-blue-900 text-[10px] uppercase tracking-wider">Alamat Dari Profil Member:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPurchaseModalProduct(null);
+                            setActiveTab('profil');
+                          }}
+                          className="text-[10px] font-extrabold text-blue-600 hover:underline cursor-pointer"
+                        >
+                          Ubah Di Profil
+                        </button>
+                      </div>
+                      <p className="font-semibold text-slate-800 leading-relaxed">
+                        {[user.address, user.city].filter(Boolean).join(', ') || (
+                          <span className="text-amber-700 italic font-normal">Alamat profil Anda belum diisi. Silakan klik tombol 'Kolom Manual' di atas untuk mengetik alamat, atau lengkapi profil.</span>
+                        )}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-600 uppercase block">Ketik Alamat Pengiriman Manual:</label>
+                      <textarea
+                        rows={2}
+                        value={purchaseAddress}
+                        onChange={(e) => setPurchaseAddress(e.target.value)}
+                        placeholder="Alamat pengiriman lengkap (Jalan, No. Rumah, RT/RW, Kecamatan, Kota/Kabupaten, Provinsi, Kode Pos)"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Payment Method Option */}
@@ -3664,7 +3806,9 @@ export default function UserDashboard({
                     <button
                       onClick={() => {
                         setPurchaseModalProduct(selectedDetailProduct);
-                        setPurchaseAddress(user.address || '');
+                        const fullAddr = [user.address, user.city].filter(Boolean).join(', ');
+                        setPurchaseAddress(fullAddr || '');
+                        setAddressSource('profile');
                         setPurchasePaymentMethod('saldo');
                         setSelectedDetailProduct(null);
                       }}

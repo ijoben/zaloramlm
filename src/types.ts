@@ -100,6 +100,16 @@ export interface BinaryTreeNode {
   right: BinaryTreeNode | null;
 }
 
+export interface HeroSlide {
+  id: number;
+  title: string;
+  subtitle: string;
+  image: string;
+  badge?: string;
+  cta?: string;
+  categoryTarget?: string;
+}
+
 export interface SystemSettings {
   memberIdPrefix?: string;
   sponsorBonus?: number;
@@ -117,6 +127,7 @@ export interface SystemSettings {
   rewardThresholdLeft?: number;
   rewardThresholdRight?: number;
   rewardName?: string;
+  rewardCashEquivalent?: number;
   isAutoPayout?: boolean;
   enableMlmBonus?: boolean;
   enableLevelBonus?: boolean;
@@ -125,6 +136,23 @@ export interface SystemSettings {
   iconUrl?: string;
   slogan?: string;
   siteDescription?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  shippingTrackingMode?: 'MANUAL' | 'AUTO_API';
+  shippingApiKey?: string;
+  midtransMerchantId?: string;
+  midtransClientKey?: string;
+  midtransServerKey?: string;
+  midtransIsProduction?: boolean;
+  emailNotifRegisterAdminActive?: boolean;
+  emailNotifRegisterSponsorActive?: boolean;
+  adminNotifEmail?: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  emailSenderName?: string;
+  welcomeEmailTemplate?: string;
   // Landing Page CMS content fields
   heroBadge?: string;
   heroTitle?: string;
@@ -140,6 +168,7 @@ export interface SystemSettings {
   catalogSubtitle?: string;
   faqTitle?: string;
   footerAbout?: string;
+  heroSliders?: HeroSlide[];
 }
 
 export interface OrderStep {

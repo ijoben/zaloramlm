@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { MLMUser, Product, Transaction, DepositRequest, WDRequest, Order, OrderStep } from "../types";
+import { MLMUser, Product, Transaction, DepositRequest, WDRequest, Order, OrderStep, HeroSlide } from "../types";
 import { 
   Shield, Users, DollarSign, Package, TrendingUp, HelpCircle, 
   CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, Edit3,
@@ -134,7 +134,66 @@ export default function AdminDashboard({
   onUpdateSettings,
   onRefreshProducts
 }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'orders' | 'settings' | 'landing-editor' | 'profil'>('financials');
+  const getInitialAdminTab = (): 'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'orders' | 'settings' | 'landing-editor' | 'profil' => {
+    try {
+      const validTabs = ['financials', 'withdrawals', 'deposits', 'members', 'products', 'orders', 'settings', 'landing-editor', 'profil'];
+      const rawHash = window.location.hash || '';
+      const cleanHash = rawHash.replace(/^[#/]+/, '').split('?')[0].split('/')[0].trim();
+      if (cleanHash && validTabs.includes(cleanHash)) {
+        return cleanHash as any;
+      }
+      const saved = localStorage.getItem('admin_active_tab');
+      if (saved && validTabs.includes(saved)) {
+        return saved as any;
+      }
+    } catch {}
+    return 'financials';
+  };
+
+  const getInitialSettingsSubTab = (): 'web' | 'mlm' | 'midtrans' | 'email' => {
+    try {
+      const saved = localStorage.getItem('admin_settings_sub_tab');
+      if (saved && ['web', 'mlm', 'midtrans', 'email'].includes(saved)) {
+        return saved as any;
+      }
+    } catch {}
+    return 'web';
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialAdminTab);
+  const [settingsSubTab, setSettingsSubTab] = useState<'web' | 'mlm' | 'midtrans' | 'email'>(getInitialSettingsSubTab);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('admin_active_tab', activeTab);
+      if (window.location.hash !== `#${activeTab}`) {
+        window.location.hash = activeTab;
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {}
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('admin_settings_sub_tab', settingsSubTab);
+    } catch {}
+  }, [settingsSubTab]);
+
+  React.useEffect(() => {
+    const handleHashChange = () => {
+      try {
+        const validTabs = ['financials', 'withdrawals', 'deposits', 'members', 'products', 'orders', 'settings', 'landing-editor', 'profil'];
+        const rawHash = window.location.hash || '';
+        const cleanHash = rawHash.replace(/^[#/]+/, '').split('?')[0].split('/')[0].trim();
+        if (cleanHash && validTabs.includes(cleanHash)) {
+          setActiveTab(cleanHash as any);
+        }
+      } catch {}
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedUserDetail, setSelectedUserDetail] = useState<MLMUser | null>(null);
 
@@ -321,6 +380,179 @@ export default function AdminDashboard({
   const [formContactEmail, setFormContactEmail] = useState(settings?.contactEmail || '');
 
   // Landing Page CMS Content states
+  const DEFAULT_HERO_SLIDES: HeroSlide[] = [
+    {
+      id: 1,
+      title: settings?.heroTitle || "501® ORIGINAL DENIM",
+      subtitle: settings?.heroSubtitle || "IKONIK SEJAK 1873. POTONGAN LURUS DENGAN RAW DENIM 14OZ PREMUM.",
+      image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1600&auto=format&fit=crop",
+      badge: settings?.heroBadge || "KOLEKSI IKONIK",
+      cta: settings?.heroCtaText || "BELANJA KOLEKSI 501®",
+      categoryTarget: "pria"
+    },
+    {
+      id: 2,
+      title: "TRUCKER JACKET & OUTER",
+      subtitle: "GAYA IKONIK DENIM MODERN UNTUK PENAMPILAN CASUAL HARIAN ANDA.",
+      image: "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?q=80&w=1600&auto=format&fit=crop",
+      badge: "KOLEKSI TERBARU",
+      cta: "LIHAT JAKET DENIM",
+      categoryTarget: "wanita"
+    },
+    {
+      id: 3,
+      title: "SEASONAL SALE UP TO 40%",
+      subtitle: "DISKON SPESIAL KOLEKSI DENIM ELEGAN DENGAN HARGA KHUSUS EKSKLUSIF.",
+      image: "https://images.unsplash.com/photo-1582552938357-32b906df40cb?q=80&w=1600&auto=format&fit=crop",
+      badge: "DISKON MINGGU INI",
+      cta: "BERBURU DISKON",
+      categoryTarget: "diskon"
+    }
+  ];
+
+  const [formHeroSliders, setFormHeroSliders] = useState<HeroSlide[]>(
+    settings?.heroSliders && Array.isArray(settings.heroSliders) && settings.heroSliders.length > 0
+      ? settings.heroSliders
+      : DEFAULT_HERO_SLIDES
+  );
+
+  React.useEffect(() => {
+    if (settings && settings.heroSliders && Array.isArray(settings.heroSliders) && settings.heroSliders.length > 0) {
+      setFormHeroSliders(settings.heroSliders);
+    }
+  }, [settings]);
+
+  // Modal & Form states for Slide CRUD
+  const [editingSlide, setEditingSlide] = useState<HeroSlide | null>(null);
+  const [isAddSlideModalOpen, setIsAddSlideModalOpen] = useState(false);
+  
+  const [slideTitle, setSlideTitle] = useState('');
+  const [slideSubtitle, setSlideSubtitle] = useState('');
+  const [slideBadge, setSlideBadge] = useState('PROMO UNGGULAN');
+  const [slideCta, setSlideCta] = useState('BELANJA SEKARANG');
+  const [slideCategory, setSlideCategory] = useState('pria');
+  const [slideImage, setSlideImage] = useState('');
+  const slideFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSlideImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 3 * 1024 * 1024) {
+        alert("Ukuran file gambar maksimal 3MB!");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setSlideImage(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleOpenAddSlideModal = () => {
+    setSlideTitle('');
+    setSlideSubtitle('');
+    setSlideBadge('PROMO UNGGULAN');
+    setSlideCta('BELANJA SEKARANG');
+    setSlideCategory('pria');
+    setSlideImage('');
+    setIsAddSlideModalOpen(true);
+  };
+
+  const handleOpenEditSlideModal = (slide: HeroSlide) => {
+    setEditingSlide(slide);
+    setSlideTitle(slide.title);
+    setSlideSubtitle(slide.subtitle);
+    setSlideBadge(slide.badge || '');
+    setSlideCta(slide.cta || '');
+    setSlideCategory(slide.categoryTarget || 'pria');
+    setSlideImage(slide.image);
+  };
+
+  const handleAddSlideSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!slideTitle || !slideImage) {
+      alert("Judul slide dan Foto/Gambar slide wajib diisi!");
+      return;
+    }
+    const newSlide: HeroSlide = {
+      id: Date.now(),
+      title: slideTitle,
+      subtitle: slideSubtitle,
+      badge: slideBadge,
+      cta: slideCta,
+      categoryTarget: slideCategory,
+      image: slideImage
+    };
+    setFormHeroSliders(prev => {
+      const updated = [...prev, newSlide];
+      if (onUpdateSettings) {
+        onUpdateSettings({ heroSliders: updated });
+      }
+      return updated;
+    });
+    setIsAddSlideModalOpen(false);
+    setMessage({ text: "Slide banner baru berhasil ditambahkan!", type: "success" });
+  };
+
+  const handleEditSlideSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSlide || !slideTitle || !slideImage) {
+      alert("Judul slide dan Foto/Gambar slide wajib diisi!");
+      return;
+    }
+    setFormHeroSliders(prev => {
+      const updated = prev.map(s => s.id === editingSlide.id ? {
+        ...s,
+        title: slideTitle,
+        subtitle: slideSubtitle,
+        badge: slideBadge,
+        cta: slideCta,
+        categoryTarget: slideCategory,
+        image: slideImage
+      } : s);
+      if (onUpdateSettings) {
+        onUpdateSettings({ heroSliders: updated });
+      }
+      return updated;
+    });
+    setEditingSlide(null);
+    setMessage({ text: "Slide banner berhasil diperbarui!", type: "success" });
+  };
+
+  const handleDeleteSlide = (slideId: number) => {
+    if (formHeroSliders.length <= 1) {
+      alert("Minimal harus ada 1 slider banner utama!");
+      return;
+    }
+    if (confirm("Apakah Anda yakin ingin menghapus slide banner ini?")) {
+      setFormHeroSliders(prev => {
+        const updated = prev.filter(s => s.id !== slideId);
+        if (onUpdateSettings) {
+          onUpdateSettings({ heroSliders: updated });
+        }
+        return updated;
+      });
+      setMessage({ text: "Slide banner berhasil dihapus!", type: "success" });
+    }
+  };
+
+  const handleMoveSlide = (index: number, direction: 'up' | 'down') => {
+    const newSliders = [...formHeroSliders];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newSliders.length) return;
+    const temp = newSliders[index];
+    newSliders[index] = newSliders[targetIndex];
+    newSliders[targetIndex] = temp;
+    setFormHeroSliders(newSliders);
+    if (onUpdateSettings) {
+      onUpdateSettings({ heroSliders: newSliders });
+    }
+    setMessage({ text: "Urutan slide banner berhasil diubah!", type: "success" });
+  };
+
   const [formHeroBadge, setFormHeroBadge] = useState(settings?.heroBadge || 'PORTAL MEMBER & RESELLER RESMI');
   const [formHeroTitle, setFormHeroTitle] = useState(settings?.heroTitle || 'Celana Jeans Premium HEDTRO JEANS Dengan System Afiliasi Terbaik');
   const [formHeroSubtitle, setFormHeroSubtitle] = useState(settings?.heroSubtitle || 'Dapatkan komisi sponsor, komisi pasangan, bonus kedalaman level generasi, dan repeat order secara otomatis dengan bergabung sebagai member resmi.');
@@ -811,7 +1043,8 @@ export default function AdminDashboard({
       catalogTitle: formCatalogTitle,
       catalogSubtitle: formCatalogSubtitle,
       faqTitle: formFaqTitle,
-      footerAbout: formFooterAbout
+      footerAbout: formFooterAbout,
+      heroSliders: formHeroSliders
     });
     if (success) {
       setMessage({ text: "Semua konfigurasi Web, skema bonus MLM, kredensial Midtrans, notifikasi email, dan konten Landing Page berhasil disimpan!", type: "success" });
@@ -1390,6 +1623,51 @@ export default function AdminDashboard({
 
         {/* Dashboard Panels */}
         <main className="flex-1 min-w-0 space-y-6" id="admin-main-panel">
+          {/* Quick Horizontal Tab Bar for Mobile & Tablet Admin */}
+          <div className="lg:hidden w-full bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-lg overflow-hidden">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none snap-x touch-pan-x py-0.5 px-0.5">
+              {[
+                { id: 'financials', label: 'Laba Rugi', icon: BarChart2 },
+                { id: 'withdrawals', label: 'WD Bonus', icon: ArrowUpRight, count: metrics.pendingWDCount, alert: true },
+                { id: 'deposits', label: 'Deposit', icon: ArrowDownLeft, count: deposits.filter(d => d.status === 'pending').length, alert: true },
+                { id: 'members', label: 'Jaringan', icon: Users, count: metrics.totalMembers },
+                { id: 'products', label: 'Gudang Jeans', icon: Package },
+                { id: 'orders', label: 'Pengiriman & Resi', icon: Truck, count: orders.length },
+                { id: 'landing-editor', label: 'Edit Landing', icon: Edit },
+                { id: 'settings', label: 'Seting Web', icon: Settings },
+                { id: 'profil', label: 'Profil Admin', icon: User }
+              ].map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    id={`mobile-quick-admin-tab-${item.id}`}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(item.id as any);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-black'
+                        : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <span>{item.label}</span>
+                    {item.count !== undefined && item.count > 0 && (
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                        isActive ? 'bg-blue-500 text-white' : item.alert ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-700 text-slate-200'
+                      }`}>
+                        {item.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           
           {/* Status Message Alert */}
           {message.text && (
@@ -2496,9 +2774,82 @@ export default function AdminDashboard({
             </div>
           )}
 
-          {/* TAB: SETTINGS & ADD PRODUCT */}
+          {/* TAB: SETTINGS */}
           {activeTab === 'settings' && (
             <div className="space-y-6">
+              
+              {/* Top Title & Sub-tabs switcher */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                      <Settings className="text-blue-600 w-6 h-6" /> Pengaturan Web & Sistem MLM
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium mt-1">
+                      Pilih kategori pengaturan di bawah untuk mengelola identitas web, komisi MLM, Midtrans, dan email server.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveSettingsSubmit}
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition shadow-md flex items-center justify-center gap-2 self-start md:self-center shrink-0 cursor-pointer"
+                  >
+                    💾 Simpan Perubahan
+                  </button>
+                </div>
+
+                {/* Sub-Tab Navigation Bar */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSubTab('web')}
+                    className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition flex items-center gap-2 shrink-0 cursor-pointer ${
+                      settingsSubTab === 'web'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4" /> 1. Identitas & Web
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSubTab('mlm')}
+                    className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition flex items-center gap-2 shrink-0 cursor-pointer ${
+                      settingsSubTab === 'mlm'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <Percent className="w-4 h-4" /> 2. MLM & Skema Bonus
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSubTab('midtrans')}
+                    className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition flex items-center gap-2 shrink-0 cursor-pointer ${
+                      settingsSubTab === 'midtrans'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <CreditCard className="w-4 h-4" /> 3. Midtrans Payment Gateway
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSubTab('email')}
+                    className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition flex items-center gap-2 shrink-0 cursor-pointer ${
+                      settingsSubTab === 'email'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" /> 4. Notifikasi Email & SMTP
+                  </button>
+                </div>
+              </div>
               
               {/* AUTOMATIC PAYOUT TOGGLE CARD */}
               <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
@@ -3239,131 +3590,6 @@ export default function AdminDashboard({
                 </div>
               </form>
 
-              {/* PRODUCT ADDITION SECTION */}
-              <form onSubmit={handleAddProductSubmit} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <PlusCircle className="text-green-600 w-5 h-5" /> Tambah Produk Celana Jeans Baru & Bonusnya
-                  </h3>
-                  <p className="text-xs text-slate-500">Mendaftarkan tipe produk celana jeans baru ke dalam daftar e-commerce dan seting bonus yang didapatkan dari pembelanjaannya.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Nama Model Produk Jeans</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Contoh: Jeans Slim Fit Vintage Blue"
-                      value={newProdName}
-                      onChange={(e) => setNewProdName(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-green-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5 md:col-span-2">
-                    <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Foto & Gambar Produk Celana Jeans</label>
-                    <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                      <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-white border border-slate-200 shrink-0 flex items-center justify-center shadow-inner">
-                        {newProdImage ? (
-                          <img referrerPolicy="no-referrer" src={newProdImage} alt="Preview Produk" className="w-full h-full object-cover" />
-                        ) : (
-                          <Package className="w-8 h-8 text-slate-300" />
-                        )}
-                      </div>
-
-                      <div className="space-y-2 min-w-0 flex-1 w-full sm:w-auto">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => newProductFileInputRef.current?.click()}
-                            className="px-3.5 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
-                          >
-                            <Upload className="w-4 h-4" /> {newProdImage ? 'Ganti File Foto' : 'Pilih File Foto Produk'}
-                          </button>
-                          {newProdImage && (
-                            <button
-                              type="button"
-                              onClick={() => setNewProdImage('')}
-                              className="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1 cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" /> Hapus Foto
-                            </button>
-                          )}
-                        </div>
-
-                        <p className="text-[11px] text-slate-500">
-                          {newProdImage ? (
-                            <span className="text-emerald-700 font-bold flex items-center gap-1">
-                              <Check className="w-3.5 h-3.5" /> File foto berhasil dipilih & siap disimpan ke database!
-                            </span>
-                          ) : (
-                            'Upload file foto langsung dari galeri HP/laptop Anda. Foto akan otomatis tersimpan di database.'
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 md:col-span-2">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Harga Umum Retail (IDR)</label>
-                      <input
-                        type="number"
-                        required
-                        value={newProdPrice}
-                        onChange={(e) => setNewProdPrice(Number(e.target.value))}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Harga Member Premium (IDR)</label>
-                      <input
-                        type="number"
-                        required
-                        value={newProdMemberPrice}
-                        onChange={(e) => setNewProdMemberPrice(Number(e.target.value))}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none text-blue-600 font-extrabold"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-extrabold uppercase text-slate-400 block">Stok Awal Gudang (Pcs)</label>
-                      <input
-                        type="number"
-                        required
-                        value={newProdStock}
-                        onChange={(e) => setNewProdStock(Number(e.target.value))}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Deskripsi Produk Celana Jeans</label>
-                    <textarea
-                      rows={2}
-                      required
-                      value={newProdDescription}
-                      onChange={(e) => setNewProdDescription(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    id="btn-submit-add-product"
-                    disabled={loading}
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition text-xs shadow-md cursor-pointer"
-                  >
-                    ➕ Tambah Produk & Publikasikan
-                  </button>
-                </div>
-              </form>
-
             </div>
           )}
 
@@ -3917,6 +4143,96 @@ export default function AdminDashboard({
 
               <form onSubmit={handleSaveSettingsSubmit} className="space-y-6">
                 
+                {/* 0. KELOLA SLIDER BANNER UTAMA (HERO CAROUSEL) */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-black uppercase text-slate-800 tracking-wider flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-amber-500" /> 0. Kelola Slider Utama (Hero Banner Carousel)
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">Tambah, edit, hapus, dan atur urutan gambar slider banner utama halaman depan.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleOpenAddSlideModal}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 self-start sm:self-center shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" /> Tambah Banner Slide Baru
+                    </button>
+                  </div>
+
+                  {/* List of Sliders */}
+                  <div className="grid grid-cols-1 gap-3">
+                    {formHeroSliders.map((slide, index) => (
+                      <div key={slide.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col md:flex-row items-center gap-4">
+                        <div className="relative w-full md:w-36 h-24 rounded-xl overflow-hidden bg-slate-200 shrink-0 border border-slate-300">
+                          <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" />
+                          {slide.badge && (
+                            <span className="absolute top-2 left-2 bg-slate-900/80 text-amber-400 text-[9px] font-bold px-2 py-0.5 rounded backdrop-blur-xs">
+                              {slide.badge}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0 space-y-1 text-left w-full">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">
+                              Slide #{index + 1}
+                            </span>
+                            {slide.categoryTarget && (
+                              <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-md uppercase">
+                                Target: {slide.categoryTarget}
+                              </span>
+                            )}
+                          </div>
+                          <h5 className="font-extrabold text-slate-900 text-xs line-clamp-1">{slide.title}</h5>
+                          <p className="text-[11px] text-slate-500 line-clamp-2">{slide.subtitle}</p>
+                          {slide.cta && (
+                            <p className="text-[10px] font-bold text-blue-600 font-mono">Tombol CTA: {slide.cta}</p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
+                          <button
+                            type="button"
+                            disabled={index === 0}
+                            onClick={() => handleMoveSlide(index, 'up')}
+                            className="p-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+                            title="Geser Ke Atas"
+                          >
+                            <ArrowUpRight className="w-4 h-4 rotate-[-45deg]" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === formHeroSliders.length - 1}
+                            onClick={() => handleMoveSlide(index, 'down')}
+                            className="p-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+                            title="Geser Ke Bawah"
+                          >
+                            <ArrowDownLeft className="w-4 h-4 rotate-[-45deg]" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditSlideModal(slide)}
+                            className="p-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-100 transition cursor-pointer"
+                            title="Edit Slide"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSlide(slide.id)}
+                            className="p-2 bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 transition cursor-pointer"
+                            title="Hapus Slide"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* 1. HERO HEADER BANNER */}
                 <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
                   <div className="border-b border-slate-100 pb-3">
@@ -5412,6 +5728,253 @@ export default function AdminDashboard({
                 {isDeletingUserLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Ya, Hapus Permanen
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD SLIDE */}
+      {isAddSlideModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <PlusCircle className="w-5 h-5 text-emerald-600" /> Tambah Slide Banner Utama
+              </h3>
+              <button onClick={() => setIsAddSlideModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSlideSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Judul Utama Banner</label>
+                <input
+                  type="text"
+                  required
+                  value={slideTitle}
+                  onChange={(e) => setSlideTitle(e.target.value)}
+                  placeholder="Contoh: 501® ORIGINAL DENIM"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Sub-Judul / Deskripsi</label>
+                <textarea
+                  rows={2}
+                  value={slideSubtitle}
+                  onChange={(e) => setSlideSubtitle(e.target.value)}
+                  placeholder="Contoh: Potongan lurus dengan raw denim 14oz premium..."
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Badge / Label Atas</label>
+                  <input
+                    type="text"
+                    value={slideBadge}
+                    onChange={(e) => setSlideBadge(e.target.value)}
+                    placeholder="KOLEKSI IKONIK"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Teks Tombol CTA</label>
+                  <input
+                    type="text"
+                    value={slideCta}
+                    onChange={(e) => setSlideCta(e.target.value)}
+                    placeholder="BELANJA SEKARANG"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Target Kategori Produk saat Di-Klik</label>
+                <select
+                  value={slideCategory}
+                  onChange={(e) => setSlideCategory(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-blue-500"
+                >
+                  <option value="semua">Semua Produk</option>
+                  <option value="pria">Pria</option>
+                  <option value="wanita">Wanita</option>
+                  <option value="aksesoris">Aksesoris</option>
+                  <option value="diskon">Diskon</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Foto / Gambar Banner</label>
+                <div className="space-y-2">
+                  {slideImage && (
+                    <div className="relative w-full h-32 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                      <img src={slideImage} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={slideImage}
+                      onChange={(e) => setSlideImage(e.target.value)}
+                      placeholder="Paste URL Gambar (https://...) atau Upload File"
+                      className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => slideFileInputRef.current?.click()}
+                      className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl font-bold flex items-center gap-1 shrink-0 transition cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> Upload
+                    </button>
+                  </div>
+                  <input
+                    type="file"
+                    ref={slideFileInputRef}
+                    accept="image/*"
+                    onChange={handleSlideImageUpload}
+                    className="hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddSlideModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold transition shadow-xs cursor-pointer"
+                >
+                  Tambah Banner
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT SLIDE */}
+      {editingSlide && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <Edit className="w-5 h-5 text-blue-600" /> Edit Slide Banner Utama
+              </h3>
+              <button onClick={() => setEditingSlide(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSlideSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Judul Utama Banner</label>
+                <input
+                  type="text"
+                  required
+                  value={slideTitle}
+                  onChange={(e) => setSlideTitle(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Sub-Judul / Deskripsi</label>
+                <textarea
+                  rows={2}
+                  value={slideSubtitle}
+                  onChange={(e) => setSlideSubtitle(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Badge / Label Atas</label>
+                  <input
+                    type="text"
+                    value={slideBadge}
+                    onChange={(e) => setSlideBadge(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Teks Tombol CTA</label>
+                  <input
+                    type="text"
+                    value={slideCta}
+                    onChange={(e) => setSlideCta(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Target Kategori Produk saat Di-Klik</label>
+                <select
+                  value={slideCategory}
+                  onChange={(e) => setSlideCategory(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-blue-500"
+                >
+                  <option value="semua">Semua Produk</option>
+                  <option value="pria">Pria</option>
+                  <option value="wanita">Wanita</option>
+                  <option value="aksesoris">Aksesoris</option>
+                  <option value="diskon">Diskon</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Foto / Gambar Banner</label>
+                <div className="space-y-2">
+                  {slideImage && (
+                    <div className="relative w-full h-32 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                      <img src={slideImage} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={slideImage}
+                      onChange={(e) => setSlideImage(e.target.value)}
+                      placeholder="Paste URL Gambar (https://...) atau Upload File"
+                      className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => slideFileInputRef.current?.click()}
+                      className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl font-bold flex items-center gap-1 shrink-0 transition cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> Upload
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingSlide(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold transition shadow-xs cursor-pointer"
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
