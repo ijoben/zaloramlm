@@ -2247,14 +2247,14 @@ export default function App() {
 
   const handleAddUserAdmin = async (userData: Partial<MLMUser>): Promise<boolean> => {
     try {
-      await registerUserClient({
+      await registerUserToFirestoreDirect({
         username: userData.username || "",
         fullname: userData.fullname || "",
         email: userData.email || "",
         phone: userData.phone || "",
         password: userData.password || "password123",
-        sponsor_username: userData.sponsor_username || "",
-        upline_username: userData.upline_username || "",
+        sponsor_username: (userData as any).sponsor_username || "",
+        upline_username: (userData as any).upline_username || "",
         position: (userData.position === 'R' || userData.position === 'L') ? userData.position : 'L',
         ktp: userData.ktp || "",
         whatsapp: userData.whatsapp || "",

@@ -42,6 +42,8 @@ export default function LandingPage({
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
   const [isMemberOnlyModalOpen, setIsMemberOnlyModalOpen] = useState(false);
   const [selectedProductForMemberModal, setSelectedProductForMemberModal] = useState<Product | null>(null);
+  const [selectedDetailProduct, setSelectedDetailProduct] = useState<Product | null>(null);
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   // E-Commerce Functional States
@@ -743,22 +745,31 @@ export default function LandingPage({
           {bestSellerProducts.map((p) => (
             <div
               key={p.id}
-              className="w-[200px] sm:w-[240px] md:w-[260px] bg-white border border-neutral-200 snap-start flex flex-col hover:border-[#C41230] transition group shadow-xs shrink-0"
+              className="w-[200px] sm:w-[240px] md:w-[260px] bg-white border border-neutral-200 snap-start flex flex-col hover:border-[#C41230] transition group shadow-xs shrink-0 cursor-pointer"
             >
-              <div className="h-44 sm:h-56 w-full overflow-hidden relative bg-neutral-100">
+              <div 
+                onClick={() => setSelectedDetailProduct(p)}
+                className="h-44 sm:h-56 w-full overflow-hidden relative bg-neutral-100 group/img"
+              >
                 <img
                   referrerPolicy="no-referrer"
                   src={p.image}
                   alt={p.name}
                   draggable={false}
-                  className="w-full h-full object-cover group-hover:scale-105 transition duration-500 select-none pointer-events-none"
+                  className="w-full h-full object-cover group-hover/img:scale-105 transition duration-500 select-none pointer-events-none"
                 />
-                <div className="absolute top-3 left-0 bg-[#C41230] text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1">
+
+                {/* Hover Overlay hint */}
+                <div className="absolute inset-0 bg-neutral-900/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-black uppercase tracking-widest gap-1.5 z-10">
+                  <Eye className="w-4 h-4" /> lihat Detail
+                </div>
+
+                <div className="absolute top-3 left-0 bg-[#C41230] text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 z-10">
                   BEST SELLER
                 </div>
                 <button
-                  onClick={() => toggleWishlist(p.id)}
-                  className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition ${
+                  onClick={(e) => { e.stopPropagation(); toggleWishlist(p.id); }}
+                  className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition z-20 ${
                     wishlist.includes(p.id)
                       ? "bg-[#C41230] text-white"
                       : "bg-white/80 text-neutral-700 hover:text-[#C41230]"
@@ -770,8 +781,8 @@ export default function LandingPage({
               </div>
 
               <div className="p-4 flex flex-col justify-between flex-1 space-y-3">
-                <div>
-                  <h3 className="font-black text-xs uppercase tracking-wide text-neutral-900 line-clamp-1">
+                <div onClick={() => setSelectedDetailProduct(p)}>
+                  <h3 className="font-black text-xs uppercase tracking-wide text-neutral-900 group-hover:text-[#C41230] transition line-clamp-1">
                     {p.name}
                   </h3>
                   <p className="text-[11px] text-neutral-500 line-clamp-2 mt-1">
@@ -780,7 +791,7 @@ export default function LandingPage({
                 </div>
 
                 <div className="pt-2 border-t border-neutral-100 space-y-2">
-                  <div className="flex justify-between items-baseline">
+                  <div className="flex justify-between items-baseline" onClick={() => setSelectedDetailProduct(p)}>
                     <span className="text-neutral-400 line-through text-xs font-bold">
                       Rp {p.price.toLocaleString()}
                     </span>
@@ -789,12 +800,20 @@ export default function LandingPage({
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => addToCart(p)}
-                    className="w-full bg-neutral-900 hover:bg-[#C41230] text-white py-2.5 text-xs font-black uppercase tracking-widest transition flex items-center justify-center gap-1.5"
-                  >
-                    <ShoppingBag className="w-3.5 h-3.5" /> TAMBAH KE KERANJANG
-                  </button>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      onClick={() => setSelectedDetailProduct(p)}
+                      className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-[9px] sm:text-[10px] font-black uppercase tracking-wider py-2 sm:py-2.5 transition text-center flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <Eye className="w-3 h-3 text-[#C41230]" /> DETAIL
+                    </button>
+                    <button
+                      onClick={() => addToCart(p)}
+                      className="w-full bg-neutral-900 hover:bg-[#C41230] text-white text-[9px] sm:text-[10px] font-black uppercase tracking-wider py-2 sm:py-2.5 transition text-center flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <ShoppingBag className="w-3 h-3" /> + BELI
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -886,16 +905,24 @@ export default function LandingPage({
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
-                className="bg-white border border-neutral-200 flex flex-col hover:border-[#C41230] transition duration-300 group shadow-xs rounded-none"
+                className="bg-white border border-neutral-200 flex flex-col hover:border-[#C41230] transition duration-300 group shadow-xs rounded-none cursor-pointer"
               >
                 {/* Image & Badges */}
-                <div className="h-44 sm:h-80 w-full overflow-hidden relative bg-neutral-100">
+                <div 
+                  onClick={() => setSelectedDetailProduct(product)}
+                  className="h-44 sm:h-80 w-full overflow-hidden relative bg-neutral-100 group/img"
+                >
                   <img
                     referrerPolicy="no-referrer"
                     src={product.image}
                     alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                    className="w-full h-full object-cover group-hover/img:scale-105 transition duration-500"
                   />
+                  
+                  {/* Hover Overlay hint */}
+                  <div className="absolute inset-0 bg-neutral-900/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-black uppercase tracking-widest gap-1.5">
+                    <Eye className="w-4 h-4" /> lihat Detail Gambar
+                  </div>
                   
                   {/* Red Tab Tag */}
                   <div className="absolute top-2 sm:top-3 left-0 bg-[#C41230] text-white text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 sm:px-2.5 py-0.5 sm:py-1 shadow-md">
@@ -904,8 +931,8 @@ export default function LandingPage({
 
                   {/* Wishlist Button */}
                   <button
-                    onClick={() => toggleWishlist(product.id)}
-                    className={`absolute top-2 sm:top-3 right-2 sm:right-3 p-1.5 sm:p-2 rounded-full backdrop-blur-md transition ${
+                    onClick={(e) => { e.stopPropagation(); toggleWishlist(product.id); }}
+                    className={`absolute top-2 sm:top-3 right-2 sm:right-3 p-1.5 sm:p-2 rounded-full backdrop-blur-md transition z-10 ${
                       wishlist.includes(product.id)
                         ? "bg-[#C41230] text-white"
                         : "bg-white/80 text-neutral-700 hover:text-[#C41230]"
@@ -922,7 +949,7 @@ export default function LandingPage({
 
                 {/* Details & Prices */}
                 <div className="p-2.5 sm:p-5 flex flex-col flex-1 justify-between space-y-2.5 sm:space-y-4">
-                  <div className="space-y-0.5 sm:space-y-1">
+                  <div className="space-y-0.5 sm:space-y-1" onClick={() => setSelectedDetailProduct(product)}>
                     <h3 className="font-black text-xs sm:text-sm uppercase tracking-wide text-neutral-900 group-hover:text-[#C41230] transition line-clamp-1">
                       {product.name}
                     </h3>
@@ -932,7 +959,7 @@ export default function LandingPage({
                   </div>
 
                   <div className="space-y-2 sm:space-y-3 pt-2 sm:pt-3 border-t border-neutral-100">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline gap-0.5">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline gap-0.5" onClick={() => setSelectedDetailProduct(product)}>
                       <div>
                         <p className="text-[8px] sm:text-[9px] text-neutral-400 font-bold uppercase tracking-wider">Harga Normal</p>
                         <p className="text-neutral-400 line-through font-bold text-[10px] sm:text-xs">
@@ -947,12 +974,20 @@ export default function LandingPage({
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => addToCart(product)}
-                      className="w-full bg-neutral-900 hover:bg-[#C41230] text-white text-[10px] sm:text-xs font-black uppercase tracking-wider py-2 sm:py-3 transition text-center rounded-none flex items-center justify-center gap-1 sm:gap-1.5"
-                    >
-                      <ShoppingBag className="w-3.5 h-3.5" /> <span>+ KERANJANG</span>
-                    </button>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={() => setSelectedDetailProduct(product)}
+                        className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-[9px] sm:text-[10px] font-black uppercase tracking-wider py-2 sm:py-2.5 transition text-center flex items-center justify-center gap-1"
+                      >
+                        <Eye className="w-3 h-3 text-[#C41230]" /> DETAIL
+                      </button>
+                      <button
+                        onClick={() => addToCart(product)}
+                        className="w-full bg-neutral-900 hover:bg-[#C41230] text-white text-[9px] sm:text-[10px] font-black uppercase tracking-wider py-2 sm:py-2.5 transition text-center flex items-center justify-center gap-1"
+                      >
+                        <ShoppingBag className="w-3 h-3" /> + BELI
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1467,6 +1502,131 @@ export default function LandingPage({
 
         </div>
       </footer>
+
+      {/* ==========================================
+          POPUP DETAIL PRODUK & GAMBAR BESAR
+          ========================================== */}
+      {selectedDetailProduct && (
+        <div className="fixed inset-0 z-50 bg-neutral-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-fadeIn">
+          <div className="bg-white max-w-4xl w-full rounded-2xl sm:rounded-3xl shadow-2xl border border-neutral-200 overflow-hidden relative text-left my-auto">
+            {/* Close Button */}
+            <button
+              onClick={() => {
+                setSelectedDetailProduct(null);
+                setIsImageZoomed(false);
+              }}
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 bg-neutral-900/80 hover:bg-[#C41230] text-white p-2 rounded-full transition cursor-pointer shadow-md"
+              title="Tutup Detail Produk"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              {/* Product Image Section */}
+              <div className="bg-neutral-100 p-4 sm:p-6 flex flex-col items-center justify-center relative min-h-[300px] sm:min-h-[420px] border-b md:border-b-0 md:border-r border-neutral-200">
+                <div className="relative w-full h-full max-h-[450px] overflow-hidden rounded-2xl bg-white shadow-inner flex items-center justify-center group cursor-zoom-in" onClick={() => setIsImageZoomed(!isImageZoomed)}>
+                  <img
+                    referrerPolicy="no-referrer"
+                    src={selectedDetailProduct.image}
+                    alt={selectedDetailProduct.name}
+                    className={`w-full h-full object-cover transition-transform duration-500 ${isImageZoomed ? 'scale-150 cursor-zoom-out' : 'group-hover:scale-105'}`}
+                  />
+                  <div className="absolute bottom-3 right-3 bg-neutral-900/80 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-md">
+                    <Sparkles className="w-3 h-3 text-amber-400" /> Klik Gambar Untuk Zoom
+                  </div>
+                </div>
+
+                {/* Stock & Tag Badges */}
+                <div className="flex items-center gap-2 mt-3 w-full justify-between">
+                  <span className="bg-[#C41230] text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-md">
+                    LEVI'S® RED TAB™ ORIGINAL
+                  </span>
+                  <span className={`text-[10px] font-black px-2.5 py-1 rounded-md font-mono ${selectedDetailProduct.stock > 0 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-red-100 text-red-800'}`}>
+                    STOK TERSEDIA: {selectedDetailProduct.stock} PCS
+                  </span>
+                </div>
+              </div>
+
+              {/* Product Specifications & Details */}
+              <div className="p-5 sm:p-8 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[#C41230] block mb-1">
+                      KATALOG HEDTRO JEANS OFFICIAL
+                    </span>
+                    <h3 className="text-lg sm:text-2xl font-black uppercase text-neutral-900 font-display tracking-tight leading-snug">
+                      {selectedDetailProduct.name}
+                    </h3>
+                  </div>
+
+                  {/* Price Box */}
+                  <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-500 font-bold uppercase text-[10px]">Harga Konsumen Normal:</span>
+                      <span className="line-through font-bold text-neutral-400">Rp {selectedDetailProduct.price.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline pt-1 border-t border-neutral-200/80">
+                      <div>
+                        <span className="text-[#C41230] font-black uppercase text-[10px] block tracking-wider">Harga Lisensi Member:</span>
+                        <span className="text-[#C41230] font-black font-display text-xl sm:text-2xl">
+                          Rp {selectedDetailProduct.member_price.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                      {selectedDetailProduct.price > selectedDetailProduct.member_price && (
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-1 rounded-lg border border-emerald-200">
+                          🎉 Hemat Rp {(selectedDetailProduct.price - selectedDetailProduct.member_price).toLocaleString('id-ID')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description & Specifications */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-neutral-800 border-b border-neutral-200 pb-1">
+                      Deskripsi & Spesifikasi Bahan:
+                    </h4>
+                    <p className="text-xs text-neutral-600 leading-relaxed">
+                      {selectedDetailProduct.description || "Celana jeans denim eksklusif dibuat dari bahan Raw Denim 14oz bermutu tinggi dengan kerapian jahitan presisi standar ekspor. Nyaman dipakai harian dan memberikan siluet bergaya modern."}
+                    </p>
+                    <ul className="text-[11px] text-neutral-600 space-y-1.5 pt-1 list-disc list-inside">
+                      <li><strong>Bahan:</strong> Premium Heavyweight Cotton Stretch Denim 14oz</li>
+                      <li><strong>Jahitan:</strong> Triple Needle Chainstitch Kuat & Tahan Lama</li>
+                      <li><strong>Garansi:</strong> Tukar Size Gratis 30 Hari & Garansi Keaslian</li>
+                      <li><strong>Bonus:</strong> Memicu Komisi Repeat Order (RO) Rp 5.000 Ke Sponsor</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="pt-4 border-t border-neutral-200 space-y-2">
+                  <button
+                    onClick={() => {
+                      addToCart(selectedDetailProduct);
+                      setSelectedDetailProduct(null);
+                    }}
+                    className="w-full bg-[#C41230] hover:bg-[#a00e26] text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <ShoppingBag className="w-4 h-4" /> Beli / Tambah Ke Keranjang
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedDetailProduct(null);
+                      if (!isLoggedIn) {
+                        onRegisterClick();
+                      } else {
+                        onDashboardClick();
+                      }
+                    }}
+                    className="w-full bg-neutral-900 hover:bg-neutral-800 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isLoggedIn ? "Buka Portal Member Untuk Diskon RO" : "Daftar Member Rp 550k + Gratis 1 Jeans"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

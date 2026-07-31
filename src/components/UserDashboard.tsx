@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, BinaryTreeNode, Order } from "../types";
 import { 
   DollarSign, TrendingUp, Users, TreePine, ArrowUpRight, ArrowDownLeft, 
-  Copy, Check, ShoppingBag, ShieldAlert, CheckCircle, RefreshCw, 
+  Copy, Check, ShoppingBag, ShieldAlert, ShieldCheck, CheckCircle, RefreshCw, 
   CreditCard, Send, LogOut, Bell, HelpCircle, Award, Percent, Menu, X,
   User, Lock, Sparkles, Truck, Package, Clock, ChevronLeft, ChevronRight,
-  LayoutGrid, LayoutList, Camera, FileText
+  LayoutGrid, LayoutList, Camera, FileText, Eye
 } from "lucide-react";
 import WorkflowModal from "./WorkflowModal";
 
@@ -22,7 +22,7 @@ interface UserDashboardProps {
   onLogout: () => void;
   onRefresh: () => void;
   onBuyProduct: (productId: number, paymentMethod?: 'saldo' | 'transfer', customAddress?: string) => Promise<void>;
-  onDeposit: (amount: number, method: 'qris' | 'bca' | 'mandiri') => Promise<void>;
+  onDeposit: (amount: number, method: 'qris' | 'bca' | 'mandiri' | 'transfer_bank' | string) => Promise<void>;
   onWithdraw: (amount: number, bank: string, accountNum: string, holder: string) => Promise<void>;
   onSimulatePayment: (depositId: number) => Promise<void>;
   onActivate: () => Promise<void>;
@@ -93,8 +93,11 @@ export default function UserDashboard({
   
   // Form states
   const [depAmount, setDepAmount] = useState('');
-  const [depMethod, setDepMethod] = useState<'qris' | 'bca' | 'mandiri'>('qris');
+  const [depMethod, setDepMethod] = useState<'qris' | 'bca' | 'mandiri' | 'transfer_bank'>('transfer_bank');
   const [wdAmount, setWdAmount] = useState('');
+  const [selectedDetailProduct, setSelectedDetailProduct] = useState<Product | null>(null);
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
+  const [isActivationModalOpen, setIsActivationModalOpen] = useState(false);
   const [wdBank, setWdBank] = useState('BCA');
   const [wdAccount, setWdAccount] = useState('');
   const [wdHolder, setWdHolder] = useState(user.fullname);
@@ -853,15 +856,10 @@ export default function UserDashboard({
                 </div>
                 <button
                   id="btn-activate-account"
-                  onClick={handleAccountActivation}
-                  disabled={user.balance < 550000 || loadingAction}
-                  className={`w-full text-xs font-bold py-2.5 rounded-xl transition text-center shadow-sm ${
-                    user.balance >= 550000 
-                      ? 'bg-amber-600 text-white hover:bg-amber-500' 
-                      : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
-                  }`}
+                  onClick={() => setIsActivationModalOpen(true)}
+                  className="w-full text-xs font-bold py-2.5 rounded-xl transition text-center shadow-sm bg-amber-600 hover:bg-amber-500 text-white cursor-pointer"
                 >
-                  {user.balance >= 550000 ? "Aktifkan Akun (Dipotong Saldo)" : "Isi Saldo Rp 550k untuk Aktifasi"}
+                  ⚡ Aktifkan Akun / Transfer Bank (Rp 550.000)
                 </button>
               </div>
             )}
@@ -1951,14 +1949,18 @@ export default function UserDashboard({
                   const savings = Math.max(0, p.price - p.member_price);
                   return (
                     <div key={p.id} className="bg-white rounded-2xl overflow-hidden border border-slate-200/90 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
-                      <div>
-                        <div className="relative w-full h-36 sm:h-52 bg-slate-100 overflow-hidden">
+                      <div onClick={() => setSelectedDetailProduct(p)} className="cursor-pointer">
+                        <div className="relative w-full h-36 sm:h-52 bg-slate-100 overflow-hidden group/img">
                           <img 
                             referrerPolicy="no-referrer" 
                             src={p.image} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                            className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-300" 
                             alt={p.name} 
                           />
+                          {/* Hover Overlay */}
+                          <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-black uppercase tracking-wider gap-1">
+                            <Eye className="w-4 h-4" /> Lihat Detail
+                          </div>
                           {/* Member Special Tag */}
                           <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-blue-600 text-white text-[8px] sm:text-[10px] font-extrabold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg shadow-xs">
                             MEMBER EXCLUSIVE
@@ -1997,7 +1999,14 @@ export default function UserDashboard({
                         </div>
                       </div>
 
-                      <div className="p-3 sm:p-4 pt-0">
+                      <div className="p-3 sm:p-4 pt-0 grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDetailProduct(p)}
+                          className="w-full py-2 rounded-xl text-[10px] font-extrabold bg-slate-100 hover:bg-slate-200 text-slate-700 transition flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-blue-600" /> Detail
+                        </button>
                         <button
                           id={`btn-buy-product-${p.id}`}
                           onClick={() => {
@@ -2006,13 +2015,13 @@ export default function UserDashboard({
                             setPurchasePaymentMethod('saldo');
                           }}
                           disabled={p.stock < 1 || loadingAction}
-                          className={`w-full py-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer ${
+                          className={`w-full py-2 rounded-xl text-[10px] font-extrabold transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer ${
                             p.stock < 1 
                               ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
                               : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'
                           }`}
                         >
-                          <ShoppingBag className="w-3.5 h-3.5" /> Beli Sekarang
+                          <ShoppingBag className="w-3.5 h-3.5" /> Beli (RO)
                         </button>
                       </div>
                     </div>
@@ -3380,14 +3389,62 @@ export default function UserDashboard({
               >
                 {/* Shipping Address */}
                 <div>
-                  <label className="block text-[10px] sm:text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
-                    Alamat Lengkap Pengiriman Produk
+                  <label className="block text-[10px] sm:text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                    Pilih Alamat Pengiriman
                   </label>
+
+                  {/* Option Choice Buttons */}
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setPurchaseAddress(user.address || '')}
+                      className={`p-2.5 rounded-xl text-left border text-[11px] transition cursor-pointer ${
+                        purchaseAddress === user.address && user.address
+                          ? 'border-blue-600 bg-blue-50/80 text-blue-900 font-bold shadow-2xs'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold flex items-center gap-1">🏠 Alamat Profil</span>
+                        {purchaseAddress === user.address && user.address && (
+                          <CheckCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5 font-normal">
+                        {user.address ? user.address : 'Belum diisi di profil'}
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (purchaseAddress === user.address) {
+                          setPurchaseAddress('');
+                        }
+                      }}
+                      className={`p-2.5 rounded-xl text-left border text-[11px] transition cursor-pointer ${
+                        purchaseAddress !== user.address || !user.address
+                          ? 'border-blue-600 bg-blue-50/80 text-blue-900 font-bold shadow-2xs'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold flex items-center gap-1">✏️ Input Manual</span>
+                        {(purchaseAddress !== user.address || !user.address) && (
+                          <CheckCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5 font-normal">
+                        Kirim ke alamat lain
+                      </p>
+                    </button>
+                  </div>
+
                   <textarea
                     rows={2}
                     value={purchaseAddress}
                     onChange={(e) => setPurchaseAddress(e.target.value)}
-                    placeholder="Alamat pengiriman (Jalan, No., RT/RW, Kec, Kota, Kode Pos)"
+                    placeholder="Alamat pengiriman lengkap (Jalan, No., RT/RW, Kec, Kota, Kode Pos)"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white"
                     required
                   />
@@ -3511,6 +3568,208 @@ export default function UserDashboard({
                   </div>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* POPUP DETAIL PRODUK & GAMBAR BESAR MEMBER */}
+        {selectedDetailProduct && (
+          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-fadeIn text-left">
+            <div className="bg-white max-w-3xl w-full rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden relative my-auto">
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setSelectedDetailProduct(null);
+                  setIsImageZoomed(false);
+                }}
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 bg-slate-900/80 hover:bg-red-600 text-white p-2 rounded-full transition cursor-pointer shadow-md"
+                title="Tutup Detail Produk"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                {/* Image & Zoom */}
+                <div className="bg-slate-100 p-4 sm:p-6 flex flex-col items-center justify-center relative min-h-[280px] sm:min-h-[380px] border-b md:border-b-0 md:border-r border-slate-200">
+                  <div className="relative w-full h-full max-h-[400px] overflow-hidden rounded-2xl bg-white shadow-inner flex items-center justify-center group cursor-zoom-in" onClick={() => setIsImageZoomed(!isImageZoomed)}>
+                    <img
+                      referrerPolicy="no-referrer"
+                      src={selectedDetailProduct.image}
+                      alt={selectedDetailProduct.name}
+                      className={`w-full h-full object-cover transition-transform duration-500 ${isImageZoomed ? 'scale-150 cursor-zoom-out' : 'group-hover:scale-105'}`}
+                    />
+                    <div className="absolute bottom-3 right-3 bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-md">
+                      <Sparkles className="w-3 h-3 text-amber-400" /> Klik Gambar Untuk Zoom
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-3 w-full justify-between">
+                    <span className="bg-blue-600 text-white text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-md">
+                      MEMBER EXCLUSIVE
+                    </span>
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md font-mono ${selectedDetailProduct.stock > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                      STOK: {selectedDetailProduct.stock} PCS
+                    </span>
+                  </div>
+                </div>
+
+                {/* Info & Specs */}
+                <div className="p-5 sm:p-6 flex flex-col justify-between space-y-5">
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-blue-600 block mb-1">
+                        KATALOG HEDTRO JEANS EXCLUSIVE
+                      </span>
+                      <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 leading-snug">
+                        {selectedDetailProduct.name}
+                      </h3>
+                    </div>
+
+                    <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                      <div className="flex justify-between items-center text-xs text-slate-400">
+                        <span>Harga Normal Retail:</span>
+                        <span className="line-through font-bold">Rp {selectedDetailProduct.price.toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="flex justify-between items-baseline pt-1 border-t border-slate-200">
+                        <div>
+                          <span className="text-blue-600 font-extrabold text-[10px] block">Harga Member Premium:</span>
+                          <span className="text-blue-600 font-black font-mono text-xl">
+                            Rp {selectedDetailProduct.member_price.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        {selectedDetailProduct.price > selectedDetailProduct.member_price && (
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-emerald-200">
+                            🎉 Hemat Rp {(selectedDetailProduct.price - selectedDetailProduct.member_price).toLocaleString('id-ID')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <h4 className="text-xs font-bold text-slate-800 border-b border-slate-100 pb-1">
+                        Deskripsi & Spesifikasi Produk:
+                      </h4>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {selectedDetailProduct.description || "Celana jeans denim eksklusif dibuat dari bahan Raw Denim 14oz bermutu tinggi dengan kerapian jahitan presisi standar ekspor."}
+                      </p>
+                      <ul className="text-[11px] text-slate-600 space-y-1 pt-1 list-disc list-inside">
+                        <li><strong>Bahan:</strong> Premium Heavyweight Cotton Denim 14oz</li>
+                        <li><strong>Fit Style:</strong> Slim Fit / Standard Cut</li>
+                        <li><strong>Bonus Komisi:</strong> Bonus RO Rp 5.000 ke Sponsor</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        setPurchaseModalProduct(selectedDetailProduct);
+                        setPurchaseAddress(user.address || '');
+                        setPurchasePaymentMethod('saldo');
+                        setSelectedDetailProduct(null);
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-extrabold text-xs uppercase tracking-wider transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <ShoppingBag className="w-4 h-4" /> Beli Produk Ini Sekarang (RO)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL AKTIVASI AKUN & TRANSFER BANK MANUAL */}
+        {isActivationModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 text-left animate-fadeIn">
+            <div className="bg-white max-w-lg w-full rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-2xl border border-slate-200 relative">
+              <button
+                onClick={() => setIsActivationModalOpen(false)}
+                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-900 rounded-full hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-3 mb-4">
+                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl shrink-0">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900">AKTIVASI MEMBER PREMIUM</h3>
+                  <p className="text-xs text-slate-500">Pilih metode pembayaran aktivasi akun Rp 550.000</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Method 1: Saldo */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-extrabold text-xs text-slate-800">1. Bayar Menggunakan Saldo Dompet</span>
+                    <span className="text-xs font-mono font-bold text-blue-600">Saldo: Rp {user.balance.toLocaleString('id-ID')}</span>
+                  </div>
+                  {user.balance >= 550000 ? (
+                    <button
+                      onClick={async () => {
+                        await handleAccountActivation();
+                        setIsActivationModalOpen(false);
+                      }}
+                      disabled={loadingAction}
+                      className="w-full bg-amber-600 hover:bg-amber-500 text-white font-extrabold py-2.5 rounded-xl text-xs transition shadow-sm cursor-pointer"
+                    >
+                      ⚡ Aktifkan Sekarang (Potong Saldo Rp 550.000)
+                    </button>
+                  ) : (
+                    <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                      ⚠️ Saldo dompet Anda saat ini (Rp {user.balance.toLocaleString('id-ID')}) belum mencukupi. Silakan lakukan transfer bank manual di bawah.
+                    </p>
+                  )}
+                </div>
+
+                {/* Method 2: Transfer Bank Manual Admin */}
+                <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="font-extrabold text-xs text-amber-400">2. Transfer Bank Manual Ke Rekening Admin</span>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded">Rp 550.000</span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Transfer sebesar <strong className="text-white font-mono">Rp 550.000</strong> ke salah satu rekening bank resmi Admin Hedtro Jeans di bawah ini:
+                  </p>
+
+                  <div className="space-y-2 font-mono text-xs bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">BANK BCA:</span>
+                      <span className="font-extrabold text-amber-400">1234-5678-90 a/n PT HEDTRO JEANS</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-800">
+                      <span className="text-slate-400">BANK MANDIRI:</span>
+                      <span className="font-extrabold text-amber-400">0987-6543-21 a/n PT HEDTRO JEANS</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-800">
+                      <span className="text-slate-400">BANK BRI:</span>
+                      <span className="font-extrabold text-amber-400">5544-3322-11 a/n PT HEDTRO JEANS</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex flex-col gap-2">
+                    <button
+                      onClick={async () => {
+                        setDepAmount("550000");
+                        setDepMethod("transfer_bank");
+                        if (onDeposit) {
+                          await onDeposit(550000, "transfer_bank");
+                        }
+                        setIsActivationModalOpen(false);
+                        const waMsg = encodeURIComponent(`Halo Admin Hedtro Jeans, saya member @${user.username} (Nama: ${user.fullname}) telah melakukan Transfer Bank sebesar Rp 550.000 untuk Aktivasi Member Premium. Mohon validasi akun saya.`);
+                        window.open(`https://wa.me/6281234567890?text=${waMsg}`, '_blank');
+                      }}
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Send className="w-4 h-4" /> Kirim Tagihan & Konfirmasi WA Admin
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

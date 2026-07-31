@@ -462,6 +462,33 @@ export default function AdminDashboard({
   const [newProdStock, setNewProdStock] = useState(100);
   const [newProdDescription, setNewProdDescription] = useState('Bahan denim premium 12oz, jahitan kuat dan presisi, nyaman dipakai sehari-hari.');
 
+  // File input refs & file reader handler for uploading product photos
+  const newProductFileInputRef = useRef<HTMLInputElement>(null);
+  const editProductFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleProductImageFileChange = (e: React.ChangeEvent<HTMLInputElement>, target: 'new' | 'edit') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Ukuran file foto terlalu besar (maksimal 5MB)");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Data = event.target?.result as string;
+      if (base64Data) {
+        if (target === 'new') {
+          setNewProdImage(base64Data);
+        } else if (target === 'edit' && editingModalProduct) {
+          setEditingModalProduct({ ...editingModalProduct, image: base64Data });
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleProcessDeposit = async (depositId: number, action: 'approve' | 'reject') => {
     setLoading(true);
     try {
@@ -1225,25 +1252,25 @@ export default function AdminDashboard({
             <button
               id="admin-tab-financials"
               onClick={() => setActiveTab('financials')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'financials' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <BarChart2 className="w-4 h-4" />
-              <span>Laporan Laba Rugi</span>
+              <BarChart2 className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Laporan Laba Rugi</span>
             </button>
 
             <button
               id="admin-tab-withdrawals"
               onClick={() => setActiveTab('withdrawals')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'withdrawals' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <ArrowUpRight className="w-4 h-4" />
-              <span>Pencairan Bonus (WD)</span>
+              <ArrowUpRight className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Pencairan Bonus (WD)</span>
               {metrics.pendingWDCount > 0 && (
-                <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse">
+                <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse shrink-0">
                   {metrics.pendingWDCount}
                 </span>
               )}
@@ -1252,14 +1279,14 @@ export default function AdminDashboard({
             <button
               id="admin-tab-deposits"
               onClick={() => setActiveTab('deposits')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'deposits' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <ArrowDownLeft className="w-4 h-4" />
-              <span>Validasi Deposit Manual</span>
+              <ArrowDownLeft className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Validasi Deposit Manual</span>
               {deposits.filter(d => d.status === 'pending').length > 0 && (
-                <span className="bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse">
+                <span className="bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse shrink-0">
                   {deposits.filter(d => d.status === 'pending').length}
                 </span>
               )}
@@ -1282,22 +1309,22 @@ export default function AdminDashboard({
             <button
               id="admin-tab-products"
               onClick={() => setActiveTab('products')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'products' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <Package className="w-4 h-4" />
-              <span>Gudang & Stok Jeans</span>
+              <Package className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Gudang & Stok Jeans</span>
             </button>
 
             <button
               id="admin-tab-orders"
               onClick={() => setActiveTab('orders')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'orders' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <Truck className="w-4 h-4" />
+              <Truck className="w-4 h-4 shrink-0" />
               <span className="flex-1 text-left">Pengiriman & Resi</span>
               {orders.length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'orders' ? 'bg-blue-500/20 text-white' : 'bg-slate-800 text-slate-300'}`}>
@@ -1309,53 +1336,53 @@ export default function AdminDashboard({
             <button
               id="admin-tab-landing-editor"
               onClick={() => setActiveTab('landing-editor')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'landing-editor' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <Edit className="w-4 h-4" />
-              <span>Edit Tulisan Landing Page</span>
+              <Edit className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Edit Tulisan Landing Page</span>
             </button>
 
             <button
               id="admin-tab-settings"
               onClick={() => setActiveTab('settings')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'settings' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <Settings className="w-4 h-4" />
-              <span>Seting Web & MLM Bonus</span>
+              <Settings className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Seting Web & MLM Bonus</span>
             </button>
 
             <button
               id="admin-tab-profil"
               onClick={() => setActiveTab('profil')}
-              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+              className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left ${
                 activeTab === 'profil' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <User className="w-4 h-4" />
-              <span>Profil Saya & Sandi</span>
+              <User className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Profil Saya & Sandi</span>
             </button>
 
             <button
               id="admin-tab-workflow"
               onClick={() => setIsWorkflowModalOpen(true)}
-              className="w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-amber-400 hover:bg-slate-800 hover:text-white"
+              className="w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition text-left text-amber-400 hover:bg-slate-800 hover:text-white"
             >
-              <FileText className="w-4 h-4 text-amber-400" />
-              <span>Bagan Alur Kerja (PDF)</span>
+              <FileText className="w-4 h-4 shrink-0 text-amber-400" />
+              <span className="flex-1 text-left">Bagan Alur Kerja (PDF)</span>
             </button>
 
             <div className="pt-2 border-t border-slate-800">
               <button
                 id="admin-sidebar-btn-logout"
                 onClick={onLogout}
-                className="w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition"
+                className="w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-950/50 hover:text-red-300 transition text-left"
               >
-                <LogOut className="w-4 h-4 text-red-500" />
-                <span>Keluar (Logout)</span>
+                <LogOut className="w-4 h-4 shrink-0 text-red-400" />
+                <span className="flex-1 text-left">Keluar (Logout)</span>
               </button>
             </div>
           </nav>
@@ -3234,15 +3261,48 @@ export default function AdminDashboard({
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">URL Gambar Produk</label>
-                    <input
-                      type="text"
-                      required
-                      value={newProdImage}
-                      onChange={(e) => setNewProdImage(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none"
-                    />
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Foto & Gambar Produk Celana Jeans</label>
+                    <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                      <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-white border border-slate-200 shrink-0 flex items-center justify-center shadow-inner">
+                        {newProdImage ? (
+                          <img referrerPolicy="no-referrer" src={newProdImage} alt="Preview Produk" className="w-full h-full object-cover" />
+                        ) : (
+                          <Package className="w-8 h-8 text-slate-300" />
+                        )}
+                      </div>
+
+                      <div className="space-y-2 min-w-0 flex-1 w-full sm:w-auto">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => newProductFileInputRef.current?.click()}
+                            className="px-3.5 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+                          >
+                            <Upload className="w-4 h-4" /> {newProdImage ? 'Ganti File Foto' : 'Pilih File Foto Produk'}
+                          </button>
+                          {newProdImage && (
+                            <button
+                              type="button"
+                              onClick={() => setNewProdImage('')}
+                              className="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" /> Hapus Foto
+                            </button>
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-slate-500">
+                          {newProdImage ? (
+                            <span className="text-emerald-700 font-bold flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5" /> File foto berhasil dipilih & siap disimpan ke database!
+                            </span>
+                          ) : (
+                            'Upload file foto langsung dari galeri HP/laptop Anda. Foto akan otomatis tersimpan di database.'
+                          )}
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 md:col-span-2">
@@ -4077,6 +4137,22 @@ export default function AdminDashboard({
             </div>
           )}
 
+      {/* Hidden file inputs for uploading product photos */}
+      <input
+        type="file"
+        ref={newProductFileInputRef}
+        onChange={(e) => handleProductImageFileChange(e, 'new')}
+        accept="image/*"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={editProductFileInputRef}
+        onChange={(e) => handleProductImageFileChange(e, 'edit')}
+        accept="image/*"
+        className="hidden"
+      />
+
       {/* MODAL POPUP 1: EDIT PRODUCT */}
       {editingModalProduct && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -4091,17 +4167,45 @@ export default function AdminDashboard({
             </div>
 
             <form onSubmit={handleProductEditSubmit} className="space-y-4">
-              <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-                <img referrerPolicy="no-referrer" src={editingModalProduct.image} className="w-14 h-14 rounded-lg object-cover border border-slate-200 shrink-0 bg-white" alt="Preview" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Preview Gambar</p>
-                  <input
-                    type="text"
-                    value={editingModalProduct.image}
-                    onChange={(e) => setEditingModalProduct({ ...editingModalProduct, image: e.target.value })}
-                    className="w-full text-xs border border-slate-200 rounded px-2 py-1 mt-1 bg-white font-mono"
-                    placeholder="URL Gambar Produk"
-                  />
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Foto & Gambar Produk</label>
+                <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                  <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-white border border-slate-200 shrink-0 flex items-center justify-center shadow-inner">
+                    {editingModalProduct.image ? (
+                      <img referrerPolicy="no-referrer" src={editingModalProduct.image} className="w-full h-full object-cover" alt="Preview" />
+                    ) : (
+                      <Package className="w-6 h-6 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => editProductFileInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" /> {editingModalProduct.image ? 'Ganti File Foto' : 'Upload File Foto'}
+                      </button>
+                      {editingModalProduct.image && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingModalProduct({ ...editingModalProduct, image: '' })}
+                          className="px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" /> Hapus
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      {editingModalProduct.image ? (
+                        <span className="text-emerald-700 font-bold flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Foto produk terpasang & siap disimpan ke database!
+                        </span>
+                      ) : (
+                        'Upload foto produk dari galeri HP/laptop untuk disimpan di database.'
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -4206,15 +4310,46 @@ export default function AdminDashboard({
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">URL Gambar Produk</label>
-                <input
-                  type="text"
-                  required
-                  value={newProdImage}
-                  onChange={(e) => setNewProdImage(e.target.value)}
-                  className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 font-mono"
-                />
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Foto & Gambar Produk Celana Jeans</label>
+                <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                  <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-white border border-slate-200 shrink-0 flex items-center justify-center shadow-inner">
+                    {newProdImage ? (
+                      <img referrerPolicy="no-referrer" src={newProdImage} className="w-full h-full object-cover" alt="Preview" />
+                    ) : (
+                      <Package className="w-6 h-6 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => newProductFileInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" /> {newProdImage ? 'Ganti File Foto' : 'Pilih File Foto'}
+                      </button>
+                      {newProdImage && (
+                        <button
+                          type="button"
+                          onClick={() => setNewProdImage('')}
+                          className="px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" /> Hapus
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      {newProdImage ? (
+                        <span className="text-emerald-700 font-bold flex items-center gap-1">
+                          <Check className="w-3 h-3" /> File foto siap disimpan ke database!
+                        </span>
+                      ) : (
+                        'Pilih file foto produk dari galeri HP/laptop untuk disimpan ke database.'
+                      )}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
