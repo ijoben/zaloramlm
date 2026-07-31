@@ -144,6 +144,16 @@ export interface SystemSettings {
   midtransClientKey?: string;
   midtransServerKey?: string;
   midtransIsProduction?: boolean;
+  companyBankName?: string;
+  companyBankAccount?: string;
+  companyBankHolder?: string;
+  companyBank2Name?: string;
+  companyBank2Account?: string;
+  companyBank2Holder?: string;
+  companyBank3Name?: string;
+  companyBank3Account?: string;
+  companyBank3Holder?: string;
+  companyBankInstruction?: string;
   emailNotifRegisterAdminActive?: boolean;
   emailNotifRegisterSponsorActive?: boolean;
   adminNotifEmail?: string;

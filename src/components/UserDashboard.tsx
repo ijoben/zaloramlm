@@ -101,7 +101,6 @@ export default function UserDashboard({
       if (window.location.hash !== `#${activeTab}`) {
         window.location.hash = activeTab;
       }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch {}
   }, [activeTab]);
 
@@ -1078,55 +1077,6 @@ export default function UserDashboard({
  
         {/* Dashboard Panels */}
         <main className="flex-1 min-w-0 space-y-6" id="user-main-panel">
-          {/* Quick Horizontal Tab Bar for Mobile & Tablet View */}
-          <div className="lg:hidden w-full bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-lg overflow-hidden">
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none snap-x touch-pan-x py-0.5 px-0.5">
-              {[
-                { id: 'overview', label: 'Ringkasan', icon: TrendingUp },
-                { id: 'tree', label: 'Pohon Jaringan', icon: TreePine, badge: 'Binary' },
-                { id: 'shop', label: 'Belanja Jeans', icon: ShoppingBag },
-                { id: 'orders', label: 'Pengiriman & Resi', icon: Truck, count: orders && orders.filter(o => o.username === user.username || o.phone === user.phone).length },
-                { id: 'finance', label: 'Depo & WD', icon: CreditCard },
-                { id: 'referrals', label: 'Sponsor', icon: Users, count: referrals.length },
-                { id: 'bonuses', label: 'Komisi', icon: Award },
-                { id: 'panduan', label: 'Panduan', icon: HelpCircle },
-                { id: 'profil', label: 'Profil Saya', icon: User }
-              ].map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    id={`quick-tab-${item.id}`}
-                    type="button"
-                    onClick={() => {
-                      setActiveTab(item.id as any);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-black'
-                        : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5 shrink-0" />
-                    <span>{item.label}</span>
-                    {item.badge && (
-                      <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold ${isActive ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
-                        {item.badge}
-                      </span>
-                    )}
-                    {item.count !== undefined && item.count > 0 && (
-                      <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold ${isActive ? 'bg-blue-500 text-white' : 'bg-blue-950 text-blue-300 border border-blue-800'}`}>
-                        {item.count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Status Message alert banner */}
           {statusMessage.text && (
             <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 shadow-sm ${
@@ -3660,22 +3610,50 @@ export default function UserDashboard({
                 {purchasePaymentMethod === 'transfer' && (
                   <div className="bg-slate-900 text-white rounded-xl p-3 text-xs space-y-2">
                     <span className="text-[9px] font-extrabold uppercase text-blue-400 tracking-wider block">
-                      REKENING TUJUAN TRANSFER ADMIN
+                      🏦 REKENING TUJUAN TRANSFER ADMIN
                     </span>
                     <div className="space-y-1 font-mono text-[10px] sm:text-[11px]">
-                      <div className="flex justify-between border-b border-slate-800 pb-0.5">
-                        <span className="text-slate-400">BCA:</span>
-                        <span className="font-extrabold text-white">1234-5678-90 (PT HEDTRO)</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-800 pb-0.5">
-                        <span className="text-slate-400">MANDIRI:</span>
-                        <span className="font-extrabold text-white">0987-6543-21 (PT HEDTRO)</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-800 pb-0.5">
-                        <span className="text-slate-400">BRI:</span>
-                        <span className="font-extrabold text-white">5544-3322-11 (PT HEDTRO)</span>
-                      </div>
+                      {settings?.companyBankName ? (
+                        <>
+                          <div className="flex justify-between border-b border-slate-800 pb-1">
+                            <span className="text-slate-400 font-sans">{settings.companyBankName}:</span>
+                            <span className="font-extrabold text-white">{settings.companyBankAccount} ({settings.companyBankHolder || 'Admin'})</span>
+                          </div>
+                          {settings.companyBank2Name && (
+                            <div className="flex justify-between border-b border-slate-800 pb-1">
+                              <span className="text-slate-400 font-sans">{settings.companyBank2Name}:</span>
+                              <span className="font-extrabold text-white">{settings.companyBank2Account} ({settings.companyBank2Holder || 'Admin'})</span>
+                            </div>
+                          )}
+                          {settings.companyBank3Name && (
+                            <div className="flex justify-between border-b border-slate-800 pb-1">
+                              <span className="text-slate-400 font-sans">{settings.companyBank3Name}:</span>
+                              <span className="font-extrabold text-white">{settings.companyBank3Account} ({settings.companyBank3Holder || 'Admin'})</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between border-b border-slate-800 pb-0.5">
+                            <span className="text-slate-400">BCA:</span>
+                            <span className="font-extrabold text-white">1234-5678-90 (PT HEDTRO)</span>
+                          </div>
+                          <div className="flex justify-between border-b border-slate-800 pb-0.5">
+                            <span className="text-slate-400">MANDIRI:</span>
+                            <span className="font-extrabold text-white">0987-6543-21 (PT HEDTRO)</span>
+                          </div>
+                          <div className="flex justify-between border-b border-slate-800 pb-0.5">
+                            <span className="text-slate-400">BRI:</span>
+                            <span className="font-extrabold text-white">5544-3322-11 (PT HEDTRO)</span>
+                          </div>
+                        </>
+                      )}
                     </div>
+                    {settings?.companyBankInstruction && (
+                      <p className="text-[10px] text-amber-300 font-sans italic pt-1 border-t border-slate-800">
+                        📌 {settings.companyBankInstruction}
+                      </p>
+                    )}
                   </div>
                 )}
 

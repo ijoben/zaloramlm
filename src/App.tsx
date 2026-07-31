@@ -2299,6 +2299,188 @@ export default function App() {
     }
   };
 
+  const handleResetCategory = async (category: 'members' | 'web_settings' | 'mlm_network' | 'sales'): Promise<boolean> => {
+    try {
+      if (category === 'members') {
+        if (db) {
+          const snapshot = await getDocs(collection(db, "users"));
+          for (const docSnap of snapshot.docs) {
+            const data = docSnap.data();
+            if (data.role !== 'admin' && Number(data.id) !== 1) {
+              await deleteDoc(doc(db, "users", docSnap.id));
+            }
+          }
+        }
+        await fetchDashboardData();
+        return true;
+      }
+
+      if (category === 'web_settings') {
+        const defaultSettings = {
+          webName: "Hedtro Jeans Official",
+          logoText: "HEDTRO.JEANS",
+          memberIdPrefix: "HDT-",
+          slogan: "OFFICIAL STORE & AFILIASI RESELLER",
+          siteDescription: "Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis Afiliasi Reseller Terpercaya.",
+          enableMlmBonus: true,
+          enableLevelBonus: true,
+          enableRewardBonus: true,
+          sponsorBonus: 20000,
+          pairingBonus: 10000,
+          roBonus: 5000,
+          levelBonusG1: 5000,
+          levelBonusG2: 4000,
+          levelBonusG3: 3000,
+          levelBonusG4: 1000,
+          levelBonusG5: 1000,
+          levelBonusG6: 1000,
+          levelBonusG7: 1000,
+          levelBonusG8: 1000,
+          levelBonusG9: 1000,
+          levelBonusG10: 1000,
+          companyBankName: 'BCA',
+          companyBankAccount: '1234-5678-90',
+          companyBankHolder: 'PT HEDTRO JEANS INDONESIA',
+          companyBank2Name: 'MANDIRI',
+          companyBank2Account: '0987-6543-21',
+          companyBank2Holder: 'PT HEDTRO JEANS INDONESIA',
+          companyBank3Name: 'BRI',
+          companyBank3Account: '5544-3322-11',
+          companyBank3Holder: 'PT HEDTRO JEANS INDONESIA',
+          companyBankInstruction: 'Harap transfer sesuai nominal tepat dan cantumkan Username pada berita transfer.'
+        };
+        if (db) {
+          await setDoc(doc(db, "settings", "system"), defaultSettings);
+        }
+        setSystemSettings(defaultSettings);
+        await fetchDashboardData();
+        return true;
+      }
+
+      if (category === 'mlm_network') {
+        const currentFsUsers = await fetchFirestoreUsers();
+        const updatedUsers = currentFsUsers.map(u => {
+          if (u.role === 'admin' || Number(u.id) === 1) {
+            return {
+              ...u,
+              left_count: 0,
+              right_count: 0,
+              left_sales: 0,
+              right_sales: 0,
+              sponsor_bonus: 0,
+              pairing_bonus: 0,
+              level_bonus: 0,
+              ro_bonus: 0
+            };
+          }
+          return {
+            ...u,
+            upline_id: 1,
+            sponsor_id: 1,
+            position: 'L' as 'L' | 'R',
+            left_count: 0,
+            right_count: 0,
+            left_sales: 0,
+            right_sales: 0,
+            balance: 0,
+            sponsor_bonus: 0,
+            pairing_bonus: 0,
+            level_bonus: 0,
+            ro_bonus: 0
+          };
+        });
+
+        if (db) {
+          for (const u of updatedUsers) {
+            await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
+          }
+        }
+        await fetchDashboardData();
+        return true;
+      }
+
+      if (category === 'sales') {
+        if (db) {
+          const ordSnap = await getDocs(collection(db, "orders"));
+          for (const d of ordSnap.docs) await deleteDoc(doc(db, "orders", d.id));
+
+          const txSnap = await getDocs(collection(db, "transactions"));
+          for (const d of txSnap.docs) await deleteDoc(doc(db, "transactions", d.id));
+
+          const depSnap = await getDocs(collection(db, "deposits"));
+          for (const d of depSnap.docs) await deleteDoc(doc(db, "deposits", d.id));
+
+          const wdSnap = await getDocs(collection(db, "withdrawals"));
+          for (const d of wdSnap.docs) await deleteDoc(doc(db, "withdrawals", d.id));
+        }
+
+        setOrders([]);
+        await fetchDashboardData();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error(`Failed to reset ${category}:`, e);
+      return false;
+    }
+  };
+
+  const handleRestoreCategory = async (category: 'members' | 'web_settings' | 'mlm_network' | 'sales', data: any): Promise<boolean> => {
+    try {
+      if (category === 'members' && Array.isArray(data)) {
+        const restoredUsers: MLMUser[] = data;
+        if (db) {
+          for (const u of restoredUsers) {
+            await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
+          }
+        }
+        await fetchDashboardData();
+        return true;
+      }
+
+      if (category === 'web_settings' && data && typeof data === 'object') {
+        if (db) {
+          await setDoc(doc(db, "settings", "system"), data, { merge: true });
+        }
+        setSystemSettings((prev: any) => ({ ...prev, ...data }));
+        await fetchDashboardData();
+        return true;
+      }
+
+      if (category === 'mlm_network' && Array.isArray(data)) {
+        if (db) {
+          for (const u of data) {
+            await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
+          }
+        }
+        await fetchDashboardData();
+        return true;
+      }
+
+      if (category === 'sales' && data && typeof data === 'object') {
+        const { orders: restOrders, transactions: restTxs, deposits: restDeps, withdrawals: restWds } = data;
+
+        if (db) {
+          if (Array.isArray(restOrders)) for (const o of restOrders) await setDoc(doc(db, "orders", String(o.id)), o, { merge: true });
+          if (Array.isArray(restTxs)) for (const t of restTxs) await setDoc(doc(db, "transactions", String(t.id)), t, { merge: true });
+          if (Array.isArray(restDeps)) for (const d of restDeps) await setDoc(doc(db, "deposits", String(d.id)), d, { merge: true });
+          if (Array.isArray(restWds)) for (const w of restWds) await setDoc(doc(db, "withdrawals", String(w.id)), w, { merge: true });
+        }
+
+        if (Array.isArray(restOrders)) {
+          setOrders(restOrders);
+        }
+        await fetchDashboardData();
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      console.error(`Failed to restore ${category}:`, e);
+      return false;
+    }
+  };
+
   const handleLogout = () => {
     currentUserRef.current = null;
     if (auth) {
@@ -2371,6 +2553,8 @@ export default function App() {
                 settings={systemSettings}
                 onUpdateSettings={handleUpdateSettings}
                 onRefreshProducts={fetchProducts}
+                onResetCategory={handleResetCategory}
+                onRestoreCategory={handleRestoreCategory}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center p-12"><RefreshCw className="w-8 h-8 text-blue-600 animate-spin" /></div>

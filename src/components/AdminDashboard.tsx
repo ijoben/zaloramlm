@@ -4,7 +4,7 @@ import {
   Shield, Users, DollarSign, Package, TrendingUp, HelpCircle, 
   CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, Edit3,
   ArrowUpRight, ArrowDownLeft, RefreshCw, BarChart2, Search, Percent,
-  Globe, PlusCircle, Plus, Check, X, ArrowDown, CreditCard, Menu, User, UserPlus, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck, FileText, ChevronLeft, ChevronRight, AlertTriangle, Ban
+  Globe, PlusCircle, Plus, Check, X, ArrowDown, CreditCard, Menu, User, UserPlus, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck, FileText, ChevronLeft, ChevronRight, AlertTriangle, Ban, Download
 } from "lucide-react";
 import WorkflowModal from "./WorkflowModal";
 
@@ -57,6 +57,8 @@ interface AdminDashboardProps {
   settings?: any;
   onUpdateSettings?: (newSettings: any) => Promise<boolean>;
   onRefreshProducts?: () => void;
+  onResetCategory?: (category: 'members' | 'web_settings' | 'mlm_network' | 'sales') => Promise<boolean>;
+  onRestoreCategory?: (category: 'members' | 'web_settings' | 'mlm_network' | 'sales', data: any) => Promise<boolean>;
 }
 
 const PaginationControls = ({
@@ -132,7 +134,9 @@ export default function AdminDashboard({
   onToggleAutoPayout,
   settings,
   onUpdateSettings,
-  onRefreshProducts
+  onRefreshProducts,
+  onResetCategory,
+  onRestoreCategory
 }: AdminDashboardProps) {
   const getInitialAdminTab = (): 'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'orders' | 'settings' | 'landing-editor' | 'profil' => {
     try {
@@ -150,10 +154,10 @@ export default function AdminDashboard({
     return 'financials';
   };
 
-  const getInitialSettingsSubTab = (): 'web' | 'mlm' | 'midtrans' | 'email' => {
+  const getInitialSettingsSubTab = (): 'web' | 'mlm' | 'midtrans' | 'email' | 'backup' => {
     try {
       const saved = localStorage.getItem('admin_settings_sub_tab');
-      if (saved && ['web', 'mlm', 'midtrans', 'email'].includes(saved)) {
+      if (saved && ['web', 'mlm', 'midtrans', 'email', 'backup'].includes(saved)) {
         return saved as any;
       }
     } catch {}
@@ -161,7 +165,7 @@ export default function AdminDashboard({
   };
 
   const [activeTab, setActiveTab] = useState(getInitialAdminTab);
-  const [settingsSubTab, setSettingsSubTab] = useState<'web' | 'mlm' | 'midtrans' | 'email'>(getInitialSettingsSubTab);
+  const [settingsSubTab, setSettingsSubTab] = useState<'web' | 'mlm' | 'midtrans' | 'email' | 'backup'>(getInitialSettingsSubTab);
 
   React.useEffect(() => {
     try {
@@ -169,7 +173,6 @@ export default function AdminDashboard({
       if (window.location.hash !== `#${activeTab}`) {
         window.location.hash = activeTab;
       }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch {}
   }, [activeTab]);
 
@@ -593,6 +596,18 @@ export default function AdminDashboard({
   const [formMidtransServerKey, setFormMidtransServerKey] = useState(settings?.midtransServerKey || '');
   const [formMidtransIsProduction, setFormMidtransIsProduction] = useState(settings?.midtransIsProduction || false);
 
+  // Company Bank Accounts states for RO
+  const [formCompanyBankName, setFormCompanyBankName] = useState(settings?.companyBankName || 'BCA');
+  const [formCompanyBankAccount, setFormCompanyBankAccount] = useState(settings?.companyBankAccount || '1234-5678-90');
+  const [formCompanyBankHolder, setFormCompanyBankHolder] = useState(settings?.companyBankHolder || 'PT HEDTRO JEANS INDONESIA');
+  const [formCompanyBank2Name, setFormCompanyBank2Name] = useState(settings?.companyBank2Name || 'MANDIRI');
+  const [formCompanyBank2Account, setFormCompanyBank2Account] = useState(settings?.companyBank2Account || '0987-6543-21');
+  const [formCompanyBank2Holder, setFormCompanyBank2Holder] = useState(settings?.companyBank2Holder || 'PT HEDTRO JEANS INDONESIA');
+  const [formCompanyBank3Name, setFormCompanyBank3Name] = useState(settings?.companyBank3Name || 'BRI');
+  const [formCompanyBank3Account, setFormCompanyBank3Account] = useState(settings?.companyBank3Account || '5544-3322-11');
+  const [formCompanyBank3Holder, setFormCompanyBank3Holder] = useState(settings?.companyBank3Holder || 'PT HEDTRO JEANS INDONESIA');
+  const [formCompanyBankInstruction, setFormCompanyBankInstruction] = useState(settings?.companyBankInstruction || 'Harap transfer sesuai nominal tepat dan cantumkan Username pada berita transfer.');
+
   // Email Notification configuration states
   const [formEmailNotifAdminActive, setFormEmailNotifAdminActive] = useState(settings?.emailNotifRegisterAdminActive ?? true);
   const [formEmailNotifSponsorActive, setFormEmailNotifSponsorActive] = useState(settings?.emailNotifRegisterSponsorActive ?? true);
@@ -658,6 +673,17 @@ export default function AdminDashboard({
       setFormMidtransClientKey(settings.midtransClientKey || '');
       setFormMidtransServerKey(settings.midtransServerKey || '');
       setFormMidtransIsProduction(settings.midtransIsProduction ?? false);
+
+      setFormCompanyBankName(settings.companyBankName || 'BCA');
+      setFormCompanyBankAccount(settings.companyBankAccount || '1234-5678-90');
+      setFormCompanyBankHolder(settings.companyBankHolder || 'PT HEDTRO JEANS INDONESIA');
+      setFormCompanyBank2Name(settings.companyBank2Name || 'MANDIRI');
+      setFormCompanyBank2Account(settings.companyBank2Account || '0987-6543-21');
+      setFormCompanyBank2Holder(settings.companyBank2Holder || 'PT HEDTRO JEANS INDONESIA');
+      setFormCompanyBank3Name(settings.companyBank3Name || 'BRI');
+      setFormCompanyBank3Account(settings.companyBank3Account || '5544-3322-11');
+      setFormCompanyBank3Holder(settings.companyBank3Holder || 'PT HEDTRO JEANS INDONESIA');
+      setFormCompanyBankInstruction(settings.companyBankInstruction || 'Harap transfer sesuai nominal tepat dan cantumkan Username pada berita transfer.');
 
       setFormEmailNotifAdminActive(settings.emailNotifRegisterAdminActive ?? true);
       setFormEmailNotifSponsorActive(settings.emailNotifRegisterSponsorActive ?? true);
@@ -983,6 +1009,63 @@ export default function AdminDashboard({
     }
   };
 
+  const downloadJSON = (data: any, filename: string) => {
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setMessage({ text: `File backup ${filename} berhasil diunduh!`, type: "success" });
+  };
+
+  const handleBackupRestoreUpload = (e: React.ChangeEvent<HTMLInputElement>, category: 'members' | 'web_settings' | 'mlm_network' | 'sales') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const parsed = JSON.parse(evt.target?.result as string);
+        if (onRestoreCategory) {
+          setLoading(true);
+          const ok = await onRestoreCategory(category, parsed);
+          if (ok) {
+            setMessage({ text: `Berhasil merestore data ${category}!`, type: 'success' });
+            if (onRefresh) onRefresh();
+          } else {
+            setMessage({ text: `Gagal merestore data ${category}`, type: 'error' });
+          }
+        }
+      } catch (err) {
+        setMessage({ text: "Format file JSON tidak valid!", type: 'error' });
+      } finally {
+        setLoading(false);
+        e.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConfirmReset = async (category: 'members' | 'web_settings' | 'mlm_network' | 'sales', categoryName: string) => {
+    if (window.confirm(`PERINGATAN SANGAT PENTING!\n\nApakah Anda yakin ingin MERESET ${categoryName.toUpperCase()}?\nData yang telah dihapus tidak dapat dikembalikan kecuali Anda memiliki file backup.`)) {
+      if (onResetCategory) {
+        setLoading(true);
+        const ok = await onResetCategory(category);
+        if (ok) {
+          setMessage({ text: `Berhasil mereset data ${categoryName}!`, type: 'success' });
+          if (onRefresh) onRefresh();
+        } else {
+          setMessage({ text: `Gagal mereset data ${categoryName}`, type: 'error' });
+        }
+        setLoading(false);
+      }
+    }
+  };
+
   const handleSaveSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onUpdateSettings) return;
@@ -1021,6 +1104,16 @@ export default function AdminDashboard({
       midtransClientKey: formMidtransClientKey,
       midtransServerKey: formMidtransServerKey,
       midtransIsProduction: formMidtransIsProduction,
+      companyBankName: formCompanyBankName,
+      companyBankAccount: formCompanyBankAccount,
+      companyBankHolder: formCompanyBankHolder,
+      companyBank2Name: formCompanyBank2Name,
+      companyBank2Account: formCompanyBank2Account,
+      companyBank2Holder: formCompanyBank2Holder,
+      companyBank3Name: formCompanyBank3Name,
+      companyBank3Account: formCompanyBank3Account,
+      companyBank3Holder: formCompanyBank3Holder,
+      companyBankInstruction: formCompanyBankInstruction,
       emailNotifRegisterAdminActive: formEmailNotifAdminActive,
       emailNotifRegisterSponsorActive: formEmailNotifSponsorActive,
       adminNotifEmail: formAdminNotifEmail,
@@ -1623,51 +1716,6 @@ export default function AdminDashboard({
 
         {/* Dashboard Panels */}
         <main className="flex-1 min-w-0 space-y-6" id="admin-main-panel">
-          {/* Quick Horizontal Tab Bar for Mobile & Tablet Admin */}
-          <div className="lg:hidden w-full bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-lg overflow-hidden">
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none snap-x touch-pan-x py-0.5 px-0.5">
-              {[
-                { id: 'financials', label: 'Laba Rugi', icon: BarChart2 },
-                { id: 'withdrawals', label: 'WD Bonus', icon: ArrowUpRight, count: metrics.pendingWDCount, alert: true },
-                { id: 'deposits', label: 'Deposit', icon: ArrowDownLeft, count: deposits.filter(d => d.status === 'pending').length, alert: true },
-                { id: 'members', label: 'Jaringan', icon: Users, count: metrics.totalMembers },
-                { id: 'products', label: 'Gudang Jeans', icon: Package },
-                { id: 'orders', label: 'Pengiriman & Resi', icon: Truck, count: orders.length },
-                { id: 'landing-editor', label: 'Edit Landing', icon: Edit },
-                { id: 'settings', label: 'Seting Web', icon: Settings },
-                { id: 'profil', label: 'Profil Admin', icon: User }
-              ].map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    id={`mobile-quick-admin-tab-${item.id}`}
-                    type="button"
-                    onClick={() => {
-                      setActiveTab(item.id as any);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-black'
-                        : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5 shrink-0" />
-                    <span>{item.label}</span>
-                    {item.count !== undefined && item.count > 0 && (
-                      <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold ${
-                        isActive ? 'bg-blue-500 text-white' : item.alert ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-700 text-slate-200'
-                      }`}>
-                        {item.count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
           
           {/* Status Message Alert */}
           {message.text && (
@@ -2834,7 +2882,7 @@ export default function AdminDashboard({
                         : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
                     }`}
                   >
-                    <CreditCard className="w-4 h-4" /> 3. Midtrans Payment Gateway
+                    <CreditCard className="w-4 h-4" /> 3. Gateway & Rekening Bank
                   </button>
 
                   <button
@@ -2848,11 +2896,27 @@ export default function AdminDashboard({
                   >
                     <FileText className="w-4 h-4" /> 4. Notifikasi Email & SMTP
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSubTab('backup')}
+                    className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition flex items-center gap-2 shrink-0 cursor-pointer ${
+                      settingsSubTab === 'backup'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <RefreshCw className="w-4 h-4" /> 5. Backup & Reset Data
+                  </button>
                 </div>
               </div>
-              
-              {/* AUTOMATIC PAYOUT TOGGLE CARD */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+
+              <form onSubmit={handleSaveSettingsSubmit} className="space-y-6">
+                {/* SUB-TAB 1: IDENTITAS WEB & BRANDING */}
+                {settingsSubTab === 'web' && (
+                  <div className="space-y-6">
+                    {/* AUTOMATIC PAYOUT TOGGLE CARD */}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -2889,8 +2953,8 @@ export default function AdminDashboard({
                 </div>
               </div>
               
-              {/* BRANDING CONFIGURATION FORM */}
-              <form onSubmit={handleSaveSettingsSubmit} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+              {/* BRANDING CONFIGURATION CARD */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                     <Globe className="text-blue-600 w-5 h-5" /> Pengaturan Identitas Web & Kontak
@@ -3056,14 +3120,30 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
-                {/* MIDTRANS CONFIGURATION */}
-                <div className="border-t border-slate-100 pt-6">
-                  <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-1">
-                    <CreditCard className="text-blue-600 w-4.5 h-4.5" /> Integrasi API Gateway Midtrans (Otomatis)
-                  </h3>
-                  <p className="text-xs text-slate-400 mb-4">
-                    Koneksikan akun Midtrans Anda agar sistem mendeteksi pembayaran QRIS & VA secara otomatis. Jika Server Key kosong, sistem akan menggunakan simulator otomatis.
-                  </p>
+                <div className="flex justify-end pt-2 border-t border-slate-100">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl transition text-xs shadow-md cursor-pointer flex items-center gap-2"
+                  >
+                    💾 Simpan Pengaturan Web & Branding
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 3: MIDTRANS PAYMENT GATEWAY */}
+          {settingsSubTab === 'midtrans' && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-1">
+                  <CreditCard className="text-blue-600 w-4.5 h-4.5" /> Integrasi API Gateway Midtrans (Otomatis)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Koneksikan akun Midtrans Anda agar sistem mendeteksi pembayaran QRIS & VA secara otomatis. Jika Server Key kosong, sistem akan menggunakan simulator otomatis.
+                </p>
+              </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
@@ -3125,14 +3205,154 @@ export default function AdminDashboard({
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="border-t border-slate-100 pt-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  {/* REKENING BANK TRANSFER ADMIN (POPUP REPEAT ORDER) */}
+                  <div className="pt-6 border-t border-slate-200 space-y-4">
                     <div>
-                      <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                        <Percent className="text-blue-600 w-4.5 h-4.5" /> Konfigurasi Persentase & Tarif MLM Bonus
+                      <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-1">
+                        <CreditCard className="text-emerald-600 w-4.5 h-4.5" /> Rekening Bank Transfer Admin (Popup Repeat Order)
                       </h3>
+                      <p className="text-xs text-slate-500">
+                        Input nomor rekening bank perusahaan/admin yang akan muncul di popup Repeat Order (RO) portal member.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                      <span className="text-[10px] font-black uppercase text-blue-600 tracking-wider block">Rekening Utama (Bank 1)</span>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold uppercase text-slate-500 block">Nama Bank *</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: BCA / MANDIRI / BRI"
+                            value={formCompanyBankName}
+                            onChange={(e) => setFormCompanyBankName(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none bg-white font-mono"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold uppercase text-slate-500 block">No. Rekening *</label>
+                          <input
+                            type="text"
+                            placeholder="1234-5678-90"
+                            value={formCompanyBankAccount}
+                            onChange={(e) => setFormCompanyBankAccount(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none bg-white font-mono"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold uppercase text-slate-500 block">Atas Nama Pemilik *</label>
+                          <input
+                            type="text"
+                            placeholder="PT HEDTRO JEANS INDONESIA"
+                            value={formCompanyBankHolder}
+                            onChange={(e) => setFormCompanyBankHolder(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider block pt-2 border-t border-slate-200">Rekening Tambahan (Bank 2 - Opsional)</span>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold uppercase text-slate-500 block">Nama Bank 2</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: MANDIRI"
+                            value={formCompanyBank2Name}
+                            onChange={(e) => setFormCompanyBank2Name(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none bg-white font-mono"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold uppercase text-slate-500 block">No. Rekening 2</label>
+                          <input
+                            type="text"
+                            placeholder="0987-6543-21"
+                            value={formCompanyBank2Account}
+                            onChange={(e) => setFormCompanyBank2Account(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none bg-white font-mono"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold uppercase text-slate-500 block">Atas Nama Pemilik 2</label>
+                          <input
+                            type="text"
+                            placeholder="PT HEDTRO JEANS INDONESIA"
+                            value={formCompanyBank2Holder}
+                            onChange={(e) => setFormCompanyBank2Holder(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider block pt-2 border-t border-slate-200">Rekening Tambahan (Bank 3 - Opsional)</span>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold uppercase text-slate-500 block">Nama Bank 3</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: BRI"
+                            value={formCompanyBank3Name}
+                            onChange={(e) => setFormCompanyBank3Name(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none bg-white font-mono"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold uppercase text-slate-500 block">No. Rekening 3</label>
+                          <input
+                            type="text"
+                            placeholder="5544-3322-11"
+                            value={formCompanyBank3Account}
+                            onChange={(e) => setFormCompanyBank3Account(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none bg-white font-mono"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-extrabold uppercase text-slate-500 block">Atas Nama Pemilik 3</label>
+                          <input
+                            type="text"
+                            placeholder="PT HEDTRO JEANS INDONESIA"
+                            value={formCompanyBank3Holder}
+                            onChange={(e) => setFormCompanyBank3Holder(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 pt-2 border-t border-slate-200">
+                        <label className="text-[9px] font-extrabold uppercase text-slate-500 block">Catatan / Instruksi Transfer Untuk Member</label>
+                        <textarea
+                          rows={2}
+                          placeholder="Petunjuk transfer untuk member..."
+                          value={formCompanyBankInstruction}
+                          onChange={(e) => setFormCompanyBankInstruction(e.target.value)}
+                          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2 border-t border-slate-100">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl transition text-xs shadow-md cursor-pointer flex items-center gap-2"
+                    >
+                      💾 Simpan Gateway & Rekening Bank
+                    </button>
+                  </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 2: MLM & SKEMA BONUS */}
+          {settingsSubTab === 'mlm' && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                    <Percent className="text-blue-600 w-4.5 h-4.5" /> Konfigurasi Persentase & Tarif MLM Bonus
+                  </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Sakelar utama untuk Mengaktifkan / Mematikan pembagian seluruh bonus MLM (Sponsor, Pairing, Level 10 Tier).
                       </p>
@@ -3408,9 +3628,22 @@ export default function AdminDashboard({
                     </div>
                   </div>
 
-                  {/* CONFIGURATION: EMAIL REGISTER NOTIFICATION */}
-                  <div className="mt-6 p-5 bg-slate-50 border border-slate-200 rounded-3xl space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <div className="flex justify-end pt-2 border-t border-slate-100">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl transition text-xs shadow-md cursor-pointer flex items-center gap-2"
+                    >
+                      💾 Simpan Pengaturan MLM & Bonus
+                    </button>
+                  </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 4: NOTIFIKASI EMAIL & SMTP */}
+          {settingsSubTab === 'email' && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                       <Settings className="text-blue-600 w-5 h-5" />
                       <div>
                         <p className="text-xs font-bold text-slate-800 uppercase tracking-wide">Pengaturan Notifikasi Email Pendaftaran Member</p>
@@ -3575,23 +3808,251 @@ export default function AdminDashboard({
                       </div>
 
                     </div>
+
+                    <div className="flex justify-end pt-2 border-t border-slate-100">
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl transition text-xs shadow-md cursor-pointer flex items-center gap-2"
+                      >
+                        💾 Simpan Pengaturan Email & SMTP
+                      </button>
+                    </div>
+                  </div>
+              )}
+
+              {/* SUB-TAB 5: BACKUP, RESTORE & RESET DATA */}
+              {settingsSubTab === 'backup' && (
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 mb-1">
+                      <RefreshCw className="text-blue-600 w-4.5 h-4.5" /> Backup, Restore & Reset Database Terpisah
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Kelola pemeliharaan sistem secara terpisah untuk Member, Pengaturan Web, Jaringan MLM, dan Data Penjualan. Setiap modul dapat di-backup ke file JSON, di-restore, atau di-reset secara mandiri.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                    {/* CATEGORY 1: MEMBERS (SELAIN ADMIN) */}
+                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">Modul 1</span>
+                          <span className="text-xs font-bold text-slate-500">{users.filter(u => u.role !== 'admin' && Number(u.id) !== 1).length} Member</span>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                          <Users className="w-4 h-4 text-blue-600" /> Data Member & Anggota (Selain Admin)
+                        </h4>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Menyimpan profil member, kontak, alamat, rekening bank member, status aktivasi, serta saldo dompet.
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-200 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => downloadJSON(
+                              users.filter(u => u.role !== 'admin' && Number(u.id) !== 1),
+                              `backup-member-hedtro-${new Date().toISOString().slice(0,10)}.json`
+                            )}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Backup Member JSON
+                          </button>
+
+                          <label className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer text-center">
+                            <span>📤 Restore Member</span>
+                            <input
+                              type="file"
+                              accept=".json"
+                              onChange={(e) => handleBackupRestoreUpload(e, 'members')}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmReset('members', 'Data Member (selain Admin)')}
+                          className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-2 px-3 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          ⚠️ Reset Semua Data Member
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* CATEGORY 2: DATABASE PENGATURAN WEB & BRANDING */}
+                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100">Modul 2</span>
+                          <span className="text-xs font-bold text-slate-500">Konfigurasi & Branding</span>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                          <Globe className="w-4 h-4 text-amber-600" /> Database Pengaturan Web & Sistem
+                        </h4>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Menyimpan nama web, logo, running text, nomor WA admin, tarif bonus MLM, kredensial Midtrans, dan email SMTP.
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-200 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => downloadJSON(
+                              settings,
+                              `backup-settings-hedtro-${new Date().toISOString().slice(0,10)}.json`
+                            )}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Backup Web Settings JSON
+                          </button>
+
+                          <label className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer text-center">
+                            <span>📤 Restore Web Settings</span>
+                            <input
+                              type="file"
+                              accept=".json"
+                              onChange={(e) => handleBackupRestoreUpload(e, 'web_settings')}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmReset('web_settings', 'Database Pengaturan Web')}
+                          className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-2 px-3 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          ⚠️ Reset Pengaturan Web Ke Default
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* CATEGORY 3: STRUKTUR JARINGAN MLM & BONUSES */}
+                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">Modul 3</span>
+                          <span className="text-xs font-bold text-slate-500">Pohon Binary & Omset</span>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                          <Percent className="w-4 h-4 text-purple-600" /> Pohon Jaringan MLM & Rekap Komisi
+                        </h4>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Menyimpan relasi sponsor, upline, posisi kiri/kanan, jumlah titik kaki kiri/kanan, omset, dan total akumulasi komisi.
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-200 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => downloadJSON(
+                              users.map(u => ({
+                                id: u.id,
+                                username: u.username,
+                                sponsor_id: u.sponsor_id,
+                                upline_id: u.upline_id,
+                                position: u.position,
+                                left_count: u.left_count,
+                                right_count: u.right_count,
+                                left_sales: u.left_sales,
+                                right_sales: u.right_sales,
+                                sponsor_bonus: u.sponsor_bonus,
+                                pairing_bonus: u.pairing_bonus,
+                                level_bonus: u.level_bonus,
+                                ro_bonus: u.ro_bonus
+                              })),
+                              `backup-jaringan-mlm-hedtro-${new Date().toISOString().slice(0,10)}.json`
+                            )}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Backup Jaringan MLM JSON
+                          </button>
+
+                          <label className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer text-center">
+                            <span>📤 Restore Jaringan MLM</span>
+                            <input
+                              type="file"
+                              accept=".json"
+                              onChange={(e) => handleBackupRestoreUpload(e, 'mlm_network')}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmReset('mlm_network', 'Struktur Jaringan MLM & Komisi')}
+                          className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-2 px-3 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          ⚠️ Reset Pohon Jaringan & Rekap Bonus
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* CATEGORY 4: DATA PENJUALAN, ORDER & TRANSAKSI */}
+                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">Modul 4</span>
+                          <span className="text-xs font-bold text-slate-500">Invoice & Transaksi</span>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-emerald-600" /> Data Penjualan, Invoice & Mutasi
+                        </h4>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Menyimpan daftar order produk, nomor resi pengiriman, mutasi komisi, riwayat deposit, dan permintaan penarikan (WD).
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-200 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => downloadJSON(
+                              { orders: orders || [], transactions: transactions || [], deposits: deposits || [], withdrawals: withdrawals || [] },
+                              `backup-penjualan-hedtro-${new Date().toISOString().slice(0,10)}.json`
+                            )}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Backup Penjualan JSON
+                          </button>
+
+                          <label className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer text-center">
+                            <span>📤 Restore Penjualan</span>
+                            <input
+                              type="file"
+                              accept=".json"
+                              onChange={(e) => handleBackupRestoreUpload(e, 'sales')}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmReset('sales', 'Data Penjualan, Order & Transaksi')}
+                          className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-2 px-3 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          ⚠️ Reset Seluruh Riwayat Penjualan & Transaksi
+                        </button>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
+              )}
 
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    id="btn-submit-save-settings"
-                    disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition text-xs shadow-md cursor-pointer"
-                  >
-                    💾 Simpan Semua Pengaturan Sistem
-                  </button>
-                </div>
-              </form>
+            </form>
 
-            </div>
-          )}
+          </div>
+        )}
 
           {/* TAB: PROFILE MENU */}
           {activeTab === 'profil' && (
