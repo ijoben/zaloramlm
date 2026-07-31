@@ -140,6 +140,7 @@ export interface SystemSettings {
   contactEmail?: string;
   shippingTrackingMode?: 'MANUAL' | 'AUTO_API';
   shippingApiKey?: string;
+  enableMidtrans?: boolean;
   midtransMerchantId?: string;
   midtransClientKey?: string;
   midtransServerKey?: string;

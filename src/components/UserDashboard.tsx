@@ -5,7 +5,7 @@ import {
   Copy, Check, ShoppingBag, ShieldAlert, ShieldCheck, CheckCircle, RefreshCw, 
   CreditCard, Send, LogOut, Bell, HelpCircle, Award, Percent, Menu, X,
   User, Lock, Sparkles, Truck, Package, Clock, ChevronLeft, ChevronRight,
-  LayoutGrid, LayoutList, Camera, FileText, Eye
+  LayoutGrid, LayoutList, Camera, FileText, Eye, ChevronDown, ChevronUp
 } from "lucide-react";
 import WorkflowModal from "./WorkflowModal";
 
@@ -250,6 +250,11 @@ export default function UserDashboard({
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [syncingOrderId, setSyncingOrderId] = useState<number | string | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<number | string | null>(null);
+  const [copiedTrackingId, setCopiedTrackingId] = useState<number | string | null>(null);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'ALL' | 'DIPROSES' | 'DIKIRIM' | 'TERIMA' | 'BATAL'>('ALL');
+
+  const isMidtransEnabled = settings?.enableMidtrans !== false;
 
   // Repeat Order Checkout Modal States
   const [purchaseModalProduct, setPurchaseModalProduct] = useState<Product | null>(null);
@@ -2092,15 +2097,15 @@ export default function UserDashboard({
             </div>
           )}
 
-          {/* TAB: STATUS PENGIRIMAN & RESI SAYA */}
+          {/* TAB: STATUS PENGIRIMAN & RESI SAYA (FAQ ACCORDION STYLE) */}
           {activeTab === 'orders' && (
             <div className="space-y-6 text-left" id="user-orders-tab-content">
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2 text-left">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-1 flex items-center gap-2 text-left">
                     <Truck className="text-blue-600 w-5 h-5 shrink-0" /> Status Pengiriman & Nomor Resi Pesanan Saya
                   </h3>
-                  <p className="text-xs text-slate-500 text-left">Lacak perjalanan paket produk Jeans anda dari gudang utama hingga tiba di alamat tujuan secara real-time.</p>
+                  <p className="text-xs text-slate-500 text-left">Klik pada baris pesanan di bawah untuk membuka/menutup detail resi dan histori pengiriman paket.</p>
                 </div>
               </div>
 
@@ -2120,7 +2125,7 @@ export default function UserDashboard({
                       <p className="text-xs text-slate-500 max-w-md mx-auto">Pesanan pendaftaran member baru atau pembelian produk di menu Belanja Jeans akan muncul di sini beserta nomor resi pengiriman.</p>
                       <button
                         onClick={() => setActiveTab('shop')}
-                        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition"
+                        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"
                       >
                         <ShoppingBag className="w-4 h-4" /> Beli Produk Jeans
                       </button>
@@ -2128,90 +2133,234 @@ export default function UserDashboard({
                   );
                 }
 
+                const filteredOrders = userOrders.filter(ord => {
+                  if (orderStatusFilter === 'DIPROSES') return ord.status !== 'DIKIRIM' && ord.status !== 'TERIMA' && ord.status !== 'SELESAI' && ord.status !== 'BATAL';
+                  if (orderStatusFilter === 'DIKIRIM') return ord.status === 'DIKIRIM';
+                  if (orderStatusFilter === 'TERIMA') return ord.status === 'TERIMA' || ord.status === 'SELESAI';
+                  if (orderStatusFilter === 'BATAL') return ord.status === 'BATAL' || ord.status === 'DIBATALKAN';
+                  return true;
+                });
+
                 return (
-                  <div className="space-y-6 text-left">
-                    {userOrders.map((ord) => (
-                      <div key={ord.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 text-left">
-                        {/* Order Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 text-left">
-                          <div>
-                            <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">NO. INVOICE TRANSAKSI</span>
-                            <span className="text-sm font-black font-mono text-slate-900">{ord.invoice_no}</span>
-                            <span className="text-xs text-slate-500 block mt-0.5">{new Date(ord.created_at).toLocaleString('id-ID')}</span>
-                          </div>
+                  <div className="space-y-4 text-left">
+                    {/* Status Filter Pills */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                      {[
+                        { key: 'ALL', label: 'Semua Pesanan', count: userOrders.length },
+                        { key: 'DIPROSES', label: 'Diproses Gudang', count: userOrders.filter(o => o.status !== 'DIKIRIM' && o.status !== 'TERIMA' && o.status !== 'SELESAI' && o.status !== 'BATAL').length },
+                        { key: 'DIKIRIM', label: 'Dalam Pengiriman', count: userOrders.filter(o => o.status === 'DIKIRIM').length },
+                        { key: 'TERIMA', label: 'Selesai', count: userOrders.filter(o => o.status === 'TERIMA' || o.status === 'SELESAI').length },
+                      ].map(tab => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => setOrderStatusFilter(tab.key as any)}
+                          className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+                            orderStatusFilter === tab.key
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          {tab.label}
+                          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                            orderStatusFilter === tab.key ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {tab.count}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
 
-                          <div className="flex flex-col sm:items-end gap-2 text-left sm:text-right">
-                            <span className={`inline-block px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${
-                              ord.status === 'TERIMA' || ord.status === 'SELESAI' ? 'bg-green-100 text-green-800 border border-green-200' :
-                              ord.status === 'DIKIRIM' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
-                              ord.status === 'BATAL' || ord.status === 'DIBATALKAN' ? 'bg-red-100 text-red-800 border border-red-200' :
-                              'bg-amber-100 text-amber-800 border border-amber-200'
-                            }`}>
-                              {ord.status === 'TERIMA' || ord.status === 'SELESAI' ? 'DITERIMA / SELESAI' : ord.status === 'DIKIRIM' ? 'DALAM PENGIRIMAN' : ord.status === 'BATAL' ? 'DIBATALKAN' : 'DIPROSES GUDANG'}
-                            </span>
-                            {ord.tracking_number && (
-                              <button
-                                onClick={() => handleUserSyncTracking(ord)}
-                                disabled={syncingOrderId === ord.id}
-                                className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1 rounded-lg transition cursor-pointer self-start sm:self-auto"
+                    {/* Accordion Orders Container */}
+                    <div className="space-y-3 text-left">
+                      {filteredOrders.length === 0 ? (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs text-slate-500">
+                          Tidak ada pesanan dengan status terpilih.
+                        </div>
+                      ) : (
+                        filteredOrders.map((ord) => {
+                          const isExpanded = expandedOrderId === ord.id;
+                          const isFinished = ord.status === 'TERIMA' || ord.status === 'SELESAI';
+                          const isShipping = ord.status === 'DIKIRIM';
+                          const isCanceled = ord.status === 'BATAL' || ord.status === 'DIBATALKAN';
+
+                          return (
+                            <div 
+                              key={ord.id} 
+                              className={`bg-white rounded-2xl border transition-all duration-200 shadow-xs overflow-hidden text-left ${
+                                isExpanded ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {/* Accordion FAQ Header Bar (Clickable) */}
+                              <div
+                                onClick={() => setExpandedOrderId(isExpanded ? null : ord.id)}
+                                className="p-3.5 sm:p-4 cursor-pointer select-none flex flex-col gap-2.5 hover:bg-slate-50/80 transition"
                               >
-                                <RefreshCw className={`w-3 h-3 text-blue-600 ${syncingOrderId === ord.id ? 'animate-spin' : ''}`} />
-                                {syncingOrderId === ord.id ? 'Memuat Resi API...' : 'Cek Status Live API'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                                {/* Row 1: Invoice, Date, Status */}
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-xs font-mono font-black text-slate-900 truncate">
+                                      {ord.invoice_no}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 shrink-0 hidden sm:inline">
+                                      • {new Date(ord.created_at).toLocaleDateString('id-ID')}
+                                    </span>
+                                  </div>
 
-                        {/* Courier & Tracking Details */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-xs text-left">
-                          <div>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">EKSPEDISI</span>
-                            <span className="font-extrabold text-slate-900 block">{ord.courier || 'JNE REGULER'}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NOMOR RESI</span>
-                            <span className="font-mono font-black text-blue-600 block text-xs">{ord.tracking_number || 'Belum Diterbitkan'}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NAMA PRODUK & NOMINAL</span>
-                            <span className="font-extrabold text-slate-900 block">{ord.product_name}</span>
-                            <span className="font-mono font-bold text-slate-700">Rp {(ord.amount || 0).toLocaleString('id-ID')}</span>
-                          </div>
-                        </div>
-
-                        {/* Shipping Address */}
-                        <div className="text-xs space-y-1 text-left">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">ALAMAT TUJUAN PENGIRIMAN</span>
-                          <p className="font-bold text-slate-800">{ord.fullname} ({ord.phone})</p>
-                          <p className="text-slate-600 leading-relaxed">{ord.address || 'Alamat sesuai data registrasi'}</p>
-                        </div>
-
-                        {/* Tracking Timeline Steps */}
-                        <div className="pt-4 border-t border-slate-100 text-left">
-                          <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider mb-3 flex items-center gap-1.5 text-left">
-                            <Clock className="w-4 h-4 text-blue-600" /> TAHAPAN PERJALANAN PAKET
-                          </h4>
-
-                          <div className="space-y-3 pl-3 border-l-2 border-blue-600 text-left">
-                            {(ord.steps && ord.steps.length > 0 ? ord.steps : [
-                              { title: "Pesanan Masuk & Terbayar", time: new Date(ord.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB", done: true, description: "Pesanan diproses server sistem" },
-                              { title: "Gudang Paking & QC Produk", time: "Diproses Gudang", done: ord.status !== 'PENDING', description: "Pengecekan jahitan & kerapian paking" },
-                              { title: "Penyerahan ke Ekspedisi", time: ord.tracking_number ? "Resi Terbit" : "Menunggu Resi", done: ord.status === 'DIKIRIM' || ord.status === 'TERIMA', description: `Nomor Resi: ${ord.tracking_number || 'Dalam Proses'}` },
-                              { title: "Pesanan Tiba di Alamat Tujuan", time: ord.status === 'TERIMA' ? "Selesai" : "Estimasi 2-3 Hari", done: ord.status === 'TERIMA', description: "Diterima pemesan" }
-                            ]).map((st: any, idx: number) => (
-                              <div key={idx} className="relative pl-3 text-xs text-left">
-                                <span className={`absolute -left-[19px] top-1 w-3 h-3 rounded-full border-2 border-white ${st.done ? 'bg-blue-600' : 'bg-slate-300'}`}></span>
-                                <div className="flex items-center justify-between text-left">
-                                  <span className={`font-extrabold ${st.done ? 'text-slate-900' : 'text-slate-400'}`}>{st.title}</span>
-                                  <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">{st.time}</span>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                      isFinished ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                      isShipping ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                                      isCanceled ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                                      'bg-amber-100 text-amber-800 border border-amber-200'
+                                    }`}>
+                                      {isFinished ? 'DITERIMA' : isShipping ? 'DIKIRIM' : isCanceled ? 'BATAL' : 'DIPROSES'}
+                                    </span>
+                                    {isExpanded ? (
+                                      <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                                    )}
+                                  </div>
                                 </div>
-                                {st.description && <p className="text-[10px] text-slate-500 mt-0.5 text-left">{st.description}</p>}
+
+                                {/* Row 2: Product Name & Courier/Resi Pill */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
+                                  <div className="min-w-0">
+                                    <span className="font-extrabold text-slate-900 truncate block">
+                                      {ord.product_name}
+                                    </span>
+                                    <span className="text-[11px] font-bold text-slate-500 font-mono">
+                                      Rp {(ord.amount || 0).toLocaleString('id-ID')}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 self-start sm:self-auto text-[10px]">
+                                    <span className="bg-slate-100 text-slate-700 font-extrabold px-2 py-0.5 rounded-md border border-slate-200">
+                                      {ord.courier || 'JNE REGULER'}
+                                    </span>
+                                    {ord.tracking_number ? (
+                                      <span className="bg-blue-50 text-blue-700 font-mono font-bold px-2 py-0.5 rounded-md border border-blue-200">
+                                        Resi: {ord.tracking_number}
+                                      </span>
+                                    ) : (
+                                      <span className="bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-md border border-amber-200">
+                                        Resi Belum Terbit
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+
+                              {/* Accordion FAQ Body (Expanded) */}
+                              {isExpanded && (
+                                <div className="bg-slate-50/90 border-t border-slate-100 p-4 sm:p-5 space-y-4 text-xs text-left animate-fadeIn">
+                                  {/* Action Toolbar */}
+                                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200/60">
+                                    <div className="flex items-center gap-2">
+                                      {ord.tracking_number && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleUserSyncTracking(ord);
+                                          }}
+                                          disabled={syncingOrderId === ord.id}
+                                          className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition cursor-pointer shadow-2xs"
+                                        >
+                                          <RefreshCw className={`w-3.5 h-3.5 ${syncingOrderId === ord.id ? 'animate-spin' : ''}`} />
+                                          {syncingOrderId === ord.id ? 'Memuat Resi API...' : 'Cek Status Live API'}
+                                        </button>
+                                      )}
+
+                                      {ord.tracking_number && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigator.clipboard.writeText(ord.tracking_number || '');
+                                            setCopiedTrackingId(ord.id);
+                                            setTimeout(() => setCopiedTrackingId(null), 2000);
+                                          }}
+                                          className="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-bold px-2.5 py-1.5 rounded-xl transition cursor-pointer"
+                                        >
+                                          {copiedTrackingId === ord.id ? (
+                                            <>
+                                              <Check className="w-3.5 h-3.5 text-emerald-600" /> Tersalin!
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Copy className="w-3.5 h-3.5 text-slate-500" /> Salin Resi
+                                            </>
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      Tgl Transaksi: {new Date(ord.created_at).toLocaleString('id-ID')}
+                                    </span>
+                                  </div>
+
+                                  {/* Shipping Details Grid */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 bg-white p-3.5 rounded-xl border border-slate-200/80">
+                                    <div>
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">EKSPEDISI</span>
+                                      <span className="font-extrabold text-slate-900 block mt-0.5">{ord.courier || 'JNE REGULER'}</span>
+                                    </div>
+
+                                    <div>
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NOMOR RESI PENGIRIMAN</span>
+                                      <span className="font-mono font-black text-blue-600 block text-xs mt-0.5">
+                                        {ord.tracking_number || 'Dalam Proses Penerbitan'}
+                                      </span>
+                                    </div>
+
+                                    <div>
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NAMA PRODUK & TOTAL</span>
+                                      <span className="font-extrabold text-slate-900 block mt-0.5">{ord.product_name}</span>
+                                      <span className="font-mono font-bold text-slate-700">Rp {(ord.amount || 0).toLocaleString('id-ID')}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Alamat Tujuan Pengiriman */}
+                                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 space-y-1">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">ALAMAT TUJUAN PENGIRIMAN</span>
+                                    <p className="font-bold text-slate-900">{ord.fullname} ({ord.phone})</p>
+                                    <p className="text-slate-600 leading-relaxed text-[11px]">{ord.address || 'Alamat sesuai data registrasi'}</p>
+                                  </div>
+
+                                  {/* Tracking Timeline Steps */}
+                                  <div className="bg-white p-4 rounded-xl border border-slate-200/80 space-y-3 text-left">
+                                    <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
+                                      <Clock className="w-4 h-4 text-blue-600" /> TAHAPAN PERJALANAN PAKET
+                                    </h4>
+
+                                    <div className="space-y-3 pl-3 border-l-2 border-blue-600 text-left">
+                                      {(ord.steps && ord.steps.length > 0 ? ord.steps : [
+                                        { title: "Pesanan Masuk & Terbayar", time: new Date(ord.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB", done: true, description: "Pesanan diproses server sistem" },
+                                        { title: "Gudang Paking & QC Produk", time: "Diproses Gudang", done: ord.status !== 'PENDING', description: "Pengecekan jahitan & kerapian paking" },
+                                        { title: "Penyerahan ke Ekspedisi", time: ord.tracking_number ? "Resi Terbit" : "Menunggu Resi", done: ord.status === 'DIKIRIM' || ord.status === 'TERIMA' || ord.status === 'SELESAI', description: `Nomor Resi: ${ord.tracking_number || 'Dalam Proses'}` },
+                                        { title: "Pesanan Tiba di Alamat Tujuan", time: isFinished ? "Selesai" : "Estimasi 2-3 Hari", done: isFinished, description: "Diterima pemesan" }
+                                      ]).map((st: any, idx: number) => (
+                                        <div key={idx} className="relative pl-3 text-xs text-left">
+                                          <span className={`absolute -left-[19px] top-1 w-3 h-3 rounded-full border-2 border-white ${st.done ? 'bg-blue-600' : 'bg-slate-300'}`}></span>
+                                          <div className="flex items-center justify-between text-left">
+                                            <span className={`font-extrabold ${st.done ? 'text-slate-900' : 'text-slate-400'}`}>{st.title}</span>
+                                            <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">{st.time}</span>
+                                          </div>
+                                          {st.description && <p className="text-[10px] text-slate-500 mt-0.5 text-left">{st.description}</p>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 );
               })()}

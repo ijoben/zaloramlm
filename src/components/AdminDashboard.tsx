@@ -591,6 +591,7 @@ export default function AdminDashboard({
   const [formRewardCashEquivalent, setFormRewardCashEquivalent] = useState(settings?.rewardCashEquivalent || 20000000);
 
   // Midtrans configuration states
+  const [formEnableMidtrans, setFormEnableMidtrans] = useState(settings?.enableMidtrans ?? true);
   const [formMidtransMerchantId, setFormMidtransMerchantId] = useState(settings?.midtransMerchantId || '');
   const [formMidtransClientKey, setFormMidtransClientKey] = useState(settings?.midtransClientKey || '');
   const [formMidtransServerKey, setFormMidtransServerKey] = useState(settings?.midtransServerKey || '');
@@ -669,6 +670,7 @@ export default function AdminDashboard({
       setFormRewardThresholdRight(settings.rewardThresholdRight ?? 5);
       setFormRewardName(settings.rewardName || '');
       setFormRewardCashEquivalent(settings.rewardCashEquivalent ?? 20000000);
+      setFormEnableMidtrans(settings.enableMidtrans ?? true);
       setFormMidtransMerchantId(settings.midtransMerchantId || '');
       setFormMidtransClientKey(settings.midtransClientKey || '');
       setFormMidtransServerKey(settings.midtransServerKey || '');
@@ -1100,6 +1102,7 @@ export default function AdminDashboard({
       rewardThresholdRight: Number(formRewardThresholdRight),
       rewardName: formRewardName,
       rewardCashEquivalent: Number(formRewardCashEquivalent),
+      enableMidtrans: formEnableMidtrans,
       midtransMerchantId: formMidtransMerchantId,
       midtransClientKey: formMidtransClientKey,
       midtransServerKey: formMidtransServerKey,
@@ -3143,6 +3146,57 @@ export default function AdminDashboard({
                 <p className="text-xs text-slate-400">
                   Koneksikan akun Midtrans Anda agar sistem mendeteksi pembayaran QRIS & VA secara otomatis. Jika Server Key kosong, sistem akan menggunakan simulator otomatis.
                 </p>
+              </div>
+
+              {/* TOGGLE SAKLAR ON / OFF MIDTRANS */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                formEnableMidtrans 
+                  ? 'bg-emerald-50/70 border-emerald-200/90' 
+                  : 'bg-rose-50/70 border-rose-200/90'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        formEnableMidtrans ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                      }`}>
+                        {formEnableMidtrans ? '🟢 MIDTRANS ONLINE (AKTIF)' : '🔴 MIDTRANS OFFLINE (NON-AKTIF)'}
+                      </span>
+                      <span className="text-xs font-extrabold text-slate-800">Status Gateway User</span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {formEnableMidtrans 
+                        ? 'Fitur pembayaran Midtrans (QRIS/VA) saat ini AKTIF di portal user. Member dapat melakukan pembayaran otomatis.'
+                        : 'Fitur pembayaran Midtrans saat ini DINONAKTIFKAN. Portal user akan otomatis mengalihkan pembayaran ke Transfer Bank Manual.'
+                      }
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl border border-slate-200 shrink-0 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setFormEnableMidtrans(true)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1 cursor-pointer ${
+                        formEnableMidtrans 
+                          ? 'bg-emerald-600 text-white shadow-xs' 
+                          : 'text-slate-500 hover:bg-slate-100'
+                      }`}
+                    >
+                      🟢 ON (Aktif)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormEnableMidtrans(false)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1 cursor-pointer ${
+                        !formEnableMidtrans 
+                          ? 'bg-rose-600 text-white shadow-xs' 
+                          : 'text-slate-500 hover:bg-slate-100'
+                      }`}
+                    >
+                      🔴 OFF (Mati)
+                    </button>
+                  </div>
+                </div>
               </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
