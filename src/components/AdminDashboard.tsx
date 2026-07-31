@@ -2,9 +2,9 @@ import React, { useState, useRef } from "react";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, Order, OrderStep } from "../types";
 import { 
   Shield, Users, DollarSign, Package, TrendingUp, HelpCircle, 
-  CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, 
+  CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, Edit3,
   ArrowUpRight, ArrowDownLeft, RefreshCw, BarChart2, Search, Percent,
-  Globe, PlusCircle, Check, X, ArrowDown, CreditCard, Menu, User, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck, FileText, ChevronLeft, ChevronRight
+  Globe, PlusCircle, Plus, Check, X, ArrowDown, CreditCard, Menu, User, UserPlus, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck, FileText, ChevronLeft, ChevronRight, AlertTriangle, Ban
 } from "lucide-react";
 import WorkflowModal from "./WorkflowModal";
 
@@ -37,6 +37,9 @@ interface AdminDashboardProps {
   onProcessWithdrawal: (wdId: number, action: 'approve' | 'reject') => Promise<void>;
   onProcessDeposit?: (depositId: number, action: 'approve' | 'reject') => Promise<void>;
   onAddProduct?: (prodData: Omit<Product, "id">) => Promise<boolean>;
+  onAddUser?: (userData: Partial<MLMUser>) => Promise<boolean>;
+  onUpdateUserAdmin?: (userId: number, updateData: Partial<MLMUser>) => Promise<boolean>;
+  onDeleteUserAdmin?: (userId: number) => Promise<boolean>;
   onUpdateProfile?: (data: { 
     fullname: string; 
     email: string; 
@@ -121,6 +124,9 @@ export default function AdminDashboard({
   onProcessWithdrawal,
   onProcessDeposit,
   onAddProduct,
+  onAddUser,
+  onUpdateUserAdmin,
+  onDeleteUserAdmin,
   onUpdateProfile,
   onResetPassword,
   onToggleAutoPayout,
@@ -131,6 +137,112 @@ export default function AdminDashboard({
   const [activeTab, setActiveTab] = useState<'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'orders' | 'settings' | 'landing-editor' | 'profil'>('financials');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedUserDetail, setSelectedUserDetail] = useState<MLMUser | null>(null);
+
+  // Member CRUD states
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<MLMUser | null>(null);
+  const [deletingUser, setDeletingUser] = useState<MLMUser | null>(null);
+
+  const [newUserForm, setNewUserForm] = useState({
+    username: '',
+    fullname: '',
+    email: '',
+    phone: '',
+    whatsapp: '',
+    password: 'password123',
+    sponsor_username: '',
+    upline_username: '',
+    position: 'L' as 'L' | 'R',
+    ktp: '',
+    bank_name: 'BCA',
+    bank_account: '',
+    bank_holder: '',
+    address: '',
+    city: ''
+  });
+  const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+
+  const [editUserForm, setEditUserForm] = useState<Partial<MLMUser>>({});
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
+
+  const [isDeletingUserLoading, setIsDeletingUserLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (editingUser) {
+      setEditUserForm({ ...editingUser });
+    }
+  }, [editingUser]);
+
+  const handleAddUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserForm.username.trim() || !newUserForm.fullname.trim()) {
+      alert("Username dan Nama Lengkap wajib diisi!");
+      return;
+    }
+    setIsSubmittingUser(true);
+    try {
+      if (onAddUser) {
+        const ok = await onAddUser(newUserForm);
+        if (ok) {
+          setIsAddUserModalOpen(false);
+          setNewUserForm({
+            username: '',
+            fullname: '',
+            email: '',
+            phone: '',
+            whatsapp: '',
+            password: 'password123',
+            sponsor_username: '',
+            upline_username: '',
+            position: 'L',
+            ktp: '',
+            bank_name: 'BCA',
+            bank_account: '',
+            bank_holder: '',
+            address: '',
+            city: ''
+          });
+        }
+      }
+    } finally {
+      setIsSubmittingUser(false);
+    }
+  };
+
+  const handleEditUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setIsUpdatingUser(true);
+    try {
+      if (onUpdateUserAdmin) {
+        const ok = await onUpdateUserAdmin(editingUser.id, editUserForm);
+        if (ok) {
+          setEditingUser(null);
+        } else {
+          alert("Gagal memperbarui data user!");
+        }
+      }
+    } finally {
+      setIsUpdatingUser(false);
+    }
+  };
+
+  const handleDeleteUserConfirm = async () => {
+    if (!deletingUser) return;
+    setIsDeletingUserLoading(true);
+    try {
+      if (onDeleteUserAdmin) {
+        const ok = await onDeleteUserAdmin(deletingUser.id);
+        if (ok) {
+          setDeletingUser(null);
+        } else {
+          alert("Gagal menghapus user!");
+        }
+      }
+    } finally {
+      setIsDeletingUserLoading(false);
+    }
+  };
   
   // Product edit & modal states
   const [editingModalProduct, setEditingModalProduct] = useState<Product | null>(null);
@@ -1701,16 +1813,26 @@ export default function AdminDashboard({
                   <p className="text-xs text-slate-500">Berikut adalah database seluruh pengguna MLM terdaftar di sistem binary Anda.</p>
                 </div>
                 
-                {/* Search Bar */}
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    placeholder="Cari member..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:bg-white focus:border-blue-500 font-semibold"
-                  />
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddUserModalOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs shrink-0"
+                  >
+                    <Plus className="w-4 h-4" /> Tambah Member Baru
+                  </button>
+
+                  {/* Search Bar */}
+                  <div className="relative w-full sm:w-56">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      placeholder="Cari member..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:bg-white focus:border-blue-500 font-semibold"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1723,36 +1845,45 @@ export default function AdminDashboard({
                 ) : (
                   filteredUsers
                     .slice((pageMembers - 1) * 10, pageMembers * 10)
-                    .map((u) => {
+                    .map((u, index) => {
+                    const rowNo = index + 1 + (pageMembers - 1) * 10;
                     const totalBonus = (u.sponsor_bonus || 0) + (u.pairing_bonus || 0) + (u.level_bonus || 0) + (u.ro_bonus || 0);
                     return (
                       <div key={u.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
                         <div>
-                          <div className="flex items-center justify-between gap-2 mb-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              {u.profile_photo ? (
-                                <img
-                                  src={u.profile_photo}
-                                  alt={u.fullname || u.username}
-                                  className="w-8 h-8 rounded-full object-cover border border-slate-300 shrink-0"
-                                />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold flex items-center justify-center text-xs shrink-0">
-                                  {(u.fullname || u.username).charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                              <div className="min-w-0">
-                                <span className="font-extrabold text-blue-600 truncate text-xs block">{u.username.replace(/^@/, '')}</span>
-                                <p className="font-bold text-slate-900 text-xs truncate">{u.fullname || u.username}</p>
-                              </div>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
+                          {/* Row Number Header for Mobile */}
+                          <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-200/80">
+                            <span className="bg-slate-900 text-white text-[10px] font-black px-2.5 py-0.5 rounded-md shrink-0">
+                              No. {rowNo}
+                            </span>
+
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
                               u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                             }`}>
                               {u.is_active ? 'Aktif' : 'Non-Aktif'}
                             </span>
                           </div>
-                          <p className="text-[10px] font-mono text-slate-500">ID Member: #{u.id}</p>
+
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {u.profile_photo ? (
+                                <img
+                                  src={u.profile_photo}
+                                  alt={u.fullname || u.username}
+                                  className="w-9 h-9 rounded-full object-cover border border-slate-300 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold flex items-center justify-center text-xs shrink-0">
+                                  {(u.fullname || u.username).charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <span className="font-extrabold text-blue-600 truncate text-xs block">@{u.username.replace(/^@/, '')}</span>
+                                <p className="font-bold text-slate-900 text-xs truncate">{u.fullname || u.username}</p>
+                                <p className="text-[10px] text-slate-500 font-mono">{u.phone || '-'}</p>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
                         <div className="text-[11px] space-y-1 pt-2 border-t border-slate-200/80 text-slate-600">
@@ -1765,119 +1896,220 @@ export default function AdminDashboard({
                             <strong className="font-mono text-slate-900 font-bold">Rp {(u.balance || 0).toLocaleString('id-ID')}</strong>
                           </div>
                           <div className="flex justify-between items-center">
-                            <span>Total Bonus Terakumulasi:</span>
+                            <span>Total Bonus:</span>
                             <strong className="font-mono text-green-600 font-extrabold">Rp {totalBonus.toLocaleString('id-ID')}</strong>
                           </div>
                         </div>
 
-                        <button
-                          onClick={() => setSelectedUserDetail(u)}
-                          className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 rounded-lg transition shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5" /> Lihat Detail User
-                        </button>
+                        {/* Mobile Actions: 4 Vertical Buttons (Detail, Edit, Ban, Hapus) */}
+                        <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-slate-200 sm:flex sm:flex-col sm:items-stretch sm:gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUserDetail(u)}
+                            className="w-full px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold text-[10px] transition flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Eye className="w-3 h-3" /> Detail
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingUser(u)}
+                            className="w-full px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 font-extrabold text-[10px] transition flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="w-3 h-3" /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (onUpdateUserAdmin) {
+                                await onUpdateUserAdmin(u.id, { is_active: !u.is_active });
+                              }
+                            }}
+                            className={`w-full px-2.5 py-1 rounded-lg font-extrabold text-[10px] transition flex items-center justify-center gap-1 cursor-pointer ${
+                              u.is_active
+                                ? 'bg-orange-50 hover:bg-orange-100 text-orange-700'
+                                : 'bg-green-50 hover:bg-green-100 text-green-700'
+                            }`}
+                            title={u.is_active ? 'Banned / Nonaktifkan Member' : 'Aktifkan Kembali Member'}
+                          >
+                            {u.is_active ? (
+                              <><Ban className="w-3 h-3" /> Ban</>
+                            ) : (
+                              <><CheckCircle className="w-3 h-3" /> Unban</>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingUser(u)}
+                            className="w-full px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-extrabold text-[10px] transition flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" /> Hapus
+                          </button>
+                        </div>
                       </div>
                     );
                   })
                 )}
               </div>
 
-              {/* Desktop View: Table */}
+              {/* Desktop View: Clean & Spacious Table (6 Streamlined Columns) */}
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 uppercase text-[9px] tracking-wider font-extrabold">
-                      <th className="py-3 px-4">ID</th>
-                      <th className="py-3 px-4">Foto & Member</th>
-                      <th className="py-3 px-4">Username & Telp</th>
-                      <th className="py-3 px-4">Upline & Sponsor</th>
-                      <th className="py-3 px-4 text-center">Lisensi</th>
-                      <th className="py-3 px-4 text-center">Tim L/R</th>
-                      <th className="py-3 px-4 text-center">Omset L/R</th>
-                      <th className="py-3 px-4 text-right">Sisa Saldo</th>
-                      <th className="py-3 px-4 text-right">Total Bonus</th>
-                      <th className="py-3 px-4 text-center">Aksi</th>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 uppercase text-[9px] tracking-wider font-extrabold">
+                      <th className="py-3.5 px-4 text-center w-16">NO</th>
+                      <th className="py-3.5 px-4">ANGGOTA / MEMBER</th>
+                      <th className="py-3.5 px-4">LISENSI & JARINGAN</th>
+                      <th className="py-3.5 px-4 text-center">TIM & OMSET</th>
+                      <th className="py-3.5 px-4 text-right">SALDO & BONUS</th>
+                      <th className="py-3.5 px-4 text-center">AKSI</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="py-8 text-center text-slate-400">Tidak ada data anggota ditemukan</td>
+                        <td colSpan={6} className="py-8 text-center text-slate-400">Tidak ada data anggota ditemukan</td>
                       </tr>
                     ) : (
                       filteredUsers
                         .slice((pageMembers - 1) * 10, pageMembers * 10)
-                        .map((u) => {
+                        .map((u, index) => {
+                        const rowNo = index + 1 + (pageMembers - 1) * 10;
                         const totalBonus = (u.sponsor_bonus || 0) + (u.pairing_bonus || 0) + (u.level_bonus || 0) + (u.ro_bonus || 0);
                         const uplineUser = (users || []).find(x => Number(x.id) === Number(u.upline_id));
                         const sponsorUser = (users || []).find(x => Number(x.id) === Number(u.sponsor_id));
                         return (
-                          <tr key={u.id} className="hover:bg-slate-50/50">
-                            <td className="py-3.5 px-4 font-mono text-slate-400">#{u.id}</td>
-                            <td className="py-3.5 px-4 font-extrabold text-slate-900 leading-tight">
-                              <div className="flex items-center gap-2.5">
+                          <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
+                            {/* Column 1: No. Urut */}
+                            <td className="py-3.5 px-4 text-center font-extrabold text-slate-900 text-xs">
+                              {rowNo}
+                            </td>
+
+                            {/* Column 2: Member Info (Foto, Nama, Username, Telp) */}
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-3">
                                 {u.profile_photo ? (
                                   <img
                                     src={u.profile_photo}
                                     alt={u.fullname || u.username}
-                                    className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0 shadow-2xs"
+                                    className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0 shadow-2xs"
                                   />
                                 ) : (
-                                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black flex items-center justify-center text-xs shrink-0 shadow-2xs">
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black flex items-center justify-center text-xs shrink-0 shadow-2xs">
                                     {(u.fullname || u.username).charAt(0).toUpperCase()}
                                   </div>
                                 )}
                                 <div>
                                   <button
                                     onClick={() => setSelectedUserDetail(u)}
-                                    className="font-extrabold text-slate-900 hover:text-blue-600 text-left transition cursor-pointer"
+                                    className="font-extrabold text-slate-900 hover:text-blue-600 text-left transition cursor-pointer text-xs block leading-tight"
                                   >
                                     {u.fullname || u.username}
                                   </button>
-                                  <span className="block text-[9px] text-slate-400 font-normal">Daftar: {u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID') : '-'}</span>
+                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium mt-0.5">
+                                    <span className="font-bold text-blue-600">@{u.username.replace(/^@/, '')}</span>
+                                    <span>•</span>
+                                    <span className="font-mono text-slate-500">{u.phone || '-'}</span>
+                                  </div>
+                                  <span className="block text-[9px] text-slate-400 mt-0.5">
+                                    Daftar: {u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID') : '-'}
+                                  </span>
                                 </div>
                               </div>
                             </td>
+
+                            {/* Column 3: Lisensi Status & Upline/Sponsor */}
                             <td className="py-3.5 px-4 leading-normal">
-                              <span className="font-bold text-blue-600 block">{u.username.replace(/^@/, '')}</span>
-                              <span className="text-[10px] text-slate-500 font-mono">{u.phone || '-'}</span>
-                            </td>
-                            <td className="py-3.5 px-4 leading-normal">
-                              <div className="text-[10px] text-slate-700 font-medium">
-                                <span className="font-bold text-slate-900 block">
-                                  Upline: {uplineUser ? uplineUser.username.replace(/^@/, '') : 'Root'} <span className="text-blue-600 font-extrabold">({u.position || 'L'})</span>
-                                </span>
-                                <span className="text-slate-500 block">
-                                  Sponsor: {sponsorUser ? sponsorUser.username.replace(/^@/, '') : '-'}
+                              <div className="mb-1">
+                                <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase tracking-wide ${
+                                  u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {u.is_active ? '✓ Lisensi Aktif' : 'Tidak Aktif'}
                                 </span>
                               </div>
+                              <div className="text-[10px] text-slate-600 space-y-0.5">
+                                <div>
+                                  <span className="font-bold text-slate-900">Upline:</span> {uplineUser ? `@${uplineUser.username.replace(/^@/, '')}` : 'Root'} <span className="text-blue-600 font-extrabold">({u.position || 'L'})</span>
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-900">Sponsor:</span> {sponsorUser ? `@${sponsorUser.username.replace(/^@/, '')}` : '-'}
+                                </div>
+                              </div>
                             </td>
+
+                            {/* Column 4: Tim L/R & Omset L/R */}
                             <td className="py-3.5 px-4 text-center">
-                              <span className={`inline-block px-2 py-0.5 rounded-full font-bold text-[9px] uppercase tracking-wide ${
-                                u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                                {u.is_active ? 'Aktif' : 'Tidak Aktif'}
-                              </span>
+                              <div className="inline-block bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 text-left space-y-0.5">
+                                <div className="text-[10px] flex justify-between gap-3">
+                                  <span className="text-slate-500 font-medium">Tim:</span>
+                                  <strong className="font-mono text-slate-900 font-extrabold">{u.left_count || 0}L / {u.right_count || 0}R</strong>
+                                </div>
+                                <div className="text-[10px] flex justify-between gap-3">
+                                  <span className="text-slate-500 font-medium">Omset:</span>
+                                  <strong className="font-mono text-blue-700 font-extrabold">{u.left_sales || 0}L / {u.right_sales || 0}R</strong>
+                                </div>
+                              </div>
                             </td>
-                            <td className="py-3.5 px-4 text-center font-bold font-mono text-slate-700">
-                              {u.left_count || 0} L / {u.right_count || 0} R
+
+                            {/* Column 5: Saldo & Total Bonus */}
+                            <td className="py-3.5 px-4 text-right leading-tight">
+                              <div className="text-xs font-black text-slate-900 font-mono">
+                                <span className="text-[9px] font-normal text-slate-400 uppercase mr-1">Saldo:</span>
+                                Rp {(u.balance || 0).toLocaleString('id-ID')}
+                              </div>
+                              <div className="text-xs font-black text-green-600 font-mono mt-1">
+                                <span className="text-[9px] font-normal text-slate-400 uppercase mr-1">Bonus:</span>
+                                Rp {totalBonus.toLocaleString('id-ID')}
+                              </div>
                             </td>
-                            <td className="py-3.5 px-4 text-center font-black font-mono text-slate-900">
-                              {u.left_sales || 0} L / {u.right_sales || 0} R
-                            </td>
-                            <td className="py-3.5 px-4 text-right font-black text-slate-950">
-                              Rp {(u.balance || 0).toLocaleString('id-ID')}
-                            </td>
-                            <td className="py-3.5 px-4 text-right font-black text-green-600">
-                              Rp {totalBonus.toLocaleString('id-ID')}
-                            </td>
+
+                            {/* Column 6: Aksi (4 Vertical Buttons: Detail, Edit, Ban, Hapus) */}
                             <td className="py-3.5 px-4 text-center">
-                              <button
-                                onClick={() => setSelectedUserDetail(u)}
-                                className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold text-[11px] transition inline-flex items-center gap-1 cursor-pointer"
-                              >
-                                <Eye className="w-3.5 h-3.5" /> Detail
-                              </button>
+                              <div className="flex flex-col items-center justify-center gap-1 w-24 mx-auto">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedUserDetail(u)}
+                                  className="w-full px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold text-[10px] transition inline-flex items-center justify-center gap-1 cursor-pointer"
+                                  title="Lihat Detail Lengkap"
+                                >
+                                  <Eye className="w-3 h-3" /> Detail
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingUser(u)}
+                                  className="w-full px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 font-extrabold text-[10px] transition inline-flex items-center justify-center gap-1 cursor-pointer"
+                                  title="Edit Member"
+                                >
+                                  <Edit3 className="w-3 h-3" /> Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (onUpdateUserAdmin) {
+                                      await onUpdateUserAdmin(u.id, { is_active: !u.is_active });
+                                    }
+                                  }}
+                                  className={`w-full px-2.5 py-1 rounded-lg font-extrabold text-[10px] transition inline-flex items-center justify-center gap-1 cursor-pointer ${
+                                    u.is_active
+                                      ? 'bg-orange-50 hover:bg-orange-100 text-orange-700'
+                                      : 'bg-green-50 hover:bg-green-100 text-green-700'
+                                  }`}
+                                  title={u.is_active ? 'Banned / Nonaktifkan Member' : 'Aktifkan Kembali Member'}
+                                >
+                                  {u.is_active ? (
+                                    <><Ban className="w-3 h-3" /> Ban</>
+                                  ) : (
+                                    <><CheckCircle className="w-3 h-3" /> Unban</>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeletingUser(u)}
+                                  className="w-full px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-extrabold text-[10px] transition inline-flex items-center justify-center gap-1 cursor-pointer"
+                                  title="Hapus Member"
+                                >
+                                  <Trash2 className="w-3 h-3" /> Hapus
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -4613,6 +4845,438 @@ export default function AdminDashboard({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: ADD MEMBER MODAL */}
+      {isAddUserModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 my-8">
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-600 rounded-xl">
+                  <UserPlus className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base leading-tight">Tambah Member Baru</h3>
+                  <p className="text-slate-400 text-xs">Pendaftaran anggota baru ke jaringan MLM</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddUserModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddUserSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Username <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="misal: budi123"
+                    value={newUserForm.username}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama sesuai KTP"
+                    value={newUserForm.fullname}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, fullname: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    placeholder="email@domain.com"
+                    value={newUserForm.email}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">No. HP / Telp</label>
+                  <input
+                    type="text"
+                    placeholder="08123456789"
+                    value={newUserForm.phone}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, phone: e.target.value, whatsapp: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                  <input
+                    type="text"
+                    value={newUserForm.password}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">No. KTP</label>
+                  <input
+                    type="text"
+                    placeholder="351234567890001"
+                    value={newUserForm.ktp}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, ktp: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 pt-3 space-y-3">
+                <h4 className="text-xs font-extrabold text-blue-600 uppercase tracking-wider">Penempatan Jaringan Binary</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Username Sponsor</label>
+                    <input
+                      type="text"
+                      placeholder="Username Sponsor"
+                      value={newUserForm.sponsor_username}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, sponsor_username: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Username Upline</label>
+                    <input
+                      type="text"
+                      placeholder="Username Upline"
+                      value={newUserForm.upline_username}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, upline_username: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Posisi Kaki</label>
+                    <select
+                      value={newUserForm.position}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, position: e.target.value as 'L' | 'R' })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                    >
+                      <option value="L">Kiri (Left)</option>
+                      <option value="R">Kanan (Right)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 pt-3 space-y-3">
+                <h4 className="text-xs font-extrabold text-slate-600 uppercase tracking-wider">Data Bank / Payout</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Nama Bank</label>
+                    <input
+                      type="text"
+                      placeholder="BCA / MANDIRI / BRI"
+                      value={newUserForm.bank_name}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, bank_name: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">No. Rekening</label>
+                    <input
+                      type="text"
+                      placeholder="1234567890"
+                      value={newUserForm.bank_account}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, bank_account: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Atas Nama Bank</label>
+                    <input
+                      type="text"
+                      placeholder="Sesuai buku tabungan"
+                      value={newUserForm.bank_holder}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, bank_holder: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsAddUserModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingUser}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmittingUser ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Simpan Member
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: EDIT MEMBER MODAL */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 my-8">
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-500 rounded-xl">
+                  <Edit3 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base leading-tight">Edit Data Member @{editingUser.username.replace(/^@/, '')}</h3>
+                  <p className="text-slate-400 text-xs">Ubah profil, foto, status aktif, saldo, dan bonus member</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingUser(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditUserSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
+              {/* Photo Upload */}
+              <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                {editUserForm.profile_photo ? (
+                  <img src={editUserForm.profile_photo} alt="Profile" className="w-14 h-14 rounded-full object-cover border border-slate-300 shrink-0" />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black flex items-center justify-center text-lg shrink-0">
+                    {(editUserForm.fullname || editUserForm.username || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">Foto Profil Member</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setEditUserForm(prev => ({ ...prev, profile_photo: reader.result as string }));
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nama Lengkap</label>
+                  <input
+                    type="text"
+                    value={editUserForm.fullname || ''}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, fullname: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Username</label>
+                  <input
+                    type="text"
+                    value={editUserForm.username || ''}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, username: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={editUserForm.email || ''}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">No. Telp / WhatsApp</label>
+                  <input
+                    type="text"
+                    value={editUserForm.phone || ''}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value, whatsapp: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Role Akun</label>
+                  <select
+                    value={editUserForm.role || 'user'}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value as 'user' | 'admin' })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-bold focus:outline-none focus:bg-white focus:border-blue-500"
+                  >
+                    <option value="user">Member (User)</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Keanggotaan</label>
+                  <select
+                    value={editUserForm.is_active ? 'active' : 'inactive'}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, is_active: e.target.value === 'active' })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-bold focus:outline-none focus:bg-white focus:border-blue-500"
+                  >
+                    <option value="active">Aktif (Lisensi Beli Produk)</option>
+                    <option value="inactive">Non-Aktif / Suspend</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Finance adjustment */}
+              <div className="border-t border-slate-200 pt-3 space-y-2">
+                <h4 className="font-extrabold text-blue-600 uppercase tracking-wider text-[11px]">Penyesuaian Saldo & Bonus (Rp)</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Saldo Dompet Utama</label>
+                    <input
+                      type="number"
+                      value={editUserForm.balance ?? 0}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, balance: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-bold font-mono focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Bonus Sponsor</label>
+                    <input
+                      type="number"
+                      value={editUserForm.sponsor_bonus ?? 0}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, sponsor_bonus: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-bold font-mono focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Bonus Pairing</label>
+                    <input
+                      type="number"
+                      value={editUserForm.pairing_bonus ?? 0}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, pairing_bonus: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-bold font-mono focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Bonus Level</label>
+                    <input
+                      type="number"
+                      value={editUserForm.level_bonus ?? 0}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, level_bonus: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-bold font-mono focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bank Details */}
+              <div className="border-t border-slate-200 pt-3 space-y-2">
+                <h4 className="font-extrabold text-slate-600 uppercase tracking-wider text-[11px]">Rekening Bank Member</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Bank</label>
+                    <input
+                      type="text"
+                      value={editUserForm.bank_name || ''}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, bank_name: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">No. Rekening</label>
+                    <input
+                      type="text"
+                      value={editUserForm.bank_account || ''}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, bank_account: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Nama Pemilik</label>
+                    <input
+                      type="text"
+                      value={editUserForm.bank_holder || ''}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, bank_holder: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-semibold focus:outline-none focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingUser}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+                >
+                  {isUpdatingUser ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: DELETE MEMBER CONFIRMATION */}
+      {deletingUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 p-6 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="p-3 bg-red-100 rounded-2xl">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base text-slate-900">Konfirmasi Hapus Member</h3>
+                <p className="text-xs text-slate-500">Tindakan ini tidak dapat dibatalkan</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 space-y-1">
+              <p>Apakah Anda yakin ingin menghapus member <strong className="text-slate-900 font-extrabold">@{deletingUser.username.replace(/^@/, '')}</strong> ({deletingUser.fullname || deletingUser.username})?</p>
+              <p className="text-red-600 font-semibold text-[11px]">Seluruh riwayat transaksi & data akun member ini akan terhapus dari database.</p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingUser(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteUserConfirm}
+                disabled={isDeletingUserLoading}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs transition flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+              >
+                {isDeletingUserLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Ya, Hapus Permanen
+              </button>
+            </div>
           </div>
         </div>
       )}

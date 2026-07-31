@@ -2245,6 +2245,60 @@ export default function App() {
     }
   };
 
+  const handleAddUserAdmin = async (userData: Partial<MLMUser>): Promise<boolean> => {
+    try {
+      await registerUserClient({
+        username: userData.username || "",
+        fullname: userData.fullname || "",
+        email: userData.email || "",
+        phone: userData.phone || "",
+        password: userData.password || "password123",
+        sponsor_username: userData.sponsor_username || "",
+        upline_username: userData.upline_username || "",
+        position: (userData.position === 'R' || userData.position === 'L') ? userData.position : 'L',
+        ktp: userData.ktp || "",
+        whatsapp: userData.whatsapp || "",
+        bank_name: userData.bank_name || "",
+        bank_account: userData.bank_account || "",
+        bank_holder: userData.bank_holder || "",
+        address: userData.address || "",
+        city: userData.city || ""
+      });
+      await fetchDashboardData();
+      return true;
+    } catch (err: any) {
+      console.error("Error adding user in admin:", err);
+      alert(err.message || "Gagal menambah user baru");
+      return false;
+    }
+  };
+
+  const handleUpdateUserAdmin = async (userId: number, updateData: Partial<MLMUser>): Promise<boolean> => {
+    try {
+      if (db) {
+        await setDoc(doc(db, "users", String(userId)), updateData, { merge: true });
+      }
+      await fetchDashboardData();
+      return true;
+    } catch (err) {
+      console.error("Error updating user in admin:", err);
+      return false;
+    }
+  };
+
+  const handleDeleteUserAdmin = async (userId: number): Promise<boolean> => {
+    try {
+      if (db) {
+        await deleteDoc(doc(db, "users", String(userId)));
+      }
+      await fetchDashboardData();
+      return true;
+    } catch (err) {
+      console.error("Error deleting user in admin:", err);
+      return false;
+    }
+  };
+
   const handleLogout = () => {
     currentUserRef.current = null;
     if (auth) {
@@ -2308,6 +2362,9 @@ export default function App() {
                 onProcessWithdrawal={handleProcessWithdrawal}
                 onProcessDeposit={handleProcessDeposit}
                 onAddProduct={handleAddProduct}
+                onAddUser={handleAddUserAdmin}
+                onUpdateUserAdmin={handleUpdateUserAdmin}
+                onDeleteUserAdmin={handleDeleteUserAdmin}
                 onUpdateProfile={handleUpdateProfile}
                 onResetPassword={(curP, newP) => handleResetPassword(curP, newP)}
                 onToggleAutoPayout={handleToggleAutoPayout}

@@ -344,13 +344,6 @@ export default function LandingPage({
         <span className="text-neutral-300 shrink-0">
           BAYAR DI TEMPAT (COD) TERSEDIA
         </span>
-        <span className="text-neutral-600 shrink-0">•</span>
-        <button
-          onClick={() => setIsWorkflowModalOpen(true)}
-          className="bg-[#C41230] text-white px-2.5 py-0.5 font-black text-[9px] tracking-wider uppercase rounded-xs shrink-0 hover:bg-[#A00E26] transition flex items-center gap-1 cursor-pointer"
-        >
-          <FileText className="w-3 h-3" /> ALUR KERJA SISTEM (PDF)
-        </button>
       </div>
 
       {/* 2. Main E-Commerce Header Navigation (Sticky) */}
@@ -422,12 +415,6 @@ export default function LandingPage({
               className="text-xs font-black uppercase tracking-widest text-neutral-600 hover:text-neutral-900 transition flex items-center gap-1.5 border-l border-neutral-200 pl-4 text-left"
             >
               <Truck className="w-4 h-4 text-[#C41230]" /> TRACK PESANAN
-            </button>
-            <button
-              onClick={() => setIsWorkflowModalOpen(true)}
-              className="text-xs font-black uppercase tracking-widest text-neutral-800 hover:text-[#C41230] transition flex items-center gap-1.5 bg-neutral-100 px-3 py-1.5 rounded border border-neutral-200 text-left shrink-0"
-            >
-              <FileText className="w-4 h-4 text-[#C41230]" /> ALUR KERJA (PDF)
             </button>
           </nav>
 
@@ -1443,7 +1430,6 @@ export default function LandingPage({
               <h4 className="font-black text-white uppercase tracking-wider">LAYANAN PELANGGAN</h4>
               <ul className="space-y-1.5">
                 <li><button onClick={() => setIsTrackModalOpen(true)} className="hover:text-white transition">Lacak Status Pengiriman</button></li>
-                <li><button onClick={() => setIsWorkflowModalOpen(true)} className="text-[#C41230] font-black hover:underline transition flex items-center gap-1"><FileText className="w-3.5 h-3.5" /> Bagan Alur Kerja System (PDF)</button></li>
                 <li><a href="#tentang-kami" onClick={() => document.getElementById('tentang-kami')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Panduan Ukuran (Size Guide)</a></li>
                 <li><a href="#faq-section" onClick={() => document.getElementById('faq-section')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Pertanyaan FAQ & Komisi</a></li>
                 <li><a href="#tentang-kami" onClick={() => document.getElementById('tentang-kami')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Kebijakan Privasi</a></li>
@@ -1481,13 +1467,6 @@ export default function LandingPage({
 
         </div>
       </footer>
-
-      {/* Workflow Diagram & PDF Generator Modal */}
-      <WorkflowModal
-        isOpen={isWorkflowModalOpen}
-        onClose={() => setIsWorkflowModalOpen(false)}
-        webName={settings?.webName || "HEDTRO JEANS"}
-      />
 
     </div>
   );
