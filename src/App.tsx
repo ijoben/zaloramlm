@@ -2432,15 +2432,27 @@ export default function App() {
 
       if (category === 'members') {
         if (db) {
-          const snapshot = await getDocs(collection(db, "users"));
-          for (const docSnap of snapshot.docs) {
-            const data = docSnap.data();
-            if (data.role !== 'admin' && Number(data.id) !== 1 && data.username !== 'admin') {
-              await deleteDoc(doc(db, "users", docSnap.id));
+          try {
+            const snapshot = await withClientTimeout(getDocs(collection(db, "users")), 5000, "getDocs users reset");
+            if (snapshot && snapshot.docs) {
+              for (const docSnap of snapshot.docs) {
+                const data = docSnap.data();
+                if (data.role !== 'admin' && Number(data.id) !== 1 && data.username !== 'admin') {
+                  try {
+                    await deleteDoc(doc(db, "users", docSnap.id));
+                  } catch (err) {
+                    console.warn("Error deleting member doc from Firestore:", err);
+                  }
+                }
+              }
             }
+          } catch (err) {
+            console.warn("Error getting users collection for reset:", err);
           }
         }
-        await fetchDashboardData();
+        try {
+          await fetchDashboardData();
+        } catch (err) {}
         return true;
       }
 
@@ -2479,72 +2491,84 @@ export default function App() {
           companyBankInstruction: 'Harap transfer sesuai nominal tepat dan cantumkan Username pada berita transfer.'
         };
         if (db) {
-          await setDoc(doc(db, "settings", "system"), defaultSettings);
+          try {
+            await setDoc(doc(db, "settings", "system"), defaultSettings);
+          } catch (err) {}
         }
         setSystemSettings(defaultSettings);
-        await fetchDashboardData();
+        try {
+          await fetchDashboardData();
+        } catch (err) {}
         return true;
       }
 
       if (category === 'mlm_network') {
-        const currentFsUsers = await fetchFirestoreUsers();
-        const updatedUsers = currentFsUsers.map(u => {
-          if (u.role === 'admin' || Number(u.id) === 1) {
+        try {
+          const currentFsUsers = await fetchFirestoreUsers();
+          const updatedUsers = currentFsUsers.map(u => {
+            if (u.role === 'admin' || Number(u.id) === 1) {
+              return {
+                ...u,
+                left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
+                sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
+              };
+            }
             return {
               ...u,
-              left_count: 0,
-              right_count: 0,
-              left_sales: 0,
-              right_sales: 0,
-              sponsor_bonus: 0,
-              pairing_bonus: 0,
-              level_bonus: 0,
-              ro_bonus: 0
+              upline_id: 1, sponsor_id: 1, position: 'L' as 'L' | 'R',
+              left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
+              balance: 0, sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
             };
-          }
-          return {
-            ...u,
-            upline_id: 1,
-            sponsor_id: 1,
-            position: 'L' as 'L' | 'R',
-            left_count: 0,
-            right_count: 0,
-            left_sales: 0,
-            right_sales: 0,
-            balance: 0,
-            sponsor_bonus: 0,
-            pairing_bonus: 0,
-            level_bonus: 0,
-            ro_bonus: 0
-          };
-        });
+          });
 
-        if (db) {
-          for (const u of updatedUsers) {
-            await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
+          if (db) {
+            for (const u of updatedUsers) {
+              try {
+                await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
+              } catch (err) {}
+            }
           }
-        }
-        await fetchDashboardData();
+        } catch (err) {}
+        try {
+          await fetchDashboardData();
+        } catch (err) {}
         return true;
       }
 
       if (category === 'sales') {
         if (db) {
-          const ordSnap = await getDocs(collection(db, "orders"));
-          for (const d of ordSnap.docs) await deleteDoc(doc(db, "orders", d.id));
-
-          const txSnap = await getDocs(collection(db, "transactions"));
-          for (const d of txSnap.docs) await deleteDoc(doc(db, "transactions", d.id));
-
-          const depSnap = await getDocs(collection(db, "deposits"));
-          for (const d of depSnap.docs) await deleteDoc(doc(db, "deposits", d.id));
-
-          const wdSnap = await getDocs(collection(db, "withdrawals"));
-          for (const d of wdSnap.docs) await deleteDoc(doc(db, "withdrawals", d.id));
+          try {
+            const ordSnap = await withClientTimeout(getDocs(collection(db, "orders")), 5000, "getDocs orders reset");
+            if (ordSnap && ordSnap.docs) {
+              for (const d of ordSnap.docs) {
+                try { await deleteDoc(doc(db, "orders", d.id)); } catch (err) {}
+              }
+            }
+            const txSnap = await withClientTimeout(getDocs(collection(db, "transactions")), 5000, "getDocs tx reset");
+            if (txSnap && txSnap.docs) {
+              for (const d of txSnap.docs) {
+                try { await deleteDoc(doc(db, "transactions", d.id)); } catch (err) {}
+              }
+            }
+            const depSnap = await withClientTimeout(getDocs(collection(db, "deposits")), 5000, "getDocs dep reset");
+            if (depSnap && depSnap.docs) {
+              for (const d of depSnap.docs) {
+                try { await deleteDoc(doc(db, "deposits", d.id)); } catch (err) {}
+              }
+            }
+            const wdSnap = await withClientTimeout(getDocs(collection(db, "withdrawals")), 5000, "getDocs wd reset");
+            if (wdSnap && wdSnap.docs) {
+              for (const d of wdSnap.docs) {
+                try { await deleteDoc(doc(db, "withdrawals", d.id)); } catch (err) {}
+              }
+            }
+          } catch (err) {}
         }
 
         setOrders([]);
-        await fetchDashboardData();
+        try {
+          await fetchDashboardData();
+        } catch (err) {}
         return true;
       }
       return false;
@@ -2570,37 +2594,41 @@ export default function App() {
       if (category === 'members' && Array.isArray(data)) {
         const restoredUsers: MLMUser[] = data;
         if (db) {
-          const snapshot = await getDocs(collection(db, "users"));
-          for (const docSnap of snapshot.docs) {
-            const d = docSnap.data();
-            if (d.role !== 'admin' && Number(d.id) !== 1 && d.username !== 'admin') {
-              await deleteDoc(doc(db, "users", docSnap.id));
+          try {
+            const snapshot = await withClientTimeout(getDocs(collection(db, "users")), 5000, "getDocs users restore");
+            if (snapshot && snapshot.docs) {
+              for (const docSnap of snapshot.docs) {
+                const d = docSnap.data();
+                if (d.role !== 'admin' && Number(d.id) !== 1 && d.username !== 'admin') {
+                  try { await deleteDoc(doc(db, "users", docSnap.id)); } catch (err) {}
+                }
+              }
             }
-          }
-          for (const u of restoredUsers) {
-            await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
-          }
+            for (const u of restoredUsers) {
+              try { await setDoc(doc(db, "users", String(u.id)), u, { merge: true }); } catch (err) {}
+            }
+          } catch (err) {}
         }
-        await fetchDashboardData();
+        try { await fetchDashboardData(); } catch (err) {}
         return true;
       }
 
       if (category === 'web_settings' && data && typeof data === 'object') {
         if (db) {
-          await setDoc(doc(db, "settings", "system"), data, { merge: true });
+          try { await setDoc(doc(db, "settings", "system"), data, { merge: true }); } catch (err) {}
         }
         setSystemSettings((prev: any) => ({ ...prev, ...data }));
-        await fetchDashboardData();
+        try { await fetchDashboardData(); } catch (err) {}
         return true;
       }
 
       if (category === 'mlm_network' && Array.isArray(data)) {
         if (db) {
           for (const u of data) {
-            await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
+            try { await setDoc(doc(db, "users", String(u.id)), u, { merge: true }); } catch (err) {}
           }
         }
-        await fetchDashboardData();
+        try { await fetchDashboardData(); } catch (err) {}
         return true;
       }
 
@@ -2608,28 +2636,35 @@ export default function App() {
         const { orders: restOrders, transactions: restTxs, deposits: restDeps, withdrawals: restWds } = data;
 
         if (db) {
-          const ordSnap = await getDocs(collection(db, "orders"));
-          for (const d of ordSnap.docs) await deleteDoc(doc(db, "orders", d.id));
+          try {
+            const ordSnap = await withClientTimeout(getDocs(collection(db, "orders")), 5000, "getDocs restore orders");
+            if (ordSnap && ordSnap.docs) {
+              for (const d of ordSnap.docs) { try { await deleteDoc(doc(db, "orders", d.id)); } catch (err) {} }
+            }
+            const txSnap = await withClientTimeout(getDocs(collection(db, "transactions")), 5000, "getDocs restore tx");
+            if (txSnap && txSnap.docs) {
+              for (const d of txSnap.docs) { try { await deleteDoc(doc(db, "transactions", d.id)); } catch (err) {} }
+            }
+            const depSnap = await withClientTimeout(getDocs(collection(db, "deposits")), 5000, "getDocs restore dep");
+            if (depSnap && depSnap.docs) {
+              for (const d of depSnap.docs) { try { await deleteDoc(doc(db, "deposits", d.id)); } catch (err) {} }
+            }
+            const wdSnap = await withClientTimeout(getDocs(collection(db, "withdrawals")), 5000, "getDocs restore wd");
+            if (wdSnap && wdSnap.docs) {
+              for (const d of wdSnap.docs) { try { await deleteDoc(doc(db, "withdrawals", d.id)); } catch (err) {} }
+            }
 
-          const txSnap = await getDocs(collection(db, "transactions"));
-          for (const d of txSnap.docs) await deleteDoc(doc(db, "transactions", d.id));
-
-          const depSnap = await getDocs(collection(db, "deposits"));
-          for (const d of depSnap.docs) await deleteDoc(doc(db, "deposits", d.id));
-
-          const wdSnap = await getDocs(collection(db, "withdrawals"));
-          for (const d of wdSnap.docs) await deleteDoc(doc(db, "withdrawals", d.id));
-
-          if (Array.isArray(restOrders)) for (const o of restOrders) await setDoc(doc(db, "orders", String(o.id)), o, { merge: true });
-          if (Array.isArray(restTxs)) for (const t of restTxs) await setDoc(doc(db, "transactions", String(t.id)), t, { merge: true });
-          if (Array.isArray(restDeps)) for (const d of restDeps) await setDoc(doc(db, "deposits", String(d.id)), d, { merge: true });
-          if (Array.isArray(restWds)) for (const w of restWds) await setDoc(doc(db, "withdrawals", String(w.id)), w, { merge: true });
+            if (Array.isArray(restOrders)) for (const o of restOrders) { try { await setDoc(doc(db, "orders", String(o.id)), o, { merge: true }); } catch (err) {} }
+            if (Array.isArray(restTxs)) for (const t of restTxs) { try { await setDoc(doc(db, "transactions", String(t.id)), t, { merge: true }); } catch (err) {} }
+            if (Array.isArray(restDeps)) for (const d of restDeps) { try { await setDoc(doc(db, "deposits", String(d.id)), d, { merge: true }); } catch (err) {} }
+            if (Array.isArray(restWds)) for (const w of restWds) { try { await setDoc(doc(db, "withdrawals", String(w.id)), w, { merge: true }); } catch (err) {} }
+          } catch (err) {}
         }
 
         if (Array.isArray(restOrders)) {
           setOrders(restOrders);
         }
-        await fetchDashboardData();
+        try { await fetchDashboardData(); } catch (err) {}
         return true;
       }
 
