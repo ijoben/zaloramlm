@@ -281,6 +281,40 @@ export default function UserDashboard({
   const [isUploadingProof, setIsUploadingProof] = useState<boolean>(false);
   const [viewProofModalImage, setViewProofModalImage] = useState<string | null>(null);
 
+  const compressImageFile = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 900;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+          } else {
+            resolve((e.target?.result as string) || '');
+          }
+        };
+        img.onerror = () => resolve((e.target?.result as string) || '');
+        img.src = (e.target?.result as string) || '';
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleUserSyncTracking = async (ord: Order) => {
     setSyncingOrderId(ord.id);
     try {
@@ -4401,6 +4435,7 @@ export default function UserDashboard({
               </div>
 
               {/* Form Upload */}
+              {/* Form Upload Deposit Proof */}
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
@@ -4426,24 +4461,21 @@ export default function UserDashboard({
               >
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Upload Foto / Struk Bukti Transfer:
+                    Upload Foto / Struk Bukti Transfer Deposit:
                   </label>
                   <input
                     type="file"
                     accept="image/*"
                     required
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        if (file.size > 5 * 1024 * 1024) {
-                          alert("Ukuran gambar maksimal 5MB!");
-                          return;
+                        try {
+                          const compressed = await compressImageFile(file);
+                          setProofImageInput(compressed);
+                        } catch (err) {
+                          console.warn("Compression warning:", err);
                         }
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setProofImageInput(reader.result as string);
-                        };
-                        reader.readAsDataURL(file);
                       }
                     }}
                     className="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer"
@@ -4524,7 +4556,7 @@ export default function UserDashboard({
                 </div>
               </div>
 
-              {/* Form Upload */}
+              {/* Form Upload Order RO Proof */}
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
@@ -4550,24 +4582,21 @@ export default function UserDashboard({
               >
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Upload Foto / Struk Bukti Transfer:
+                    Upload Foto / Struk Bukti Transfer Pesanan RO:
                   </label>
                   <input
                     type="file"
                     accept="image/*"
                     required
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        if (file.size > 5 * 1024 * 1024) {
-                          alert("Ukuran gambar maksimal 5MB!");
-                          return;
+                        try {
+                          const compressed = await compressImageFile(file);
+                          setProofImageInput(compressed);
+                        } catch (err) {
+                          console.warn("Compression warning:", err);
                         }
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setProofImageInput(reader.result as string);
-                        };
-                        reader.readAsDataURL(file);
                       }
                     }}
                     className="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer"

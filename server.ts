@@ -3469,17 +3469,17 @@ async function initFirestoreData() {
   try {
     // 1. Users
     try {
-      const usersSnap: any = await withTimeout(getDocs(collection(firestoreDb, "users")), 1200, "getDocs users");
+      const usersSnap: any = await withTimeout(getDocs(collection(firestoreDb, "users")), 6000, "getDocs users");
       if (usersSnap && !usersSnap.empty) {
+        const loadedUsers: MLMUser[] = [];
         usersSnap.forEach((docSnap: any) => {
           try {
             const u = docSnap.data() as MLMUser;
             const rawId = u && u.id !== undefined && u.id !== null ? u.id : docSnap.id;
             const uId = Number(rawId);
             if (isNaN(uId)) return;
-            const uUsername = (u.username || "").toLowerCase().trim();
 
-            const normalizedLoadedUser: MLMUser = {
+            loadedUsers.push({
               ...u,
               id: uId,
               username: u.username || docSnap.id || `user_${uId}`,
@@ -3499,26 +3499,14 @@ async function initFirestoreData() {
               level_bonus: Number(u.level_bonus) || 0,
               ro_bonus: Number(u.ro_bonus) || 0,
               position: u.position || "L"
-            };
-
-            const idx = users.findIndex(x => 
-              Number(x.id) === uId || 
-              (x.username && x.username.toLowerCase().trim() === uUsername && uUsername !== "")
-            );
-            if (idx >= 0) {
-              users[idx] = { ...users[idx], ...normalizedLoadedUser };
-            } else {
-              users.push(normalizedLoadedUser);
-            }
+            });
           } catch (e) {
             console.warn("User parse error in Firestore sync:", e);
           }
         });
-        console.log(`🔥 Loaded ${usersSnap.size} users from Firestore into memory`);
-      } else if (usersSnap && usersSnap.empty) {
-        // Collection explicitly empty -> seed initial demo users once
-        for (const u of users) {
-          syncUserToFirestore(u).catch(() => {});
+        if (loadedUsers.length > 0) {
+          users = loadedUsers;
+          console.log(`🔥 Loaded ${loadedUsers.length} users from Firestore into memory`);
         }
       }
     } catch (e) {
@@ -3531,9 +3519,6 @@ async function initFirestoreData() {
       if (settingsDoc && settingsDoc.exists && typeof settingsDoc.exists === 'function' && settingsDoc.exists()) {
         systemSettings = { ...systemSettings, ...settingsDoc.data() };
         console.log("🔥 Loaded system settings from Firestore");
-      } else if (settingsDoc && settingsDoc.exists && typeof settingsDoc.exists === 'function' && !settingsDoc.exists()) {
-        // Explicitly does not exist in Firestore -> seed once
-        syncSettingsToFirestore(systemSettings).catch(() => {});
       }
     } catch (e) {
       console.warn("Firestore settings load warning:", e);
@@ -3543,19 +3528,17 @@ async function initFirestoreData() {
     try {
       const prodSnap: any = await withTimeout(getDocs(collection(firestoreDb, "products")), 5000, "getDocs products");
       if (prodSnap && !prodSnap.empty) {
+        const loadedProds: Product[] = [];
         prodSnap.forEach((docSnap: any) => {
           const p = docSnap.data() as Product;
           if (!p) return;
           const rawId = p.id !== undefined && p.id !== null ? p.id : docSnap.id;
           const pId = Number(rawId);
           if (isNaN(pId)) return;
-          const idx = products.findIndex(x => Number(x.id) === pId);
-          if (idx >= 0) products[idx] = { ...products[idx], ...p, id: pId };
-          else products.push({ ...p, id: pId });
+          loadedProds.push({ ...p, id: pId });
         });
-      } else if (prodSnap && prodSnap.empty) {
-        for (const p of products) {
-          syncProductToFirestore(p).catch(() => {});
+        if (loadedProds.length > 0) {
+          products = loadedProds;
         }
       }
     } catch (e) {
@@ -3566,20 +3549,16 @@ async function initFirestoreData() {
     try {
       const depSnap: any = await withTimeout(getDocs(collection(firestoreDb, "deposits")), 5000, "getDocs deposits");
       if (depSnap && !depSnap.empty) {
+        const loadedDeps: DepositRequest[] = [];
         depSnap.forEach((docSnap: any) => {
           const d = docSnap.data() as DepositRequest;
           if (!d) return;
           const rawId = d.id !== undefined && d.id !== null ? d.id : docSnap.id;
           const dId = Number(rawId);
           if (isNaN(dId)) return;
-          const idx = deposits.findIndex(x => Number(x.id) === dId);
-          if (idx >= 0) deposits[idx] = { ...deposits[idx], ...d, id: dId };
-          else deposits.push({ ...d, id: dId });
+          loadedDeps.push({ ...d, id: dId });
         });
-      } else if (depSnap && depSnap.empty) {
-        for (const d of deposits) {
-          syncDepositToFirestore(d).catch(() => {});
-        }
+        deposits = loadedDeps;
       }
     } catch (e) {
       console.warn("Firestore deposits sync error:", e);
@@ -3589,20 +3568,16 @@ async function initFirestoreData() {
     try {
       const wdSnap: any = await withTimeout(getDocs(collection(firestoreDb, "withdrawals")), 5000, "getDocs withdrawals");
       if (wdSnap && !wdSnap.empty) {
+        const loadedWds: WDRequest[] = [];
         wdSnap.forEach((docSnap: any) => {
           const w = docSnap.data() as WDRequest;
           if (!w) return;
           const rawId = w.id !== undefined && w.id !== null ? w.id : docSnap.id;
           const wId = Number(rawId);
           if (isNaN(wId)) return;
-          const idx = withdrawals.findIndex(x => Number(x.id) === wId);
-          if (idx >= 0) withdrawals[idx] = { ...withdrawals[idx], ...w, id: wId };
-          else withdrawals.push({ ...w, id: wId });
+          loadedWds.push({ ...w, id: wId });
         });
-      } else if (wdSnap && wdSnap.empty) {
-        for (const w of withdrawals) {
-          syncWithdrawalToFirestore(w).catch(() => {});
-        }
+        withdrawals = loadedWds;
       }
     } catch (e) {
       console.warn("Firestore withdrawals sync error:", e);
@@ -3612,20 +3587,16 @@ async function initFirestoreData() {
     try {
       const txSnap: any = await withTimeout(getDocs(collection(firestoreDb, "transactions")), 5000, "getDocs transactions");
       if (txSnap && !txSnap.empty) {
+        const loadedTxs: Transaction[] = [];
         txSnap.forEach((docSnap: any) => {
           const t = docSnap.data() as Transaction;
           if (!t) return;
           const rawId = t.id !== undefined && t.id !== null ? t.id : docSnap.id;
           const tId = Number(rawId);
           if (isNaN(tId)) return;
-          const idx = transactions.findIndex(x => Number(x.id) === tId);
-          if (idx >= 0) transactions[idx] = { ...transactions[idx], ...t, id: tId };
-          else transactions.push({ ...t, id: tId });
+          loadedTxs.push({ ...t, id: tId });
         });
-      } else if (txSnap && txSnap.empty) {
-        for (const t of transactions) {
-          syncTransactionToFirestore(t).catch(() => {});
-        }
+        transactions = loadedTxs;
       }
     } catch (e) {
       console.warn("Firestore transactions sync error:", e);
@@ -3635,20 +3606,16 @@ async function initFirestoreData() {
     try {
       const notifSnap: any = await withTimeout(getDocs(collection(firestoreDb, "notifications")), 5000, "getDocs notifications");
       if (notifSnap && !notifSnap.empty) {
+        const loadedNotifs: MLMNotification[] = [];
         notifSnap.forEach((docSnap: any) => {
           const n = docSnap.data() as MLMNotification;
           if (!n) return;
           const rawId = n.id !== undefined && n.id !== null ? n.id : docSnap.id;
           const nId = Number(rawId);
           if (isNaN(nId)) return;
-          const idx = notifications.findIndex(x => Number(x.id) === nId);
-          if (idx >= 0) notifications[idx] = { ...notifications[idx], ...n, id: nId };
-          else notifications.push({ ...n, id: nId });
+          loadedNotifs.push({ ...n, id: nId });
         });
-      } else if (notifSnap && notifSnap.empty) {
-        for (const n of notifications) {
-          syncNotificationToFirestore(n).catch(() => {});
-        }
+        notifications = loadedNotifs;
       }
     } catch (e) {
       console.warn("Firestore notifications sync error:", e);
@@ -3658,20 +3625,16 @@ async function initFirestoreData() {
     try {
       const orderSnap: any = await withTimeout(getDocs(collection(firestoreDb, "orders")), 5000, "getDocs orders");
       if (orderSnap && !orderSnap.empty) {
+        const loadedOrders: Order[] = [];
         orderSnap.forEach((docSnap: any) => {
           const o = docSnap.data() as Order;
           if (!o) return;
           const rawId = o.id !== undefined && o.id !== null ? o.id : docSnap.id;
           const oId = Number(rawId);
           if (isNaN(oId)) return;
-          const idx = orders.findIndex(x => Number(x.id) === oId);
-          if (idx >= 0) orders[idx] = { ...orders[idx], ...o, id: oId };
-          else orders.push({ ...o, id: oId });
+          loadedOrders.push({ ...o, id: oId });
         });
-      } else if (orderSnap && orderSnap.empty) {
-        for (const o of orders) {
-          syncOrderToFirestore(o).catch(() => {});
-        }
+        orders = loadedOrders;
       }
     } catch (e) {
       console.warn("Firestore orders sync error:", e);
