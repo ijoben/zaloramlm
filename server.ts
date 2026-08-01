@@ -2454,6 +2454,156 @@ app.post("/api/user/orders/confirm-proof", async (req, res) => {
   }
 });
 
+// Admin Reset Database Category
+app.post(["/api/admin/reset-database", "/admin/reset-database"], async (req, res) => {
+  try {
+    const { category } = req.body || {};
+    console.log("🧹 [API] Resetting database category:", category);
+
+    if (category === 'members') {
+      users = users.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
+      if (firestoreDb) {
+        try {
+          const snap = await getDocs(collection(firestoreDb, "users"));
+          for (const docSnap of snap.docs) {
+            const data = docSnap.data();
+            if (data.role !== 'admin' && Number(data.id) !== 1 && data.username !== 'admin') {
+              await deleteDoc(doc(firestoreDb, "users", docSnap.id)).catch(() => {});
+            }
+          }
+        } catch (e) {
+          console.warn("Firestore reset members warn:", e);
+        }
+      }
+      return res.json({ message: "Berhasil mereset data member (selain admin)!", users });
+    }
+
+    if (category === 'sales') {
+      orders = [];
+      transactions = [];
+      deposits = [];
+      withdrawals = [];
+      if (firestoreDb) {
+        try {
+          const ordSnap = await getDocs(collection(firestoreDb, "orders"));
+          for (const d of ordSnap.docs) await deleteDoc(doc(firestoreDb, "orders", d.id)).catch(() => {});
+          const txSnap = await getDocs(collection(firestoreDb, "transactions"));
+          for (const d of txSnap.docs) await deleteDoc(doc(firestoreDb, "transactions", d.id)).catch(() => {});
+          const depSnap = await getDocs(collection(firestoreDb, "deposits"));
+          for (const d of depSnap.docs) await deleteDoc(doc(firestoreDb, "deposits", d.id)).catch(() => {});
+          const wdSnap = await getDocs(collection(firestoreDb, "withdrawals"));
+          for (const d of wdSnap.docs) await deleteDoc(doc(firestoreDb, "withdrawals", d.id)).catch(() => {});
+        } catch (e) {
+          console.warn("Firestore reset sales warn:", e);
+        }
+      }
+      return res.json({ message: "Berhasil mereset data penjualan!", orders, transactions, deposits, withdrawals });
+    }
+
+    if (category === 'mlm_network') {
+      users = users.map(u => {
+        if (u.role === 'admin' || Number(u.id) === 1) {
+          return {
+            ...u,
+            left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
+            sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
+          };
+        }
+        return {
+          ...u,
+          upline_id: 1, sponsor_id: 1, position: 'L',
+          left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
+          balance: 0, sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
+        };
+      });
+      if (firestoreDb) {
+        for (const u of users) {
+          await setDoc(doc(firestoreDb, "users", String(u.id)), u, { merge: true }).catch(() => {});
+        }
+      }
+      return res.json({ message: "Berhasil mereset jaringan MLM!", users });
+    }
+
+    if (category === 'web_settings') {
+      systemSettings = {
+        webName: "Hedtro Jeans Official",
+        logoText: "HEDTRO.JEANS",
+        memberIdPrefix: "HDT-",
+        slogan: "OFFICIAL STORE & AFILIASI RESELLER",
+        siteDescription: "Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis Afiliasi Reseller Terpercaya.",
+        enableMlmBonus: true,
+        enableLevelBonus: true,
+        enableRewardBonus: true,
+        sponsorBonus: 20000,
+        pairingBonus: 10000,
+        roBonus: 5000,
+        companyBankName: 'BCA',
+        companyBankAccount: '1234-5678-90',
+        companyBankHolder: 'PT HEDTRO JEANS INDONESIA'
+      };
+      if (firestoreDb) {
+        await setDoc(doc(firestoreDb, "settings", "system"), systemSettings).catch(() => {});
+      }
+      return res.json({ message: "Berhasil mereset pengaturan web!", settings: systemSettings });
+    }
+
+    res.status(400).json({ message: "Kategori reset tidak dikenal" });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal mereset database: " + err.message });
+  }
+});
+
+// Admin Delete Individual Item Endpoints
+app.post(["/api/admin/users/delete", "/admin/users/delete"], async (req, res) => {
+  const { id } = req.body || {};
+  const numId = Number(id);
+  users = users.filter(u => Number(u.id) !== numId && String(u.id) !== String(id));
+  if (firestoreDb) {
+    await deleteDoc(doc(firestoreDb, "users", String(id))).catch(() => {});
+  }
+  res.json({ message: `Member ${id} berhasil dihapus`, users });
+});
+
+app.post(["/api/admin/deposits/delete", "/admin/deposits/delete"], async (req, res) => {
+  const { id } = req.body || {};
+  const numId = Number(id);
+  deposits = deposits.filter(d => Number(d.id) !== numId && String(d.id) !== String(id));
+  if (firestoreDb) {
+    await deleteDoc(doc(firestoreDb, "deposits", String(id))).catch(() => {});
+  }
+  res.json({ message: `Deposit ${id} berhasil dihapus`, deposits });
+});
+
+app.post(["/api/admin/withdrawals/delete", "/admin/withdrawals/delete"], async (req, res) => {
+  const { id } = req.body || {};
+  const numId = Number(id);
+  withdrawals = withdrawals.filter(w => Number(w.id) !== numId && String(w.id) !== String(id));
+  if (firestoreDb) {
+    await deleteDoc(doc(firestoreDb, "withdrawals", String(id))).catch(() => {});
+  }
+  res.json({ message: `Withdrawal ${id} berhasil dihapus`, withdrawals });
+});
+
+app.post(["/api/admin/orders/delete", "/admin/orders/delete"], async (req, res) => {
+  const { id } = req.body || {};
+  const numId = Number(id);
+  orders = orders.filter(o => Number(o.id) !== numId && String(o.id) !== String(id));
+  if (firestoreDb) {
+    await deleteDoc(doc(firestoreDb, "orders", String(id))).catch(() => {});
+  }
+  res.json({ message: `Order ${id} berhasil dihapus`, orders });
+});
+
+app.post(["/api/admin/products/delete", "/admin/products/delete"], async (req, res) => {
+  const { id } = req.body || {};
+  const numId = Number(id);
+  products = products.filter(p => Number(p.id) !== numId && String(p.id) !== String(id));
+  if (firestoreDb) {
+    await deleteDoc(doc(firestoreDb, "products", String(id))).catch(() => {});
+  }
+  res.json({ message: `Produk ${id} berhasil dihapus`, products });
+});
+
 // Admin Restore Database Category
 app.post("/api/admin/restore-database", async (req, res) => {
   try {
