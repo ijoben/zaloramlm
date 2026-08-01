@@ -109,11 +109,17 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
       }
     }
 
-    const finalUsers = Array.from(usersMap.values());
+    let finalUsers = Array.from(usersMap.values());
+    if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_members') === 'true') {
+      finalUsers = finalUsers.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
+    }
     finalUsers.sort((a, b) => Number(a.id) - Number(b.id));
     return finalUsers;
   } catch (err: any) {
     console.error("❌ [fetchFirestoreUsers] Error reading 'users' from Firestore:", err);
+    if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_members') === 'true') {
+      return DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
+    }
     return DEFAULT_USERS;
   }
 }
@@ -426,6 +432,9 @@ async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
 }
 
 async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
+  if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_sales') === 'true') {
+    return [];
+  }
   if (!db) return [];
 
   try {
@@ -491,6 +500,9 @@ async function updateFirestoreWithdrawalStatus(wdId: number, status: 'approved' 
 }
 
 async function fetchFirestoreTransactions(): Promise<Transaction[]> {
+  if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_sales') === 'true') {
+    return [];
+  }
   if (!db) return [];
 
   try {
@@ -529,6 +541,9 @@ async function createFirestoreTransaction(tx: Transaction): Promise<void> {
 }
 
 async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
+  if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_sales') === 'true') {
+    return [];
+  }
   if (!db) return [];
 
   try {
@@ -569,6 +584,9 @@ async function createFirestoreDeposit(dep: DepositRequest): Promise<void> {
 }
 
 async function fetchFirestoreOrders(): Promise<Order[]> {
+  if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_sales') === 'true') {
+    return [];
+  }
   if (!db) return DEFAULT_ORDERS;
 
   try {
@@ -1076,21 +1094,40 @@ export default function App() {
   };
 
   const handleDeleteOrder = async (orderId: number | string): Promise<boolean> => {
+    const numId = Number(orderId);
     try {
       await fetch("/api/admin/orders/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: orderId })
-      });
-    } catch {}
+      }).catch(e => console.warn("Delete order API warning:", e));
 
-    setOrders(prev => prev.filter(o => Number(o.id) !== Number(orderId)));
-    if (db) {
-      try {
-        await deleteDoc(doc(db, "orders", String(orderId)));
-      } catch {}
+      if (db) {
+        try {
+          await deleteDoc(doc(db, "orders", String(orderId)));
+        } catch (err) {
+          console.warn("Firestore delete order doc warning:", err);
+        }
+      }
+
+      setOrders(prev => prev.filter(o => Number(o.id) !== numId && String(o.id) !== String(orderId)));
+
+      setAdminDashboardData(prev => prev ? ({
+        ...prev,
+        orders: prev.orders ? prev.orders.filter(o => Number(o.id) !== numId && String(o.id) !== String(orderId)) : []
+      }) : null);
+
+      setUserDashboardData(prev => prev ? ({
+        ...prev,
+        orders: prev.orders ? prev.orders.filter(o => Number(o.id) !== numId && String(o.id) !== String(orderId)) : []
+      }) : null);
+
+      await fetchDashboardData();
+      return true;
+    } catch (err) {
+      console.error("Error deleting order:", err);
+      return false;
     }
-    return true;
   };
 
   // Real-time Firestore subscription for System Settings
@@ -2354,15 +2391,23 @@ export default function App() {
 
       setAdminDashboardData(prev => {
         if (!prev) return null;
+        const newUsers = prev.users
+          .filter(u => Number(u.id) !== targetNumId && String(u.id) !== String(userId))
+          .map(u => ({
+            ...u,
+            upline_id: Number(u.upline_id) === targetNumId ? 1 : u.upline_id,
+            sponsor_id: Number(u.sponsor_id) === targetNumId ? 1 : u.sponsor_id
+          }));
+        const activeCount = newUsers.filter(u => u.is_active).length;
         return {
           ...prev,
-          users: prev.users
-            .filter(u => Number(u.id) !== targetNumId && String(u.id) !== String(userId))
-            .map(u => ({
-              ...u,
-              upline_id: Number(u.upline_id) === targetNumId ? 1 : u.upline_id,
-              sponsor_id: Number(u.sponsor_id) === targetNumId ? 1 : u.sponsor_id
-            }))
+          metrics: {
+            ...prev.metrics,
+            totalMembers: newUsers.length,
+            activeMembers: activeCount,
+            inactiveMembers: newUsers.length - activeCount
+          },
+          users: newUsers
         };
       });
 
@@ -2375,19 +2420,32 @@ export default function App() {
   };
 
   const handleDeleteDeposit = async (depositId: number | string): Promise<boolean> => {
+    const numId = Number(depositId);
     try {
       await fetch("/api/admin/deposits/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: depositId })
-      });
-    } catch (e) {
-      console.warn("Delete deposit API warning:", e);
-    }
-    try {
+      }).catch(e => console.warn("Delete deposit API warning:", e));
+
       if (db) {
-        await deleteDoc(doc(db, "deposits", String(depositId)));
+        try {
+          await deleteDoc(doc(db, "deposits", String(depositId)));
+        } catch (err) {
+          console.warn("Firestore delete deposit doc warning:", err);
+        }
       }
+
+      setAdminDashboardData(prev => prev ? ({
+        ...prev,
+        deposits: prev.deposits.filter(d => Number(d.id) !== numId && String(d.id) !== String(depositId))
+      }) : null);
+
+      setUserDashboardData(prev => prev ? ({
+        ...prev,
+        deposits: prev.deposits.filter(d => Number(d.id) !== numId && String(d.id) !== String(depositId))
+      }) : null);
+
       await fetchDashboardData();
       return true;
     } catch (err) {
@@ -2397,19 +2455,32 @@ export default function App() {
   };
 
   const handleDeleteWithdrawal = async (wdId: number | string): Promise<boolean> => {
+    const numId = Number(wdId);
     try {
       await fetch("/api/admin/withdrawals/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: wdId })
-      });
-    } catch (e) {
-      console.warn("Delete withdrawal API warning:", e);
-    }
-    try {
+      }).catch(e => console.warn("Delete withdrawal API warning:", e));
+
       if (db) {
-        await deleteDoc(doc(db, "withdrawals", String(wdId)));
+        try {
+          await deleteDoc(doc(db, "withdrawals", String(wdId)));
+        } catch (err) {
+          console.warn("Firestore delete withdrawal doc warning:", err);
+        }
       }
+
+      setAdminDashboardData(prev => prev ? ({
+        ...prev,
+        withdrawals: prev.withdrawals.filter(w => Number(w.id) !== numId && String(w.id) !== String(wdId))
+      }) : null);
+
+      setUserDashboardData(prev => prev ? ({
+        ...prev,
+        withdrawals: prev.withdrawals.filter(w => Number(w.id) !== numId && String(w.id) !== String(wdId))
+      }) : null);
+
       await fetchDashboardData();
       return true;
     } catch (err) {
@@ -2450,6 +2521,24 @@ export default function App() {
             console.warn("Error getting users collection for reset:", err);
           }
         }
+
+        setAdminDashboardData(prev => {
+          if (!prev) return null;
+          const adminOnly = prev.users.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
+          return {
+            ...prev,
+            metrics: {
+              ...prev.metrics,
+              totalMembers: adminOnly.length,
+              activeMembers: adminOnly.filter(u => u.is_active).length,
+              inactiveMembers: 0,
+              totalTurnover: 0,
+              totalBonusesPaid: 0
+            },
+            users: adminOnly
+          };
+        });
+
         try {
           await fetchDashboardData();
         } catch (err) {}
@@ -2565,7 +2654,33 @@ export default function App() {
           } catch (err) {}
         }
 
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('zalora_orders');
+          localStorage.setItem('zalora_reset_sales', 'true');
+        }
+
         setOrders([]);
+        setAdminDashboardData(prev => prev ? ({
+          ...prev,
+          metrics: {
+            ...prev.metrics,
+            pendingWDCount: 0,
+            pendingWDAmount: 0
+          },
+          orders: [],
+          deposits: [],
+          withdrawals: [],
+          transactions: []
+        }) : null);
+
+        setUserDashboardData(prev => prev ? ({
+          ...prev,
+          orders: [],
+          deposits: [],
+          withdrawals: [],
+          transactions: []
+        }) : null);
+
         try {
           await fetchDashboardData();
         } catch (err) {}
@@ -2580,6 +2695,9 @@ export default function App() {
 
   const handleRestoreCategory = async (category: 'members' | 'web_settings' | 'mlm_network' | 'sales', data: any): Promise<boolean> => {
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`zalora_reset_${category}`);
+      }
       if (typeof window !== 'undefined') {
         localStorage.removeItem(`zalora_reset_${category}`);
         localStorage.setItem('zalora_db_initialized', 'true');
