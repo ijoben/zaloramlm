@@ -2245,6 +2245,100 @@ app.post("/api/admin/reset-database", async (req, res) => {
   }
 });
 
+// User Upload Proof of Payment / Transfer
+app.post("/api/user/deposit/confirm-proof", async (req, res) => {
+  try {
+    const { depositId, proofImage, proofNotes } = req.body;
+    const dep = deposits.find(d => Number(d.id) === Number(depositId));
+    if (!dep) {
+      return res.status(404).json({ message: "Data deposit tidak ditemukan" });
+    }
+    dep.proof_image = proofImage;
+    dep.proof_notes = proofNotes || '';
+    dep.proof_submitted_at = new Date().toISOString();
+    
+    if (firestoreDb) {
+      try {
+        await setDoc(doc(firestoreDb, "deposits", String(dep.id)), dep, { merge: true });
+      } catch (e) {
+        console.warn("Update deposit proof firestore warn:", e);
+      }
+    }
+    res.json({ message: "Bukti transfer berhasil dikirim! Menunggu konfirmasi Admin.", deposit: dep });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal mengirim bukti transfer: " + err.message });
+  }
+});
+
+// Admin Restore Database Category
+app.post("/api/admin/restore-database", async (req, res) => {
+  try {
+    const { category, data } = req.body;
+    if (category === 'members' && Array.isArray(data)) {
+      users = data;
+      if (firestoreDb) {
+        for (const u of users) {
+          await syncUserToFirestore(u);
+        }
+      }
+      return res.json({ message: "Berhasil restore data member!", users });
+    }
+
+    if (category === 'web_settings' && data && typeof data === 'object') {
+      systemSettings = { ...systemSettings, ...data };
+      if (firestoreDb) {
+        try {
+          await setDoc(doc(firestoreDb, "settings", "system"), systemSettings, { merge: true });
+        } catch (e) {
+          console.warn("Restore web_settings firestore warn:", e);
+        }
+      }
+      return res.json({ message: "Berhasil restore data pengaturan web!", settings: systemSettings });
+    }
+
+    if (category === 'mlm_network' && Array.isArray(data)) {
+      for (const item of data) {
+        const u = users.find(x => Number(x.id) === Number(item.id));
+        if (u) {
+          Object.assign(u, item);
+        } else {
+          users.push(item);
+        }
+      }
+      if (firestoreDb) {
+        for (const u of users) {
+          await syncUserToFirestore(u);
+        }
+      }
+      return res.json({ message: "Berhasil restore data jaringan MLM!", users });
+    }
+
+    if (category === 'sales' && data && typeof data === 'object') {
+      const { orders: restOrders, transactions: restTxs, deposits: restDeps, withdrawals: restWds } = data;
+      if (Array.isArray(restOrders)) orders = restOrders;
+      if (Array.isArray(restTxs)) transactions = restTxs;
+      if (Array.isArray(restDeps)) deposits = restDeps;
+      if (Array.isArray(restWds)) withdrawals = restWds;
+
+      if (firestoreDb) {
+        try {
+          if (Array.isArray(restOrders)) for (const o of restOrders) await setDoc(doc(firestoreDb, "orders", String(o.id)), o, { merge: true });
+          if (Array.isArray(restTxs)) for (const t of restTxs) await setDoc(doc(firestoreDb, "transactions", String(t.id)), t, { merge: true });
+          if (Array.isArray(restDeps)) for (const d of restDeps) await setDoc(doc(firestoreDb, "deposits", String(d.id)), d, { merge: true });
+          if (Array.isArray(restWds)) for (const w of restWds) await setDoc(doc(firestoreDb, "withdrawals", String(w.id)), w, { merge: true });
+        } catch (e) {
+          console.warn("Restore sales firestore warn:", e);
+        }
+      }
+      return res.json({ message: "Berhasil restore data penjualan!", orders, transactions, deposits, withdrawals });
+    }
+
+    res.status(400).json({ message: "Kategori restore tidak dikenal atau data tidak valid" });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal merestore database: " + err.message });
+  }
+});
+
 // Retrieve User Specific Data
 app.get(["/api/user/:userId/dashboard", "/user/:userId/dashboard"], async (req, res) => {
   try {

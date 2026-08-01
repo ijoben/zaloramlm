@@ -67,6 +67,9 @@ export interface DepositRequest {
   payment_code?: string;
   created_at: string;
   midtrans_order_id?: string;
+  proof_image?: string;
+  proof_notes?: string;
+  proof_submitted_at?: string;
 }
 
 export interface WDRequest {

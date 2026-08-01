@@ -203,6 +203,7 @@ export default function AdminDashboard({
   }, []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedUserDetail, setSelectedUserDetail] = useState<MLMUser | null>(null);
+  const [viewAdminProofImage, setViewAdminProofImage] = useState<string | null>(null);
 
   // Member CRUD states
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
@@ -2905,8 +2906,21 @@ export default function AdminDashboard({
                                       <span className="bg-slate-100 text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
                                         {dep.method.toUpperCase()}
                                       </span>
-                                      {dep.method.startsWith('manual') && (
-                                        <p className="text-[10px] text-amber-600 font-semibold mt-1 font-sans">Menunggu validasi mutasi bank</p>
+                                      {dep.proof_image ? (
+                                        <div className="mt-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => setViewAdminProofImage(dep.proof_image || null)}
+                                            className="bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 hover:bg-emerald-200 transition cursor-pointer"
+                                          >
+                                            <Eye className="w-3 h-3 text-emerald-700" /> Lihat Bukti Transfer
+                                          </button>
+                                          {dep.proof_notes && <p className="text-[9px] text-slate-500 italic mt-0.5">{dep.proof_notes}</p>}
+                                        </div>
+                                      ) : (
+                                        dep.method.startsWith('manual') && (
+                                          <p className="text-[10px] text-amber-600 font-semibold mt-1 font-sans">Belum kirim bukti</p>
+                                        )
                                       )}
                                     </td>
                                     <td className="px-4 py-3.5 font-mono">
@@ -6749,6 +6763,34 @@ export default function AdminDashboard({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN VIEW PROOF OF TRANSFER MODAL */}
+      {viewAdminProofImage && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-4" onClick={() => setViewAdminProofImage(null)}>
+          <div className="bg-white max-w-lg w-full rounded-2xl p-4 shadow-2xl relative animate-fadeIn text-center space-y-3" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setViewAdminProofImage(null)}
+              className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-900 rounded-full hover:bg-slate-100 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h4 className="font-extrabold text-sm text-slate-900 flex items-center justify-center gap-1.5">
+              <Camera className="w-4 h-4 text-emerald-600" /> Bukti Transfer Member
+            </h4>
+            <div className="bg-slate-100 rounded-xl overflow-hidden max-h-[70vh] flex items-center justify-center p-2 border border-slate-200">
+              <img src={viewAdminProofImage} alt="Bukti Transfer" className="max-h-[65vh] object-contain rounded-lg" />
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewAdminProofImage(null)}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs cursor-pointer"
+            >
+              Tutup Preview
+            </button>
           </div>
         </div>
       )}

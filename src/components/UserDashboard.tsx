@@ -40,6 +40,7 @@ interface UserDashboardProps {
     profile_photo?: string;
   }) => Promise<boolean>;
   onResetPassword?: (currentPass: string, newPass: string) => Promise<boolean>;
+  onConfirmDepositProof?: (depositId: number, proofImage: string, proofNotes?: string) => Promise<boolean>;
   serverUrl: string;
   settings?: any;
 }
@@ -63,6 +64,7 @@ export default function UserDashboard({
   onActivate,
   onUpdateProfile,
   onResetPassword,
+  onConfirmDepositProof,
   serverUrl,
   settings
 }: UserDashboardProps) {
@@ -266,6 +268,15 @@ export default function UserDashboard({
   const [purchasePaymentMethod, setPurchasePaymentMethod] = useState<'saldo' | 'transfer'>('saldo');
   const [purchaseAddress, setPurchaseAddress] = useState(user.address || '');
   const [addressSource, setAddressSource] = useState<'profile' | 'manual'>('profile');
+  const [selectedSize, setSelectedSize] = useState<string>("30");
+  const [selectedColor, setSelectedColor] = useState<string>("Deep Indigo Blue");
+
+  // Proof of Transfer Modal States
+  const [selectedProofDeposit, setSelectedProofDeposit] = useState<DepositRequest | null>(null);
+  const [proofImageInput, setProofImageInput] = useState<string>('');
+  const [proofNotesInput, setProofNotesInput] = useState<string>('');
+  const [isUploadingProof, setIsUploadingProof] = useState<boolean>(false);
+  const [viewProofModalImage, setViewProofModalImage] = useState<string | null>(null);
 
   const handleUserSyncTracking = async (ord: Order) => {
     setSyncingOrderId(ord.id);
@@ -525,14 +536,14 @@ export default function UserDashboard({
     }
   };
 
-  const handleProductPurchase = async (productId: number, method: 'saldo' | 'transfer' = 'saldo', addressInput?: string) => {
+  const handleProductPurchase = async (productId: number, method: 'saldo' | 'transfer' = 'saldo', addressInput?: string, sizeInput?: string, colorInput?: string) => {
     if (!user.is_active) {
       alert("Aktifkan akun premium Rp 550.000 terlebih dahulu untuk menikmati harga diskon member!");
       return;
     }
     setLoadingAction(true);
     try {
-      await onBuyProduct(productId, method, addressInput);
+      await onBuyProduct(productId, method, addressInput, sizeInput || selectedSize, colorInput || selectedColor);
       setStatusMessage({ text: "🎉 Pembelian Repeat Order (RO) berhasil! Pesanan telah masuk ke sistem pengiriman & terdaftar di Admin Area.", type: "success" });
       setPurchaseModalProduct(null);
       setActiveTab('orders');
@@ -2593,14 +2604,37 @@ export default function UserDashboard({
                                     <strong>Kode/VA VA:</strong> <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 block mt-1 break-all">{dep.payment_code}</code>
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    id={`btn-simulate-pay-${dep.id}`}
-                                    onClick={() => onSimulatePayment(dep.id)}
-                                    className="w-full bg-slate-900 hover:bg-slate-800 text-white text-[11px] py-2 rounded-lg font-bold transition flex items-center justify-center gap-1.5 shadow cursor-pointer"
-                                  >
-                                    <RefreshCw className="w-3 h-3 animate-spin" /> Simulasi Verifikasi Gateway Instan
-                                  </button>
+                                  {dep.proof_image ? (
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-900 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                                        <div>
+                                          <p className="font-extrabold text-[11px]">Bukti Transfer Terkirim</p>
+                                          <p className="text-[10px] text-emerald-700">Menunggu Verifikasi & Approval Admin</p>
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setViewProofModalImage(dep.proof_image || null)}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <Eye className="w-3 h-3" /> Lihat Bukti
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      id={`btn-confirm-proof-${dep.id}`}
+                                      onClick={() => {
+                                        setSelectedProofDeposit(dep);
+                                        setProofImageInput('');
+                                        setProofNotesInput('');
+                                      }}
+                                      className="w-full bg-[#C41230] hover:bg-[#a00e26] text-white text-xs py-2.5 rounded-xl font-extrabold transition flex items-center justify-center gap-2 shadow cursor-pointer uppercase tracking-wider"
+                                    >
+                                      <Camera className="w-4 h-4" /> Konfirmasi Pembayaran / Kirim Bukti Transfer
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -3664,10 +3698,65 @@ export default function UserDashboard({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  handleProductPurchase(purchaseModalProduct.id, purchasePaymentMethod, purchaseAddress);
+                  handleProductPurchase(purchaseModalProduct.id, purchasePaymentMethod, purchaseAddress, selectedSize, selectedColor);
                 }}
                 className="space-y-3"
               >
+                {/* Product Size & Color Selection */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                      <span>📏 Pilih Ukuran (Size):</span>
+                      <span className="text-blue-600 font-extrabold font-mono">Size {selectedSize}</span>
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(purchaseModalProduct.sizes && purchaseModalProduct.sizes.length > 0
+                        ? purchaseModalProduct.sizes
+                        : ["28", "29", "30", "31", "32", "33", "34", "35", "36"]
+                      ).map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => setSelectedSize(sz)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition font-mono border cursor-pointer ${
+                            selectedSize === sz
+                              ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          {sz}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                      <span>🎨 Pilih Warna Denim:</span>
+                      <span className="text-blue-600 font-extrabold font-mono">{selectedColor}</span>
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(purchaseModalProduct.colors && purchaseModalProduct.colors.length > 0
+                        ? purchaseModalProduct.colors
+                        : ["Deep Indigo Blue", "Jet Black", "Light Wash", "Dark Blue"]
+                      ).map((col) => (
+                        <button
+                          key={col}
+                          type="button"
+                          onClick={() => setSelectedColor(col)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border cursor-pointer ${
+                            selectedColor === col
+                              ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          {col}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Shipping Address */}
                 <div className="space-y-2">
                   <label className="block text-[10px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -4168,6 +4257,172 @@ export default function UserDashboard({
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL KIRIM BUKTI TRANSFER */}
+        {selectedProofDeposit && (
+          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white max-w-md w-full rounded-2xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 relative animate-fadeIn text-left space-y-4">
+              <button
+                type="button"
+                onClick={() => setSelectedProofDeposit(null)}
+                className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-900 rounded-full hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                <div className="p-2 bg-red-50 text-[#C41230] rounded-xl shrink-0">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900">KONFIRMASI BUKTI TRANSFER</h3>
+                  <p className="text-[10px] sm:text-xs text-slate-500">Deposit #{selectedProofDeposit.id} • Total Rp {(selectedProofDeposit.amount + (selectedProofDeposit.unique_code || (100 + selectedProofDeposit.id % 899))).toLocaleString('id-ID')}</p>
+                </div>
+              </div>
+
+              {/* Destination Bank Details */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-2">
+                <p className="font-extrabold text-amber-900 uppercase text-[10px] tracking-wider">Rekening Bank Tujuan Transfer Admin:</p>
+                <div className="space-y-1.5 font-mono text-[11px] text-amber-950">
+                  <div className="flex justify-between items-center bg-white/80 p-2 rounded-lg border border-amber-200">
+                    <div>
+                      <span className="font-bold block text-slate-800">{settings?.companyBankName || "BANK BCA"}</span>
+                      <span className="text-slate-600 font-bold">{settings?.companyBankAccount || "8830129881"}</span>
+                      <span className="text-slate-400 block text-[9px]">a.n {settings?.companyBankHolder || "HEDTRO JEANS OFFICIAL"}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(settings?.companyBankAccount || "8830129881")}
+                      className="bg-amber-600 text-white font-bold text-[10px] px-2 py-1 rounded hover:bg-amber-700 transition cursor-pointer"
+                    >
+                      Salin
+                    </button>
+                  </div>
+                  {settings?.companyBank2Name && (
+                    <div className="flex justify-between items-center bg-white/80 p-2 rounded-lg border border-amber-200">
+                      <div>
+                        <span className="font-bold block text-slate-800">{settings.companyBank2Name}</span>
+                        <span className="text-slate-600 font-bold">{settings.companyBank2Account}</span>
+                        <span className="text-slate-400 block text-[9px]">a.n {settings.companyBank2Holder}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(settings.companyBank2Account)}
+                        className="bg-amber-600 text-white font-bold text-[10px] px-2 py-1 rounded hover:bg-amber-700 transition cursor-pointer"
+                      >
+                        Salin
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Form Upload */}
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!proofImageInput) {
+                    alert("Silakan pilih file foto / struk bukti transfer terlebih dahulu!");
+                    return;
+                  }
+                  setIsUploadingProof(true);
+                  try {
+                    if (onConfirmDepositProof) {
+                      await onConfirmDepositProof(selectedProofDeposit.id, proofImageInput, proofNotesInput);
+                    }
+                    alert("Bukti transfer berhasil dikirim! Tim Admin akan memverifikasi dalam waktu singkat.");
+                    setSelectedProofDeposit(null);
+                    if (onRefresh) onRefresh();
+                  } catch (err: any) {
+                    alert(err.message || "Gagal mengirim bukti transfer");
+                  } finally {
+                    setIsUploadingProof(false);
+                  }
+                }}
+                className="space-y-3"
+              >
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Upload Foto / Struk Bukti Transfer:
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    required
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          alert("Ukuran gambar maksimal 5MB!");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setProofImageInput(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer"
+                  />
+                  {proofImageInput && (
+                    <div className="mt-2 relative rounded-xl overflow-hidden border border-slate-200 max-h-40 bg-slate-100 flex items-center justify-center">
+                      <img src={proofImageInput} alt="Preview Bukti" className="max-h-40 object-contain" />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Catatan Tambahan (Nama Pengirim / Bank Sender):
+                  </label>
+                  <input
+                    type="text"
+                    value={proofNotesInput}
+                    onChange={(e) => setProofNotesInput(e.target.value)}
+                    placeholder="Contoh: Transfer via M-BCA a.n Budi Santoso"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isUploadingProof || !proofImageInput}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider disabled:opacity-50"
+                >
+                  {isUploadingProof ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {isUploadingProof ? "Mengirim Bukti..." : "Kirim Bukti Transfer Sekarang"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL VIEW PROOF */}
+        {viewProofModalImage && (
+          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-4" onClick={() => setViewProofModalImage(null)}>
+            <div className="bg-white max-w-lg w-full rounded-2xl p-4 shadow-2xl relative animate-fadeIn text-center space-y-3" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setViewProofModalImage(null)}
+                className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-900 rounded-full hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <h4 className="font-extrabold text-sm text-slate-900">Foto Bukti Transfer</h4>
+              <div className="bg-slate-100 rounded-xl overflow-hidden max-h-[70vh] flex items-center justify-center p-2 border border-slate-200">
+                <img src={viewProofModalImage} alt="Bukti Transfer" className="max-h-[65vh] object-contain rounded-lg" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewProofModalImage(null)}
+                className="w-full bg-slate-900 text-white font-bold py-2 rounded-xl text-xs"
+              >
+                Tutup Preview
+              </button>
             </div>
           </div>
         )}

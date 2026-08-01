@@ -22,6 +22,8 @@ interface LandingPageProps {
 interface CartItem {
   product: Product;
   quantity: number;
+  selectedSize?: string;
+  selectedColor?: string;
 }
 
 export default function LandingPage({
@@ -43,6 +45,8 @@ export default function LandingPage({
   const [isMemberOnlyModalOpen, setIsMemberOnlyModalOpen] = useState(false);
   const [selectedProductForMemberModal, setSelectedProductForMemberModal] = useState<Product | null>(null);
   const [selectedDetailProduct, setSelectedDetailProduct] = useState<Product | null>(null);
+  const [selectedDetailSize, setSelectedDetailSize] = useState<string>("30");
+  const [selectedDetailColor, setSelectedDetailColor] = useState<string>("Deep Indigo Blue");
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
@@ -215,23 +219,26 @@ export default function LandingPage({
   };
 
   // Cart Functions (Enforcing Member-Only Rule)
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, customSize?: string, customColor?: string) => {
     if (!isLoggedIn) {
       setSelectedProductForMemberModal(product);
       setIsMemberOnlyModalOpen(true);
       return;
     }
 
+    const chosenSize = customSize || (product.sizes?.[0] || "30");
+    const chosenColor = customColor || (product.colors?.[0] || "Deep Indigo Blue");
+
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      const existing = prev.find((item) => item.product.id === product.id && item.selectedSize === chosenSize && item.selectedColor === chosenColor);
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id
+          item.product.id === product.id && item.selectedSize === chosenSize && item.selectedColor === chosenColor
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
-      return [...prev, { product, quantity: 1 }];
+      return [...prev, { product, quantity: 1, selectedSize: chosenSize, selectedColor: chosenColor }];
     });
     setIsCartOpen(true);
   };
@@ -1292,6 +1299,18 @@ export default function LandingPage({
                       <img src={item.product.image} alt={item.product.name} className="w-16 h-20 object-cover bg-neutral-100 shrink-0" />
                       <div className="flex-1 space-y-1">
                         <h4 className="font-black text-xs uppercase text-neutral-900 line-clamp-1">{item.product.name}</h4>
+                        <div className="flex items-center gap-1 my-0.5">
+                          {item.selectedSize && (
+                            <span className="bg-neutral-100 text-neutral-800 text-[9px] font-black font-mono px-1.5 py-0.2 rounded border border-neutral-200">
+                              Size {item.selectedSize}
+                            </span>
+                          )}
+                          {item.selectedColor && (
+                            <span className="bg-neutral-100 text-neutral-800 text-[9px] font-bold px-1.5 py-0.2 rounded border border-neutral-200">
+                              {item.selectedColor}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[#C41230] font-black text-xs font-display">Rp {item.product.member_price.toLocaleString()}</p>
                         
                         {/* Qty controls */}
@@ -1584,6 +1603,61 @@ export default function LandingPage({
                     </div>
                   </div>
 
+                  {/* Size & Color Selector */}
+                  <div className="bg-neutral-50 p-3 rounded-2xl border border-neutral-200 space-y-3">
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-[10px] font-black uppercase text-neutral-800 tracking-wider">📏 Pilih Ukuran (Size):</span>
+                        <span className="text-xs font-black text-[#C41230] font-mono">Size {selectedDetailSize}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(selectedDetailProduct.sizes && selectedDetailProduct.sizes.length > 0
+                          ? selectedDetailProduct.sizes
+                          : ["28", "29", "30", "31", "32", "33", "34", "35", "36"]
+                        ).map((sz) => (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() => setSelectedDetailSize(sz)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-black transition font-mono border cursor-pointer ${
+                              selectedDetailSize === sz
+                                ? "bg-[#C41230] text-white border-[#C41230] shadow-2xs"
+                                : "bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-100"
+                            }`}
+                          >
+                            {sz}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-[10px] font-black uppercase text-neutral-800 tracking-wider">🎨 Pilih Warna Denim:</span>
+                        <span className="text-xs font-bold text-neutral-900 font-mono">{selectedDetailColor}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(selectedDetailProduct.colors && selectedDetailProduct.colors.length > 0
+                          ? selectedDetailProduct.colors
+                          : ["Deep Indigo Blue", "Jet Black", "Light Wash", "Dark Blue"]
+                        ).map((col) => (
+                          <button
+                            key={col}
+                            type="button"
+                            onClick={() => setSelectedDetailColor(col)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border cursor-pointer ${
+                              selectedDetailColor === col
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-2xs"
+                                : "bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-100"
+                            }`}
+                          >
+                            {col}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Description & Specifications */}
                   <div className="space-y-2">
                     <h4 className="text-xs font-black uppercase tracking-wider text-neutral-800 border-b border-neutral-200 pb-1">
@@ -1605,7 +1679,7 @@ export default function LandingPage({
                 <div className="pt-4 border-t border-neutral-200 space-y-2">
                   <button
                     onClick={() => {
-                      addToCart(selectedDetailProduct);
+                      addToCart(selectedDetailProduct, selectedDetailSize, selectedDetailColor);
                       setSelectedDetailProduct(null);
                     }}
                     className="w-full bg-[#C41230] hover:bg-[#a00e26] text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"

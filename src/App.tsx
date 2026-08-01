@@ -2311,6 +2311,7 @@ export default function App() {
       if (db) {
         await deleteDoc(doc(db, "users", String(userId)));
       }
+      setUsers(prev => prev.filter(u => Number(u.id) !== Number(userId) && String(u.id) !== String(userId)));
       await fetchDashboardData();
       return true;
     } catch (err) {
@@ -2497,6 +2498,12 @@ export default function App() {
 
   const handleRestoreCategory = async (category: 'members' | 'web_settings' | 'mlm_network' | 'sales', data: any): Promise<boolean> => {
     try {
+      await fetch("/api/admin/restore-database", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, data })
+      }).catch(() => {});
+
       if (category === 'members' && Array.isArray(data)) {
         const restoredUsers: MLMUser[] = data;
         if (db) {
@@ -2548,6 +2555,32 @@ export default function App() {
     } catch (e) {
       console.error(`Failed to restore ${category}:`, e);
       return false;
+    }
+  };
+
+  const handleConfirmDepositProof = async (depositId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/user/deposit/confirm-proof", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ depositId, proofImage, proofNotes })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Gagal mengirim bukti transfer");
+      }
+      if (db) {
+        await setDoc(doc(db, "deposits", String(depositId)), {
+          proof_image: proofImage,
+          proof_notes: proofNotes || '',
+          proof_submitted_at: new Date().toISOString()
+        }, { merge: true });
+      }
+      await fetchDashboardData();
+      return true;
+    } catch (err) {
+      console.error("Error submitting deposit proof:", err);
+      throw err;
     }
   };
 
@@ -2652,6 +2685,7 @@ export default function App() {
                 onActivate={handleAccountActivation}
                 onUpdateProfile={handleUpdateProfile}
                 onResetPassword={(curP, newP) => handleResetPassword(curP, newP)}
+                onConfirmDepositProof={handleConfirmDepositProof}
                 serverUrl={window.location.origin}
                 settings={systemSettings}
               />
