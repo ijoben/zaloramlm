@@ -41,6 +41,7 @@ interface UserDashboardProps {
   }) => Promise<boolean>;
   onResetPassword?: (currentPass: string, newPass: string) => Promise<boolean>;
   onConfirmDepositProof?: (depositId: number, proofImage: string, proofNotes?: string) => Promise<boolean>;
+  onConfirmOrderProof?: (orderId: number, proofImage: string, proofNotes?: string) => Promise<boolean>;
   serverUrl: string;
   settings?: any;
 }
@@ -65,6 +66,7 @@ export default function UserDashboard({
   onUpdateProfile,
   onResetPassword,
   onConfirmDepositProof,
+  onConfirmOrderProof,
   serverUrl,
   settings
 }: UserDashboardProps) {
@@ -273,6 +275,7 @@ export default function UserDashboard({
 
   // Proof of Transfer Modal States
   const [selectedProofDeposit, setSelectedProofDeposit] = useState<DepositRequest | null>(null);
+  const [selectedProofOrder, setSelectedProofOrder] = useState<Order | null>(null);
   const [proofImageInput, setProofImageInput] = useState<string>('');
   const [proofNotesInput, setProofNotesInput] = useState<string>('');
   const [isUploadingProof, setIsUploadingProof] = useState<boolean>(false);
@@ -2328,6 +2331,65 @@ export default function UserDashboard({
                                     <span className="text-[10px] text-slate-400 font-mono">
                                       Tgl Transaksi: {new Date(ord.created_at).toLocaleString('id-ID')}
                                     </span>
+                                  </div>
+
+                                  {/* Proof of Transfer RO Payment Section */}
+                                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-2.5">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                      <div>
+                                        <span className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider block">
+                                          STATUS PEMBAYARAN & BUKTI TRANSFER PESANAN RO
+                                        </span>
+                                        <p className="text-xs text-slate-700 mt-0.5">
+                                          Metode: <strong className="font-extrabold text-slate-900">{ord.payment_method || 'Transfer Bank'}</strong>
+                                        </p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedProofOrder(ord);
+                                          setProofImageInput(ord.proof_image || '');
+                                          setProofNotesInput(ord.proof_notes || '');
+                                        }}
+                                        className="inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition shadow-2xs cursor-pointer shrink-0"
+                                      >
+                                        <Camera className="w-4 h-4" />
+                                        {ord.proof_image ? '📸 Lihat / Ubah Bukti TF' : '📸 Upload Bukti Transfer RO'}
+                                      </button>
+                                    </div>
+
+                                    {ord.proof_image ? (
+                                      <div className="bg-white p-2.5 rounded-xl border border-emerald-200 flex items-center justify-between gap-3 text-xs">
+                                        <div className="flex items-center gap-3">
+                                          <img
+                                            src={ord.proof_image}
+                                            alt="Bukti Transfer"
+                                            className="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0 cursor-pointer"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setViewProofModalImage(ord.proof_image || null);
+                                            }}
+                                          />
+                                          <div>
+                                            <span className="text-emerald-800 font-extrabold block text-[11px]">
+                                              ✅ Bukti Transfer Berhasil Terkirim
+                                            </span>
+                                            {ord.proof_notes && <p className="text-[10px] text-slate-600 font-mono mt-0.5">{ord.proof_notes}</p>}
+                                            <span className="text-[9px] text-slate-400">
+                                              Waktu: {ord.proof_submitted_at ? new Date(ord.proof_submitted_at).toLocaleString('id-ID') : 'Menunggu Verifikasi Admin'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <span className="text-[10px] bg-amber-100 text-amber-800 font-black px-2.5 py-1 rounded-full border border-amber-200 shrink-0">
+                                          Sedang Diverifikasi Admin
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                                        <span>Jika Anda memilih pembayaran Transfer Bank, silakan unggah foto / struk bukti transfer agar Admin memproses pengiriman paket Anda.</span>
+                                      </div>
+                                    )}
                                   </div>
 
                                   {/* Shipping Details Grid */}
@@ -4413,6 +4475,130 @@ export default function UserDashboard({
                 >
                   {isUploadingProof ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   {isUploadingProof ? "Mengirim Bukti..." : "Kirim Bukti Transfer Sekarang"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL KIRIM BUKTI TRANSFER PESANAN / RO */}
+        {selectedProofOrder && (
+          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white max-w-md w-full rounded-2xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 relative animate-fadeIn text-left space-y-4">
+              <button
+                type="button"
+                onClick={() => setSelectedProofOrder(null)}
+                className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-900 rounded-full hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900">BUKTI TRANSFER PESANAN RO</h3>
+                  <p className="text-[10px] sm:text-xs text-slate-500">Invoice #{selectedProofOrder.invoice_no} • Total Rp {(selectedProofOrder.amount || 0).toLocaleString('id-ID')}</p>
+                </div>
+              </div>
+
+              {/* Destination Bank Details */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-2">
+                <p className="font-extrabold text-amber-900 uppercase text-[10px] tracking-wider">Rekening Bank Tujuan Pembayaran RO:</p>
+                <div className="space-y-1.5 font-mono text-[11px] text-amber-950">
+                  <div className="flex justify-between items-center bg-white/80 p-2 rounded-lg border border-amber-200">
+                    <div>
+                      <span className="font-bold block text-slate-800">{settings?.companyBankName || "BANK BCA"}</span>
+                      <span className="text-slate-600 font-bold">{settings?.companyBankAccount || "8830129881"}</span>
+                      <span className="text-slate-400 block text-[9px]">a.n {settings?.companyBankHolder || "HEDTRO JEANS OFFICIAL"}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(settings?.companyBankAccount || "8830129881")}
+                      className="bg-amber-600 text-white font-bold text-[10px] px-2 py-1 rounded hover:bg-amber-700 transition cursor-pointer"
+                    >
+                      Salin
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Upload */}
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!proofImageInput) {
+                    alert("Silakan pilih file foto / struk bukti transfer terlebih dahulu!");
+                    return;
+                  }
+                  setIsUploadingProof(true);
+                  try {
+                    if (onConfirmOrderProof) {
+                      await onConfirmOrderProof(selectedProofOrder.id, proofImageInput, proofNotesInput);
+                    }
+                    alert("Bukti transfer pesanan RO berhasil dikirim! Tim Admin akan memverifikasi dan memproses pesanan Anda.");
+                    setSelectedProofOrder(null);
+                    if (onRefresh) onRefresh();
+                  } catch (err: any) {
+                    alert(err.message || "Gagal mengirim bukti transfer pesanan");
+                  } finally {
+                    setIsUploadingProof(false);
+                  }
+                }}
+                className="space-y-3"
+              >
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Upload Foto / Struk Bukti Transfer:
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    required
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          alert("Ukuran gambar maksimal 5MB!");
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setProofImageInput(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer"
+                  />
+                  {proofImageInput && (
+                    <div className="mt-2 relative rounded-xl overflow-hidden border border-slate-200 max-h-40 bg-slate-100 flex items-center justify-center">
+                      <img src={proofImageInput} alt="Preview Bukti" className="max-h-40 object-contain" />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Catatan Tambahan (Nama Pengirim / Bank Sender):
+                  </label>
+                  <input
+                    type="text"
+                    value={proofNotesInput}
+                    onChange={(e) => setProofNotesInput(e.target.value)}
+                    placeholder="Contoh: Transfer RO via M-BCA a.n Budi Santoso"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isUploadingProof || !proofImageInput}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider disabled:opacity-50"
+                >
+                  {isUploadingProof ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {isUploadingProof ? "Mengirim Bukti..." : "Kirim Bukti Transfer Pesanan RO"}
                 </button>
               </form>
             </div>

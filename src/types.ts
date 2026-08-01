@@ -213,6 +213,10 @@ export interface Order {
   courier: string;
   tracking_number: string;
   notes?: string;
+  proof_image?: string;
+  proof_notes?: string;
+  proof_submitted_at?: string;
+  is_ro_bonus_distributed?: boolean;
   created_at: string;
   updated_at?: string;
   steps?: OrderStep[];

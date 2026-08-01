@@ -4,7 +4,7 @@ import {
   Shield, Users, DollarSign, Package, TrendingUp, HelpCircle, 
   CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, Edit3,
   ArrowUpRight, ArrowDownLeft, RefreshCw, BarChart2, Search, Percent,
-  Globe, PlusCircle, Plus, Check, X, ArrowDown, CreditCard, Menu, User, UserPlus, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck, FileText, ChevronLeft, ChevronRight, AlertTriangle, Ban, Download
+  Globe, PlusCircle, Plus, Check, X, ArrowDown, CreditCard, Menu, User, UserPlus, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck, FileText, ChevronLeft, ChevronRight, AlertTriangle, Ban, Download, Camera
 } from "lucide-react";
 import WorkflowModal from "./WorkflowModal";
 
@@ -4658,7 +4658,7 @@ export default function AdminDashboard({
                             </div>
                           </div>
                           <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{ord.address}</p>
-                          <div className="mt-1.5 flex items-center gap-1.5">
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                             <span className="text-[10px] font-bold text-slate-600 bg-slate-200/80 px-2 py-0.5 rounded">{ord.courier || 'JNE'}</span>
                             {ord.tracking_number ? (
                               <span className="font-mono font-bold text-blue-600 text-[10px] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
@@ -4668,6 +4668,25 @@ export default function AdminDashboard({
                               <span className="text-[10px] text-amber-600 italic">Belum ada resi</span>
                             )}
                           </div>
+
+                          {ord.proof_image && (
+                            <div className="mt-2 bg-emerald-50 border border-emerald-200 rounded-xl p-2 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <img src={ord.proof_image} alt="Bukti Transfer" className="w-10 h-10 object-cover rounded-lg border border-slate-200 cursor-pointer shrink-0" onClick={() => setViewAdminProofImage(ord.proof_image || null)} />
+                                <div>
+                                  <span className="text-[10px] font-extrabold text-emerald-800 block">✅ Bukti Transfer Ada</span>
+                                  {ord.proof_notes && <p className="text-[9px] text-slate-600 font-mono leading-tight">{ord.proof_notes}</p>}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setViewAdminProofImage(ord.proof_image || null)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg transition cursor-pointer shrink-0 shadow-2xs"
+                              >
+                                Lihat Foto
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between gap-2">
@@ -4738,9 +4757,25 @@ export default function AdminDashboard({
                             <td className="px-4 py-3.5 align-top">
                               <span className="font-bold text-slate-900 font-mono block">{ord.invoice_no}</span>
                               <span className="text-[10px] text-slate-400 mt-0.5 block">{new Date(ord.created_at).toLocaleString('id-ID')}</span>
-                              <span className="inline-block mt-1 bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded">
-                                {ord.payment_method || 'Transfer Bank'}
-                              </span>
+                              <div className="mt-1 flex flex-wrap items-center gap-1">
+                                <span className="inline-block bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded">
+                                  {ord.payment_method || 'Transfer Bank'}
+                                </span>
+                                {ord.proof_image ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewAdminProofImage(ord.proof_image || null)}
+                                    className="inline-flex items-center gap-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded transition cursor-pointer border border-emerald-300 shadow-2xs"
+                                  >
+                                    <Camera className="w-3 h-3 text-emerald-700" />
+                                    Bukti Ada
+                                  </button>
+                                ) : (
+                                  <span className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
+                                    Belum TF
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             <td className="px-4 py-3.5 align-top max-w-xs">

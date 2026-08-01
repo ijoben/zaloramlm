@@ -2297,19 +2297,29 @@ export default function App() {
     }
   };
 
-  const handleDeleteUserAdmin = async (userId: number): Promise<boolean> => {
+  const handleDeleteUserAdmin = async (userId: number | string): Promise<boolean> => {
     try {
-      await fetch("/api/admin/users/delete", {
+      const res = await fetch("/api/admin/users/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: userId })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Gagal menghapus user di server");
+      }
     } catch (e) {
       console.warn("Delete user API warning:", e);
     }
     
-    // Always filter out user locally
-    setUsers(prev => prev.filter(u => Number(u.id) !== Number(userId) && String(u.id) !== String(userId)));
+    // Always filter out user locally from adminDashboardData
+    setAdminDashboardData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        users: prev.users.filter(u => Number(u.id) !== Number(userId) && String(u.id) !== String(userId))
+      };
+    });
 
     if (db) {
       try {
@@ -2570,7 +2580,7 @@ export default function App() {
       const res = await fetch("/api/user/deposit/confirm-proof", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ depositId, proofImage, proofNotes })
+        body: JSON.stringify({ depositId, deposit_id: depositId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -2591,6 +2601,36 @@ export default function App() {
       return true;
     } catch (err) {
       console.error("Error submitting deposit proof:", err);
+      throw err;
+    }
+  };
+
+  const handleConfirmOrderProof = async (orderId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/user/orders/confirm-proof", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, order_id: orderId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Gagal mengirim bukti transfer pesanan");
+      }
+      if (db) {
+        try {
+          await setDoc(doc(db, "orders", String(orderId)), {
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          }, { merge: true });
+        } catch (fErr) {
+          console.warn("Firestore order proof setDoc warn:", fErr);
+        }
+      }
+      await fetchDashboardData();
+      return true;
+    } catch (err) {
+      console.error("Error submitting order proof:", err);
       throw err;
     }
   };
@@ -2697,6 +2737,7 @@ export default function App() {
                 onUpdateProfile={handleUpdateProfile}
                 onResetPassword={(curP, newP) => handleResetPassword(curP, newP)}
                 onConfirmDepositProof={handleConfirmDepositProof}
+                onConfirmOrderProof={handleConfirmOrderProof}
                 serverUrl={window.location.origin}
                 settings={systemSettings}
               />

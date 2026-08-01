@@ -1997,7 +1997,7 @@ app.post("/api/admin/orders/create", async (req, res) => {
 app.post("/api/admin/orders/update", async (req, res) => {
   try {
     const { id, status, courier, tracking_number, notes, address, steps } = req.body;
-    const orderIndex = orders.findIndex(o => Number(o.id) === Number(id));
+    const orderIndex = orders.findIndex(o => Number(o.id) === Number(id) || String(o.id) === String(id));
     if (orderIndex === -1) {
       return res.status(404).json({ message: "Pesanan tidak ditemukan" });
     }
@@ -2010,6 +2010,32 @@ app.post("/api/admin/orders/update", async (req, res) => {
     if (address) order.address = address;
     if (steps) order.steps = steps;
     order.updated_at = new Date().toISOString();
+
+    // Distribute RO bonus if approved and not yet distributed
+    if ((status === 'DIPROSES' || status === 'DIKIRIM' || status === 'SELESAI' || status === 'TERIMA') && !order.is_ro_bonus_distributed) {
+      const orderUser = users.find(u => Number(u.id) === Number(order.user_id) || u.username === order.username);
+      if (orderUser && orderUser.sponsor_id) {
+        const sponsor = users.find(u => u.id === orderUser.sponsor_id);
+        if (sponsor && sponsor.is_active) {
+          sponsor.balance += 5000;
+          sponsor.ro_bonus += 5000;
+          await syncUserToFirestore(sponsor);
+
+          const roTx: Transaction = {
+            id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
+            user_id: sponsor.id,
+            username: sponsor.username,
+            type: "ro_bonus",
+            amount: 5000,
+            description: `Bonus Repeat Order (RO) dari pesanan #${order.invoice_no} (${orderUser.username})`,
+            created_at: new Date().toISOString()
+          };
+          transactions.push(roTx);
+          await syncTransactionToFirestore(roTx);
+        }
+      }
+      order.is_ro_bonus_distributed = true;
+    }
 
     await syncOrderToFirestore(order);
     res.json({ message: "Pesanan & Status Resi berhasil diperbarui!", order, orders });
@@ -2121,11 +2147,19 @@ app.post("/api/admin/orders/delete", async (req, res) => {
 app.post("/api/admin/users/delete", async (req, res) => {
   try {
     const { id } = req.body;
-    const userId = Number(id) || 0;
-    users = users.filter(u => Number(u.id) !== userId && String(u.id) !== String(id));
+    const targetIdStr = String(id);
+    const targetIdNum = Number(id) || 0;
+
+    const targetUser = users.find(u => Number(u.id) === targetIdNum || String(u.id) === targetIdStr);
+    if (targetUser && (targetUser.username === 'admin' || Number(targetUser.id) === 1)) {
+      return res.status(400).json({ message: "Akun Super Admin tidak dapat dihapus!" });
+    }
+
+    users = users.filter(u => Number(u.id) !== targetIdNum && String(u.id) !== targetIdStr);
+
     if (firestoreDb) {
       try {
-        await deleteDoc(doc(firestoreDb, "users", String(id)));
+        await deleteDoc(doc(firestoreDb, "users", targetIdStr));
       } catch (e) {
         console.warn("Delete user firestore warn:", e);
       }
@@ -2246,11 +2280,14 @@ app.post("/api/admin/reset-database", async (req, res) => {
   }
 });
 
-// User Upload Proof of Payment / Transfer
+// User Upload Proof of Payment / Transfer for Deposit
 app.post("/api/user/deposit/confirm-proof", async (req, res) => {
   try {
-    const { depositId, proofImage, proofNotes } = req.body;
-    const dep = deposits.find(d => Number(d.id) === Number(depositId));
+    const depositId = req.body.deposit_id || req.body.depositId;
+    const proofImage = req.body.proof_image || req.body.proofImage;
+    const proofNotes = req.body.proof_notes || req.body.proofNotes;
+
+    const dep = deposits.find(d => Number(d.id) === Number(depositId) || String(d.id) === String(depositId));
     if (!dep) {
       return res.status(404).json({ message: "Data deposit tidak ditemukan" });
     }
@@ -2268,6 +2305,40 @@ app.post("/api/user/deposit/confirm-proof", async (req, res) => {
     res.json({ message: "Bukti transfer berhasil dikirim! Menunggu konfirmasi Admin.", deposit: dep });
   } catch (err: any) {
     res.status(500).json({ message: "Gagal mengirim bukti transfer: " + err.message });
+  }
+});
+
+// User Upload Proof of Payment / Transfer for Orders (RO & Member Orders)
+app.post("/api/user/orders/confirm-proof", async (req, res) => {
+  try {
+    const orderId = req.body.order_id || req.body.orderId;
+    const proofImage = req.body.proof_image || req.body.proofImage;
+    const proofNotes = req.body.proof_notes || req.body.proofNotes;
+
+    const ord = orders.find(o => Number(o.id) === Number(orderId) || String(o.id) === String(orderId));
+    if (!ord) {
+      return res.status(404).json({ message: "Data pesanan tidak ditemukan" });
+    }
+    ord.proof_image = proofImage;
+    ord.proof_notes = proofNotes || '';
+    ord.proof_submitted_at = new Date().toISOString();
+
+    await syncOrderToFirestore(ord);
+
+    const adminNotif: MLMNotification = {
+      id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
+      user_id: 1,
+      title: "Bukti Transfer RO Terkirim!",
+      message: `Member @${ord.username} mengirim bukti transfer pembayaran pesanan #${ord.invoice_no}. Silakan periksa di tab Pengiriman & Resi.`,
+      type: "info",
+      created_at: new Date().toISOString()
+    };
+    notifications.push(adminNotif);
+    await syncNotificationToFirestore(adminNotif);
+
+    res.json({ message: "Bukti transfer pesanan berhasil dikirim! Menunggu verifikasi Admin.", order: ord, orders });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal mengirim bukti transfer pesanan: " + err.message });
   }
 });
 
