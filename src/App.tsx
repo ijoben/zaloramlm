@@ -102,15 +102,6 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
           console.warn(`Failed seeding user ${defU.username} to Firestore:`, e);
         }
       }
-    } else {
-      for (const defU of DEFAULT_USERS) {
-        if (!usersMap.has(defU.id)) {
-          usersMap.set(defU.id, defU);
-          try {
-            withClientTimeout(setDoc(doc(db, "users", String(defU.id)), defU), 1000, `seedUser ${defU.username}`);
-          } catch {}
-        }
-      }
     }
 
     const finalUsers = Array.from(usersMap.values());
@@ -699,7 +690,19 @@ async function updateFirestoreProduct(productId: number, stock: number, price: n
 async function updateFirestoreProductFull(product: Product): Promise<void> {
   if (db) {
     try {
-      await setDoc(doc(db, "products", String(product.id)), product, { merge: true });
+      const cleanData: any = {
+        id: Number(product.id),
+        name: product.name || "",
+        description: product.description || "",
+        price: Number(product.price) || 0,
+        member_price: Number(product.member_price) || 0,
+        stock: Number(product.stock) || 0,
+        image: product.image || "",
+        sizes: product.sizes || [],
+        colors: product.colors || [],
+        badge: product.badge || ""
+      };
+      await setDoc(doc(db, "products", String(product.id)), cleanData, { merge: true });
     } catch (e) {
       console.warn("Error updating full product in Firestore:", e);
     }
@@ -2094,6 +2097,7 @@ export default function App() {
   };
 
   const handleAddProduct = async (prodData: Omit<Product, "id">): Promise<boolean> => {
+    let createdProd: Product | null = null;
     try {
       const res = await fetch("/api/admin/products", {
         method: "POST",
@@ -2101,76 +2105,69 @@ export default function App() {
         body: JSON.stringify(prodData)
       });
       if (res.ok) {
-        await fetchProducts();
-        await fetchDashboardData();
-        return true;
+        const data = await res.json().catch(() => ({}));
+        if (data.product) createdProd = data.product;
       }
     } catch (err) {
       console.warn("Add product API unreachable, saving directly to Firestore...", err);
     }
 
     try {
-      await addFirestoreProduct(prodData);
+      if (!createdProd) {
+        createdProd = await addFirestoreProduct(prodData);
+      }
+      if (createdProd) {
+        const finalProd = createdProd;
+        setProducts(prev => {
+          const filtered = prev.filter(p => Number(p.id) !== Number(finalProd.id));
+          return [...filtered, finalProd].sort((a, b) => Number(a.id) - Number(b.id));
+        });
+      }
       await fetchProducts();
       await fetchDashboardData();
       return true;
     } catch (fsErr) {
       console.error("Error adding product to Firestore:", fsErr);
-      throw fsErr;
+      return false;
     }
   };
 
   const handleUpdateProductFull = async (prod: Product): Promise<boolean> => {
     try {
-      const res = await fetch("/api/admin/products/update", {
+      await fetch("/api/admin/products/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(prod)
-      });
-      if (res.ok) {
-        await fetchProducts();
-        await fetchDashboardData();
-        return true;
-      }
-    } catch (err) {
-      console.warn("Update product API unreachable, updating directly in Firestore...", err);
-    }
+      }).catch(err => console.warn("Update product API warning:", err));
 
-    try {
       await updateFirestoreProductFull(prod);
+
+      setProducts(prev => prev.map(p => Number(p.id) === Number(prod.id) ? prod : p));
       await fetchProducts();
       await fetchDashboardData();
       return true;
     } catch (fsErr) {
       console.error("Error updating product in Firestore:", fsErr);
-      throw fsErr;
+      return false;
     }
   };
 
   const handleDeleteProduct = async (productId: number): Promise<boolean> => {
     try {
-      const res = await fetch("/api/admin/products/delete", {
+      await fetch("/api/admin/products/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: productId })
-      });
-      if (res.ok) {
-        await fetchProducts();
-        await fetchDashboardData();
-        return true;
-      }
-    } catch (err) {
-      console.warn("Delete product API unreachable, deleting directly from Firestore...", err);
-    }
+      }).catch(err => console.warn("Delete product API warning:", err));
 
-    try {
       await deleteFirestoreProduct(productId);
+      setProducts(prev => prev.filter(p => Number(p.id) !== Number(productId)));
       await fetchProducts();
       await fetchDashboardData();
       return true;
-    } catch (fsErr) {
-      console.error("Error deleting product from Firestore:", fsErr);
-      throw fsErr;
+    } catch (err) {
+      console.error("Error deleting product:", err);
+      return false;
     }
   };
 
@@ -2304,43 +2301,59 @@ export default function App() {
   };
 
   const handleDeleteUserAdmin = async (userId: number | string): Promise<boolean> => {
+    const targetNumId = Number(userId);
     try {
-      const res = await fetch("/api/admin/users/delete", {
+      await fetch("/api/admin/users/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: userId })
+      }).catch(e => console.warn("Delete user API warning:", e));
+
+      if (db) {
+        try {
+          await deleteDoc(doc(db, "users", String(userId)));
+        } catch (err) {
+          console.warn("Firestore delete doc warning:", err);
+        }
+
+        // Re-assign orphan children in Firestore to ID 1 so network tree stays intact
+        try {
+          const currentFsUsers = await fetchFirestoreUsers();
+          for (const u of currentFsUsers) {
+            if (Number(u.upline_id) === targetNumId || Number(u.sponsor_id) === targetNumId) {
+              const updated = {
+                ...u,
+                upline_id: Number(u.upline_id) === targetNumId ? 1 : u.upline_id,
+                sponsor_id: Number(u.sponsor_id) === targetNumId ? 1 : u.sponsor_id
+              };
+              await setDoc(doc(db, "users", String(u.id)), updated, { merge: true });
+            }
+          }
+        } catch (e) {
+          console.warn("Error cleaning orphan downlines in Firestore:", e);
+        }
+      }
+
+      setAdminDashboardData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          users: prev.users
+            .filter(u => Number(u.id) !== targetNumId && String(u.id) !== String(userId))
+            .map(u => ({
+              ...u,
+              upline_id: Number(u.upline_id) === targetNumId ? 1 : u.upline_id,
+              sponsor_id: Number(u.sponsor_id) === targetNumId ? 1 : u.sponsor_id
+            }))
+        };
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Gagal menghapus user di server");
-      }
-    } catch (e) {
-      console.warn("Delete user API warning:", e);
-    }
-    
-    // Always filter out user locally from adminDashboardData
-    setAdminDashboardData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        users: prev.users.filter(u => Number(u.id) !== Number(userId) && String(u.id) !== String(userId))
-      };
-    });
 
-    if (db) {
-      try {
-        await deleteDoc(doc(db, "users", String(userId)));
-      } catch (err) {
-        console.warn("Firestore delete doc warning:", err);
-      }
-    }
-
-    try {
       await fetchDashboardData();
+      return true;
     } catch (e) {
-      console.warn("Fetch dashboard after user delete warning:", e);
+      console.error("Error deleting user:", e);
+      return false;
     }
-    return true;
   };
 
   const handleDeleteDeposit = async (depositId: number | string): Promise<boolean> => {
@@ -2583,15 +2596,12 @@ export default function App() {
 
   const handleConfirmDepositProof = async (depositId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
     try {
-      const res = await fetch("/api/user/deposit/confirm-proof", {
+      await fetch("/api/user/deposit/confirm-proof", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ depositId, deposit_id: depositId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Gagal mengirim bukti transfer");
-      }
+      }).catch(err => console.warn("API deposit proof warning:", err));
+
       if (db) {
         try {
           await setDoc(doc(db, "deposits", String(depositId)), {
@@ -2603,25 +2613,49 @@ export default function App() {
           console.warn("Firestore deposit proof setDoc warn:", fErr);
         }
       }
+
+      setUserDashboardData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
+            ...d,
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          } : d)
+        };
+      });
+
+      setAdminDashboardData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
+            ...d,
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          } : d)
+        };
+      });
+
       await fetchDashboardData();
       return true;
     } catch (err) {
       console.error("Error submitting deposit proof:", err);
-      throw err;
+      return false;
     }
   };
 
   const handleConfirmOrderProof = async (orderId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
     try {
-      const res = await fetch("/api/user/orders/confirm-proof", {
+      await fetch("/api/user/orders/confirm-proof", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId, order_id: orderId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Gagal mengirim bukti transfer pesanan");
-      }
+      }).catch(err => console.warn("API order proof warning:", err));
+
       if (db) {
         try {
           await setDoc(doc(db, "orders", String(orderId)), {
@@ -2633,11 +2667,45 @@ export default function App() {
           console.warn("Firestore order proof setDoc warn:", fErr);
         }
       }
+
+      setUserDashboardData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          orders: prev.orders ? prev.orders.map(o => Number(o.id) === Number(orderId) ? {
+            ...o,
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          } : o) : []
+        };
+      });
+
+      setAdminDashboardData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          orders: prev.orders ? prev.orders.map(o => Number(o.id) === Number(orderId) ? {
+            ...o,
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          } : o) : []
+        };
+      });
+
+      setOrders(prev => prev.map(o => Number(o.id) === Number(orderId) ? {
+        ...o,
+        proof_image: proofImage,
+        proof_notes: proofNotes || '',
+        proof_submitted_at: new Date().toISOString()
+      } : o));
+
       await fetchDashboardData();
       return true;
     } catch (err) {
       console.error("Error submitting order proof:", err);
-      throw err;
+      return false;
     }
   };
 
