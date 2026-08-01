@@ -337,7 +337,7 @@ export default function AdminDashboard({
   // Edit Order Form
   const [editOrderCourier, setEditOrderCourier] = useState('JNE REGULER');
   const [editOrderTracking, setEditOrderTracking] = useState('');
-  const [editOrderStatus, setEditOrderStatus] = useState<'DIPROSES' | 'DIKIRIM' | 'TERIMA' | 'BATAL'>('DIPROSES');
+  const [editOrderStatus, setEditOrderStatus] = useState<Order['status']>('DIPROSES');
   const [editOrderNotes, setEditOrderNotes] = useState('');
   const [editOrderSteps, setEditOrderSteps] = useState<OrderStep[]>([]);
   const [newStepTitle, setNewStepTitle] = useState('');

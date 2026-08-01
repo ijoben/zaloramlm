@@ -2616,7 +2616,7 @@ export default function UserDashboard({
                           id="dep-method-manual"
                           onClick={() => setDepMethod('transfer_bank')}
                           className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
-                            depMethod === 'transfer_bank' || depMethod === 'manual' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                            depMethod === 'transfer_bank' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                           }`}
                         >
                           <span className="font-extrabold block text-slate-800">BANK DIRECT</span>

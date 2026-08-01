@@ -76,7 +76,7 @@ export default function PHPSourceViewer() {
             <span className="bg-blue-600/30 text-blue-300 text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider border border-blue-500/20 inline-block">
               Host-Ready PHP Source Code Codebase (14 File Lengkap)
             </span>
-            <h2 class="text-3xl font-display font-bold tracking-tight">Eksportir Kode Sumber PHP</h2>
+            <h2 className="text-3xl font-display font-bold tracking-tight">Eksportir Kode Sumber PHP</h2>
             <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
               Seluruh file PHP utuh (<code className="text-blue-400 font-mono">index.php</code>, <code className="text-blue-400 font-mono">config.php</code>, <code className="text-blue-400 font-mono">login.php</code>, <code className="text-blue-400 font-mono">register.php</code>, <code className="text-blue-400 font-mono">dashboard.php</code>, <code className="text-blue-400 font-mono">admin.php</code>, <code className="text-blue-400 font-mono">api.php</code>, <code className="text-blue-400 font-mono">database.sql</code>, dll) siap diunduh & diinstal ke cPanel / Hosting Anda.
             </p>

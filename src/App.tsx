@@ -959,6 +959,7 @@ export default function App() {
     transactions: Transaction[];
     deposits: DepositRequest[];
     withdrawals: WDRequest[];
+    orders?: Order[];
     notifications: any[];
     binaryTree: any;
     referrals: MLMUser[];
@@ -980,6 +981,7 @@ export default function App() {
     withdrawals: WDRequest[];
     deposits: DepositRequest[];
     transactions: Transaction[];
+    orders?: Order[];
   } | null>(null);
 
   // Orders & Shipping Resi State
@@ -1306,7 +1308,8 @@ export default function App() {
       users: DEFAULT_USERS,
       withdrawals: [],
       deposits: [],
-      transactions: []
+      transactions: [],
+      orders: DEFAULT_ORDERS
     };
   };
 
@@ -1325,6 +1328,7 @@ export default function App() {
     ],
     deposits: [],
     withdrawals: [],
+    orders: DEFAULT_ORDERS.filter(o => Number(o.user_id) === Number(user.id)),
     notifications: [
       { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Afiliasi HEDTRO JEANS.", read: false, time: "Baru saja" }
     ],
@@ -1402,18 +1406,20 @@ export default function App() {
     if (!apiSuccess && currentUserRef.current) {
       console.log("🔄 [fetchDashboardData] Executing direct Firestore database fetch for dashboard...");
       // Direct Firestore sync in parallel
-      const [fsUsers, fsWithdrawals, fsDeposits, fsTransactions] = await Promise.all([
+      const [fsUsers, fsWithdrawals, fsDeposits, fsTransactions, fsOrders] = await Promise.all([
         fetchFirestoreUsers(),
         fetchFirestoreWithdrawals(),
         fetchFirestoreDeposits(),
-        fetchFirestoreTransactions()
+        fetchFirestoreTransactions(),
+        fetchFirestoreOrders()
       ]);
 
       console.log("📊 [fetchDashboardData] Firestore direct read complete:", {
         usersCount: fsUsers.length,
         withdrawalsCount: fsWithdrawals.length,
         depositsCount: fsDeposits.length,
-        transactionsCount: fsTransactions.length
+        transactionsCount: fsTransactions.length,
+        ordersCount: fsOrders.length
       });
 
       if (!currentUserRef.current) return;
@@ -1435,7 +1441,8 @@ export default function App() {
           users: fsUsers,
           withdrawals: fsWithdrawals,
           deposits: fsDeposits,
-          transactions: fsTransactions
+          transactions: fsTransactions,
+          orders: fsOrders
         });
         console.log("✅ [fetchDashboardData] Admin dashboard updated via direct Firestore data.");
       } else {
@@ -1447,6 +1454,7 @@ export default function App() {
         const userWDs = fsWithdrawals.filter(w => Number(w.user_id) === Number(freshUser.id));
         const userDeps = fsDeposits.filter(d => Number(d.user_id) === Number(freshUser.id));
         const userTxs = fsTransactions.filter(t => Number(t.user_id) === Number(freshUser.id));
+        const userOrds = fsOrders.filter(o => Number(o.user_id) === Number(freshUser.id));
 
         setUserDashboardData({
           user: freshUser,
@@ -1455,6 +1463,7 @@ export default function App() {
           transactions: userTxs,
           deposits: userDeps,
           withdrawals: userWDs,
+          orders: userOrds,
           notifications: [
             { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Afiliasi HEDTRO JEANS.", read: false, time: "Baru saja" }
           ]
