@@ -4174,7 +4174,7 @@ export default function UserDashboard({
 
                   <div className="flex items-center gap-2 mt-3 w-full justify-between">
                     <span className="bg-blue-600 text-white text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-md">
-                      MEMBER EXCLUSIVE
+                      {selectedDetailProduct.badge ? selectedDetailProduct.badge : "MEMBER EXCLUSIVE"}
                     </span>
                     <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md font-mono ${selectedDetailProduct.stock > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
                       STOK: {selectedDetailProduct.stock} PCS

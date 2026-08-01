@@ -937,10 +937,16 @@ export default function LandingPage({
                     <Eye className="w-4 h-4" /> lihat Detail Gambar
                   </div>
                   
-                  {/* Red Tab Tag */}
-                  <div className="absolute top-2 sm:top-3 left-0 bg-[#C41230] text-white text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 sm:px-2.5 py-0.5 sm:py-1 shadow-md">
-                    LEVI'S® RED TAB™
-                  </div>
+                  {/* Product Badge Tag */}
+                  {product.badge ? (
+                    <div className="absolute top-2 sm:top-3 left-0 bg-[#C41230] text-white text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 sm:px-2.5 py-0.5 sm:py-1 shadow-md z-10">
+                      {product.badge}
+                    </div>
+                  ) : (
+                    <div className="absolute top-2 sm:top-3 left-0 bg-[#C41230] text-white text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 sm:px-2.5 py-0.5 sm:py-1 shadow-md z-10">
+                      PRODUK PILIHAN
+                    </div>
+                  )}
 
                   {/* Wishlist Button */}
                   <button
@@ -1564,7 +1570,7 @@ export default function LandingPage({
                 {/* Stock & Tag Badges */}
                 <div className="flex items-center gap-2 mt-3 w-full justify-between">
                   <span className="bg-[#C41230] text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-md">
-                    LEVI'S® RED TAB™ ORIGINAL
+                    {selectedDetailProduct.badge ? selectedDetailProduct.badge : "HEDTRO JEANS OFFICIAL"}
                   </span>
                   <span className={`text-[10px] font-black px-2.5 py-1 rounded-md font-mono ${selectedDetailProduct.stock > 0 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-red-100 text-red-800'}`}>
                     STOK TERSEDIA: {selectedDetailProduct.stock} PCS
