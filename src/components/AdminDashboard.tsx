@@ -246,35 +246,41 @@ export default function AdminDashboard({
       alert("Username dan Nama Lengkap wajib diisi!");
       return;
     }
+    if (!onAddUser) {
+      alert("Fitur tambah member tidak tersedia. Hubungi developer.");
+      return;
+    }
     setIsSubmittingUser(true);
     try {
-      if (onAddUser) {
-        const ok = await onAddUser(newUserForm);
-        if (ok) {
-          setIsAddUserModalOpen(false);
-          setNewUserForm({
-            username: '',
-            fullname: '',
-            email: '',
-            phone: '',
-            whatsapp: '',
-            password: 'password123',
-            sponsor_username: '',
-            upline_username: '',
-            position: 'L',
-            ktp: '',
-            bank_name: 'BCA',
-            bank_account: '',
-            bank_holder: '',
-            address: '',
-            city: ''
-          });
-        }
+      const ok = await onAddUser(newUserForm);
+      if (ok) {
+        setIsAddUserModalOpen(false);
+        setNewUserForm({
+          username: '',
+          fullname: '',
+          email: '',
+          phone: '',
+          whatsapp: '',
+          password: 'password123',
+          sponsor_username: '',
+          upline_username: '',
+          position: 'L',
+          ktp: '',
+          bank_name: 'BCA',
+          bank_account: '',
+          bank_holder: '',
+          address: '',
+          city: ''
+        });
       }
+      // If ok === false, alert is already shown by handleAddUserAdmin in App.tsx
+    } catch (err: any) {
+      alert(`Gagal menambah member: ${err.message || "Terjadi kesalahan"}`);
     } finally {
       setIsSubmittingUser(false);
     }
   };
+
 
   const handleEditUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -964,6 +964,7 @@ export default function App() {
   const [regUpline, setRegUpline] = useState('');
   const [regPosition, setRegPosition] = useState<'L' | 'R'>('L');
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
+  const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
 
   // Dynamic branding & configuration settings
   const [systemSettings, setSystemSettings] = useState<any>(() => {
@@ -1655,6 +1656,7 @@ export default function App() {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRegister) return;
     if (!regPassword) {
       alert("Mohon buat kata sandi untuk akun Anda.");
       return;
@@ -1670,6 +1672,7 @@ export default function App() {
 
     const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "");
 
+    setIsSubmittingRegister(true);
     try {
       // 1. Create account in Firebase Authentication SDK
       let firebaseUid = "";
@@ -1812,6 +1815,8 @@ export default function App() {
     } catch (err: any) {
       console.error("Error during registration:", err);
       alert(err.message || "Pendaftaran gagal");
+    } finally {
+      setIsSubmittingRegister(false);
     }
   };
 
@@ -2363,7 +2368,7 @@ export default function App() {
 
   const handleAddUserAdmin = async (userData: Partial<MLMUser>): Promise<boolean> => {
     try {
-      await registerUserToFirestoreDirect({
+      const newUser = await registerUserToFirestoreDirect({
         username: userData.username || "",
         fullname: userData.fullname || "",
         email: userData.email || "",
@@ -2381,10 +2386,11 @@ export default function App() {
         city: userData.city || ""
       });
       await fetchDashboardData();
+      alert(`✅ Member baru berhasil ditambahkan!\nUsername: ${newUser.username}\nNama: ${newUser.fullname}\nID Member: #${newUser.id}\n\nMember dapat login menggunakan username dan password yang telah diset.`);
       return true;
     } catch (err: any) {
       console.error("Error adding user in admin:", err);
-      alert(err.message || "Gagal menambah user baru");
+      alert(`❌ Gagal menambah member baru:\n${err.message || "Terjadi kesalahan sistem"}`);
       return false;
     }
   };
@@ -3686,9 +3692,18 @@ export default function App() {
                 <button
                   type="submit"
                   id="btn-modal-register-submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-1.5 mt-2"
+                  disabled={isSubmittingRegister}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-1.5 mt-2"
                 >
-                  <Award className="w-4 h-4 text-white" /> Daftar Sekarang
+                  {isSubmittingRegister ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 text-white animate-spin" /> Mendaftarkan Akun...
+                    </>
+                  ) : (
+                    <>
+                      <Award className="w-4 h-4 text-white" /> Daftar Sekarang
+                    </>
+                  )}
                 </button>
               </form>
             )}
