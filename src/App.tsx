@@ -1498,15 +1498,22 @@ export default function App() {
       if (!currentUserRef.current) return;
 
       if (targetUser.role === 'admin') {
-        const activeCount = fsUsers.filter(u => u.is_active).length;
+        const memberUsers = fsUsers.filter(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
+        const activeCount = memberUsers.filter(u => u.is_active).length;
         const pendingWDs = fsWithdrawals.filter(w => w.status === 'pending');
+        const purchaseTxs = fsTransactions.filter(t => t.type === 'purchase');
+        const purchaseTurnover = Math.abs(purchaseTxs.reduce((acc, t) => acc + t.amount, 0));
+        const activationTurnover = activeCount * 550000;
+        const totalTurnover = activationTurnover + purchaseTurnover;
+        const bonusTxs = fsTransactions.filter(t => ['sponsor_bonus', 'pairing_bonus', 'level_bonus', 'ro_bonus'].includes(t.type));
+        const totalBonusesPaid = bonusTxs.reduce((acc, t) => acc + t.amount, 0);
         setAdminDashboardData({
           metrics: {
-            totalMembers: fsUsers.length,
+            totalMembers: memberUsers.length,
             activeMembers: activeCount,
-            inactiveMembers: fsUsers.length - activeCount,
-            totalTurnover: fsUsers.reduce((acc, u) => acc + (u.is_active ? 550000 : 0), 0),
-            totalBonusesPaid: fsUsers.reduce((acc, u) => acc + (u.sponsor_bonus || 0) + (u.pairing_bonus || 0), 0),
+            inactiveMembers: memberUsers.length - activeCount,
+            totalTurnover,
+            totalBonusesPaid,
             pendingWDCount: pendingWDs.length,
             pendingWDAmount: pendingWDs.reduce((sum, w) => sum + w.amount, 0),
             isAutoPayout: false
