@@ -6,6 +6,101 @@ import { initializeFirestore, getFirestore, collection, getDocs, doc, setDoc, ge
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode, Order } from "./src/types";
 import { DEFAULT_ORDERS } from "./src/data/defaultOrders";
 
+// Firebase Admin SDK for server-side Auth management (delete users, etc.)
+let adminApp: any = null;
+let adminAuth: any = null;
+try {
+  // Use require() for CJS compatibility (no top-level await)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const firebaseAdmin = require("firebase-admin");
+
+  // Try to load service account from file or env
+  let adminCredential: any = null;
+  const serviceAccountPath = path.join(process.cwd(), "firebase-service-account.json");
+  const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+  if (serviceAccountEnv) {
+    try {
+      const sa = JSON.parse(serviceAccountEnv);
+      adminCredential = firebaseAdmin.credential.cert(sa);
+      console.log("🔑 [Firebase Admin] Using service account from FIREBASE_SERVICE_ACCOUNT_JSON env var");
+    } catch (e) {
+      console.warn("⚠️ [Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e);
+    }
+  } else if (fs.existsSync(serviceAccountPath)) {
+    try {
+      const sa = JSON.parse(fs.readFileSync(serviceAccountPath, "utf-8"));
+      adminCredential = firebaseAdmin.credential.cert(sa);
+      console.log("🔑 [Firebase Admin] Using service account from firebase-service-account.json");
+    } catch (e) {
+      console.warn("⚠️ [Firebase Admin] Failed to load firebase-service-account.json:", e);
+    }
+  }
+
+  if (adminCredential) {
+    if (firebaseAdmin.apps.length === 0) {
+      adminApp = firebaseAdmin.initializeApp({ credential: adminCredential });
+    } else {
+      adminApp = firebaseAdmin.app();
+    }
+    adminAuth = firebaseAdmin.auth(adminApp);
+    console.log("✅ [Firebase Admin] Admin SDK initialized successfully");
+  } else {
+    console.warn("⚠️ [Firebase Admin] No service account found. Firebase Auth deletion will be skipped during reset. To enable, set FIREBASE_SERVICE_ACCOUNT_JSON env var or place firebase-service-account.json in project root.");
+  }
+} catch (e) {
+  console.warn("⚠️ [Firebase Admin] Failed to initialize Admin SDK:", e);
+}
+
+
+// Helper: delete a Firebase Auth user by UID
+async function deleteFirebaseAuthUser(uid: string): Promise<void> {
+  if (!adminAuth || !uid) return;
+  try {
+    await adminAuth.deleteUser(uid);
+    console.log(`✅ [Firebase Admin] Deleted Auth user UID: ${uid}`);
+  } catch (e: any) {
+    if (e?.code !== 'auth/user-not-found') {
+      console.warn(`⚠️ [Firebase Admin] Failed to delete Auth user UID ${uid}:`, e?.message || e);
+    }
+  }
+}
+
+// Helper: delete a Firebase Auth user by email
+async function deleteFirebaseAuthUserByEmail(email: string): Promise<void> {
+  if (!adminAuth || !email) return;
+  try {
+    const userRecord = await adminAuth.getUserByEmail(email);
+    await adminAuth.deleteUser(userRecord.uid);
+    console.log(`✅ [Firebase Admin] Deleted Auth user by email: ${email}`);
+  } catch (e: any) {
+    if (e?.code !== 'auth/user-not-found') {
+      console.warn(`⚠️ [Firebase Admin] Failed to delete Auth user email ${email}:`, e?.message || e);
+    }
+  }
+}
+
+// Helper: delete all non-admin Firebase Auth users (used in members reset)
+async function deleteAllNonAdminFirebaseAuthUsers(nonAdminUsers: MLMUser[]): Promise<void> {
+  if (!adminAuth) {
+    console.warn("⚠️ [Firebase Admin] Auth not initialized - skipping Firebase Auth user deletion");
+    return;
+  }
+  const deletePromises: Promise<void>[] = [];
+  for (const u of nonAdminUsers) {
+    if (u.firebase_uid) {
+      deletePromises.push(deleteFirebaseAuthUser(u.firebase_uid));
+    } else if (u.email) {
+      deletePromises.push(deleteFirebaseAuthUserByEmail(u.email));
+    }
+  }
+  if (deletePromises.length > 0) {
+    await Promise.allSettled(deletePromises);
+    console.log(`✅ [Firebase Admin] Attempted deletion of ${deletePromises.length} Firebase Auth users`);
+  }
+}
+
+
 // Safe loader for firebase-applet-config.json
 let firebaseConfig: any = {};
 try {
@@ -1109,6 +1204,9 @@ app.post("/api/auth/reset-password", (req, res) => {
 app.post("/api/auth/register", async (req, res) => {
   try {
     await initFirestoreDataOnce();
+    if (firestoreDb) {
+      setDoc(doc(firestoreDb, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
+    }
   const { username, fullname, email, phone, password, sponsor_username, upline_username, position, ktp, whatsapp, bank_name, bank_account, bank_holder } = req.body;
 
   if (!username || !fullname || !email || !phone) {
@@ -2461,7 +2559,14 @@ app.post(["/api/admin/reset-database", "/admin/reset-database"], async (req, res
     console.log("🧹 [API] Resetting database category:", category);
 
     if (category === 'members') {
+      // Collect non-admin users BEFORE filtering (for Firebase Auth deletion)
+      const nonAdminUsers = users.filter(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
       users = users.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
+
+      // 1. Delete Firebase Auth accounts for all non-admin users
+      await deleteAllNonAdminFirebaseAuthUsers(nonAdminUsers);
+
+      // 2. Delete from Firestore
       if (firestoreDb) {
         try {
           const snap = await getDocs(collection(firestoreDb, "users"));
@@ -2471,11 +2576,16 @@ app.post(["/api/admin/reset-database", "/admin/reset-database"], async (req, res
               await deleteDoc(doc(firestoreDb, "users", docSnap.id)).catch(() => {});
             }
           }
+          // Persist reset flag in Firestore
+          await setDoc(doc(firestoreDb, "settings", "adminControl"), {
+            membersReset: true,
+            membersResetAt: new Date().toISOString()
+          }, { merge: true }).catch(() => {});
         } catch (e) {
           console.warn("Firestore reset members warn:", e);
         }
       }
-      return res.json({ message: "Berhasil mereset data member (selain admin)!", users });
+      return res.json({ message: "Berhasil mereset data member (selain admin) dan akun Firebase Auth telah dihapus!", users });
     }
 
     if (category === 'sales') {
@@ -2557,11 +2667,25 @@ app.post(["/api/admin/reset-database", "/admin/reset-database"], async (req, res
 app.post(["/api/admin/users/delete", "/admin/users/delete"], async (req, res) => {
   const { id } = req.body || {};
   const numId = Number(id);
+
+  // Find user before deleting to get firebase_uid / email
+  const targetUser = users.find(u => Number(u.id) === numId || String(u.id) === String(id));
+
   users = users.filter(u => Number(u.id) !== numId && String(u.id) !== String(id));
+
+  // Delete Firebase Auth account
+  if (targetUser) {
+    if ((targetUser as any).firebase_uid) {
+      await deleteFirebaseAuthUser((targetUser as any).firebase_uid);
+    } else if (targetUser.email) {
+      await deleteFirebaseAuthUserByEmail(targetUser.email);
+    }
+  }
+
   if (firestoreDb) {
     await deleteDoc(doc(firestoreDb, "users", String(id))).catch(() => {});
   }
-  res.json({ message: `Member ${id} berhasil dihapus`, users });
+  res.json({ message: `Member ${id} berhasil dihapus dan akun Firebase Auth telah dihapus`, users });
 });
 
 app.post(["/api/admin/deposits/delete", "/admin/deposits/delete"], async (req, res) => {
@@ -3783,6 +3907,13 @@ async function initFirestoreData() {
         });
         if (loadedUsers.length > 0) {
           users = loadedUsers;
+          const hasNonAdminInLoaded = loadedUsers.some(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
+          if (hasNonAdminInLoaded && serverMembersReset) {
+            serverMembersReset = false;
+            if (firestoreDb) {
+              setDoc(doc(firestoreDb, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
+            }
+          }
           console.log(`🔥 Loaded ${loadedUsers.length} users from Firestore into memory (membersReset=${serverMembersReset})`);
         }
       }

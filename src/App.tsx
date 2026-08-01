@@ -131,8 +131,17 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
     }
 
     let finalUsers = Array.from(usersMap.values());
-    if (isReset) {
-      // Filter out non-admin users even if they are still in Firestore
+    const hasNonAdminUsers = finalUsers.some(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
+    if (hasNonAdminUsers && isReset) {
+      // If Firestore actually has member records, automatically clear the reset flag!
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('zalora_reset_members');
+      }
+      if (db) {
+        setDoc(doc(db, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
+      }
+    } else if (isReset) {
+      // Filter out non-admin users only if after reset there are no newly registered members
       finalUsers = finalUsers.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
     }
     finalUsers.sort((a, b) => Number(a.id) - Number(b.id));
@@ -211,6 +220,18 @@ async function registerUserToFirestoreDirect(regData: {
   address?: string;
   city?: string;
 }): Promise<MLMUser> {
+  // Clear membersReset flag when a new member registers so user is visible everywhere
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('zalora_reset_members');
+  }
+  if (db) {
+    try {
+      await setDoc(doc(db, "settings", "adminControl"), {
+        membersReset: false
+      }, { merge: true }).catch(() => {});
+    } catch (e) { /* ignore */ }
+  }
+
   const users = await fetchFirestoreUsers();
 
   const normalizedUsername = regData.username.toLowerCase().replace(/\s+/g, "").trim();
@@ -2765,6 +2786,19 @@ export default function App() {
       if (typeof window !== 'undefined') {
         localStorage.removeItem(`zalora_reset_${category}`);
         localStorage.setItem('zalora_db_initialized', 'true');
+      }
+
+      if (category === 'members' || category === 'mlm_network') {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('zalora_reset_members');
+        }
+        if (db) {
+          try {
+            await setDoc(doc(db, "settings", "adminControl"), {
+              membersReset: false
+            }, { merge: true }).catch(() => {});
+          } catch (e) { /* ignore */ }
+        }
       }
 
       await fetch("/api/admin/restore-database", {
