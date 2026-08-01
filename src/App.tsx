@@ -543,6 +543,7 @@ async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
         user_id: Number(data.user_id),
         username: data.username || "",
         amount: Number(data.amount) || 0,
+        unique_code: data.unique_code !== undefined ? Number(data.unique_code) : (100 + (Number(data.id) || 1) % 899),
         method: data.method || "qris",
         status: data.status || "pending",
         payment_code: data.payment_code || "",
@@ -593,6 +594,7 @@ async function fetchFirestoreOrders(): Promise<Order[]> {
         address: data.address || "",
         product_name: data.product_name || "Produk Denim",
         amount: Number(data.amount) || 0,
+        unique_code: data.unique_code !== undefined ? Number(data.unique_code) : (100 + (Number(data.id) || 1) % 899),
         payment_method: data.payment_method || "Transfer Bank",
         status: data.status || "DIPROSES",
         courier: data.courier || "JNE REGULER",
@@ -1754,7 +1756,7 @@ export default function App() {
     setActiveView('dashboard');
   };
 
-  const handleBuyProduct = async (productId: number, paymentMethod: 'saldo' | 'transfer' = 'saldo', customAddress?: string) => {
+  const handleBuyProduct = async (productId: number, paymentMethod: 'saldo' | 'transfer' = 'saldo', customAddress?: string, selectedSize?: string, selectedColor?: string) => {
     if (!currentUser) return;
     const prod = products.find(p => p.id === productId);
     const priceToPay = currentUser.is_active ? (prod?.member_price || prod?.price || 120000) : (prod?.price || 150000);
@@ -1779,7 +1781,9 @@ export default function App() {
           userId: currentUser.id, 
           productId, 
           paymentMethod,
-          address: customAddress 
+          address: customAddress,
+          selectedSize,
+          selectedColor
         })
       });
       const data = await res.json().catch(() => ({}));
@@ -1799,6 +1803,7 @@ export default function App() {
     if (!apiSuccess) {
       const newOrdId = Date.now();
       const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
+      const fullProdName = `${prod?.name || 'Hedtro Jeans Premium'}${selectedSize ? ` [Size: ${selectedSize}]` : ''}${selectedColor ? ` [Warna: ${selectedColor}]` : ''}`;
       const fallbackOrder: Order = {
         id: newOrdId,
         invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
@@ -1807,13 +1812,15 @@ export default function App() {
         fullname: currentUser.fullname,
         phone: currentUser.phone || "-",
         address: customAddress || `${currentUser.address || 'Alamat Member'}${currentUser.city ? ', ' + currentUser.city : ''}`,
-        product_name: `Repeat Order (RO) - ${prod?.name || 'Hedtro Jeans Premium'}`,
+        product_name: fullProdName,
+        selected_size: selectedSize || undefined,
+        selected_color: selectedColor || undefined,
         amount: priceToPay,
         payment_method: payMethodText,
         status: "DIPROSES",
         courier: "JNE REGULER",
         tracking_number: newResi,
-        notes: `Repeat Order (RO) via ${payMethodText}. Terhubung ke admin area.`,
+        notes: `Repeat Order (RO) ${fullProdName} via ${payMethodText}. Terhubung ke admin area.`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         steps: [
@@ -1923,13 +1930,17 @@ export default function App() {
     alert(`Pengajuan penarikan dana sebesar Rp ${amount.toLocaleString("id-ID")} berhasil dikirim! Menunggu konfirmasi admin.`);
   };
 
-  const handleDeposit = async (amount: number, method: 'qris' | 'bca' | 'mandiri') => {
+  const handleDeposit = async (amount: number, method: 'qris' | 'bca' | 'mandiri' | 'transfer_bank' | string, customUniqueCode?: number) => {
     if (!currentUser) return;
+    const uniqueCode = customUniqueCode || Math.floor(100 + Math.random() * 900);
+    const totalTransfer = amount + uniqueCode;
+
     const newDep: DepositRequest = {
       id: Date.now(),
       user_id: currentUser.id,
       username: currentUser.username,
       amount,
+      unique_code: uniqueCode,
       method,
       status: "pending",
       payment_code: `DEP-${Date.now().toString().slice(-6)}`,
@@ -1942,7 +1953,7 @@ export default function App() {
       username: currentUser.username,
       type: "deposit",
       amount: amount,
-      description: `Pengajuan Deposit Saldo via ${method.toUpperCase()} (Menunggu Pembayaran)`,
+      description: `Pengajuan Deposit (Transfer Rp ${totalTransfer.toLocaleString('id-ID')} dengan Kode Unik #${uniqueCode}) via ${method.toUpperCase()}`,
       created_at: new Date().toISOString()
     };
 
@@ -1951,7 +1962,7 @@ export default function App() {
       const res = await fetch("/api/user/deposit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUser.id, amount, method })
+        body: JSON.stringify({ userId: currentUser.id, amount, method, uniqueCode })
       });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("json")) {
@@ -1969,7 +1980,7 @@ export default function App() {
     }
 
     await fetchDashboardData();
-    alert(`Pengajuan deposit sebesar Rp ${amount.toLocaleString("id-ID")} via ${method.toUpperCase()} telah dibuat.`);
+    alert(`Pengajuan deposit Rp ${amount.toLocaleString("id-ID")} berhasil dibuat! Total transfer yang wajib dikirim: Rp ${totalTransfer.toLocaleString("id-ID")} (Termasuk 3 Digit Kode Unik: #${uniqueCode}).`);
   };
 
   const handleSimulatePayment = async (depositId: number) => {
@@ -2288,6 +2299,15 @@ export default function App() {
 
   const handleDeleteUserAdmin = async (userId: number): Promise<boolean> => {
     try {
+      await fetch("/api/admin/users/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: userId })
+      });
+    } catch (e) {
+      console.warn("Delete user API warning:", e);
+    }
+    try {
       if (db) {
         await deleteDoc(doc(db, "users", String(userId)));
       }
@@ -2299,8 +2319,58 @@ export default function App() {
     }
   };
 
+  const handleDeleteDeposit = async (depositId: number | string): Promise<boolean> => {
+    try {
+      await fetch("/api/admin/deposits/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: depositId })
+      });
+    } catch (e) {
+      console.warn("Delete deposit API warning:", e);
+    }
+    try {
+      if (db) {
+        await deleteDoc(doc(db, "deposits", String(depositId)));
+      }
+      await fetchDashboardData();
+      return true;
+    } catch (err) {
+      console.error("Error deleting deposit:", err);
+      return false;
+    }
+  };
+
+  const handleDeleteWithdrawal = async (wdId: number | string): Promise<boolean> => {
+    try {
+      await fetch("/api/admin/withdrawals/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: wdId })
+      });
+    } catch (e) {
+      console.warn("Delete withdrawal API warning:", e);
+    }
+    try {
+      if (db) {
+        await deleteDoc(doc(db, "withdrawals", String(wdId)));
+      }
+      await fetchDashboardData();
+      return true;
+    } catch (err) {
+      console.error("Error deleting withdrawal:", err);
+      return false;
+    }
+  };
+
   const handleResetCategory = async (category: 'members' | 'web_settings' | 'mlm_network' | 'sales'): Promise<boolean> => {
     try {
+      await fetch("/api/admin/reset-database", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category })
+      }).catch(() => {});
+
       if (category === 'members') {
         if (db) {
           const snapshot = await getDocs(collection(db, "users"));
@@ -2543,6 +2613,8 @@ export default function App() {
                 onDeleteProduct={handleDeleteProduct}
                 onProcessWithdrawal={handleProcessWithdrawal}
                 onProcessDeposit={handleProcessDeposit}
+                onDeleteDeposit={handleDeleteDeposit}
+                onDeleteWithdrawal={handleDeleteWithdrawal}
                 onAddProduct={handleAddProduct}
                 onAddUser={handleAddUserAdmin}
                 onUpdateUserAdmin={handleUpdateUserAdmin}

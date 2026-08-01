@@ -11,6 +11,7 @@ export const DEFAULT_ORDERS: Order[] = [
     address: "Jl. Sudirman No. 45, Jakarta Selatan, DKI Jakarta",
     product_name: "Paket Perdana Member - Hedtro Selvedge Slim Fit Denim",
     amount: 550000,
+    unique_code: 357,
     payment_method: "QRIS / Transfer Bank",
     status: "DIKIRIM",
     courier: "JNE REGULER",

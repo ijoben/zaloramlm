@@ -41,6 +41,8 @@ export interface Product {
   member_price: number;
   stock: number;
   image: string;
+  sizes?: string[];
+  colors?: string[];
 }
 
 export interface Transaction {
@@ -59,7 +61,8 @@ export interface DepositRequest {
   user_id: number;
   username: string;
   amount: number;
-  method: 'qris' | 'bca' | 'mandiri';
+  unique_code?: number;
+  method: 'qris' | 'bca' | 'mandiri' | 'transfer_bank' | string;
   status: 'pending' | 'success' | 'failed';
   payment_code?: string;
   created_at: string;
@@ -198,7 +201,10 @@ export interface Order {
   phone: string;
   address: string;
   product_name: string;
+  selected_size?: string;
+  selected_color?: string;
   amount: number;
+  unique_code?: number;
   payment_method?: string;
   status: 'PENDING' | 'DIPROSES' | 'DIKIRIM' | 'SELESAI' | 'DIBATALKAN' | 'TERIMA' | 'BATAL';
   courier: string;

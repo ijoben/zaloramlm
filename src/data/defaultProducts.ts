@@ -8,7 +8,9 @@ export const DEFAULT_PRODUCTS: Product[] = [
     price: 350000,
     member_price: 250000,
     stock: 45,
-    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&q=80&w=600"
+    image: "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&q=80&w=600",
+    sizes: ["28", "29", "30", "31", "32", "33", "34", "35", "36"],
+    colors: ["Deep Indigo Blue", "Dark Navy", "Washed Blue", "Retro Black"]
   },
   {
     id: 2,
@@ -17,7 +19,9 @@ export const DEFAULT_PRODUCTS: Product[] = [
     price: 390000,
     member_price: 280000,
     stock: 30,
-    image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&q=80&w=600"
+    image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&q=80&w=600",
+    sizes: ["28", "29", "30", "31", "32", "33", "34", "36"],
+    colors: ["Raw Indigo", "Dark Blue Raw", "Vintage Blue"]
   },
   {
     id: 3,
@@ -26,7 +30,9 @@ export const DEFAULT_PRODUCTS: Product[] = [
     price: 330000,
     member_price: 240000,
     stock: 25,
-    image: "https://images.unsplash.com/photo-1582562124811-c09040d0a901?auto=format&fit=crop&q=80&w=600"
+    image: "https://images.unsplash.com/photo-1582562124811-c09040d0a901?auto=format&fit=crop&q=80&w=600",
+    sizes: ["28", "29", "30", "31", "32", "33", "34", "35"],
+    colors: ["Jet Black", "Charcoal Gray"]
   },
   {
     id: 4,
@@ -35,7 +41,9 @@ export const DEFAULT_PRODUCTS: Product[] = [
     price: 370000,
     member_price: 270000,
     stock: 18,
-    image: "https://images.unsplash.com/photo-1475178626620-a4d074967452?auto=format&fit=crop&q=80&w=600"
+    image: "https://images.unsplash.com/photo-1475178626620-a4d074967452?auto=format&fit=crop&q=80&w=600",
+    sizes: ["28", "29", "30", "31", "32", "33", "34"],
+    colors: ["Light Wash Blue", "Sky Blue Wash"]
   },
   {
     id: 5,
@@ -44,7 +52,9 @@ export const DEFAULT_PRODUCTS: Product[] = [
     price: 550000,
     member_price: 420000,
     stock: 20,
-    image: "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?auto=format&fit=crop&q=80&w=600"
+    image: "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?auto=format&fit=crop&q=80&w=600",
+    sizes: ["S", "M", "L", "XL", "XXL"],
+    colors: ["Heritage Indigo", "Black Denim", "Light Denim"]
   },
   {
     id: 6,
@@ -53,7 +63,9 @@ export const DEFAULT_PRODUCTS: Product[] = [
     price: 380000,
     member_price: 280000,
     stock: 35,
-    image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&q=80&w=600"
+    image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&q=80&w=600",
+    sizes: ["26", "27", "28", "29", "30", "31", "32"],
+    colors: ["Indigo Blue", "Snow Black", "Light Blue"]
   },
   {
     id: 7,
@@ -62,7 +74,9 @@ export const DEFAULT_PRODUCTS: Product[] = [
     price: 180000,
     member_price: 120000,
     stock: 50,
-    image: "https://images.unsplash.com/photo-1624222247344-550fb60583dc?auto=format&fit=crop&q=80&w=600"
+    image: "https://images.unsplash.com/photo-1624222247344-550fb60583dc?auto=format&fit=crop&q=80&w=600",
+    sizes: ["110cm", "120cm", "130cm"],
+    colors: ["Vintage Brown", "Dark Chocolate", "Classic Black"]
   },
   {
     id: 8,
@@ -71,6 +85,8 @@ export const DEFAULT_PRODUCTS: Product[] = [
     price: 320000,
     member_price: 230000,
     stock: 22,
-    image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&q=80&w=600"
+    image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&q=80&w=600",
+    sizes: ["S", "M", "L", "XL"],
+    colors: ["Vintage Blue Wash", "Black Wash"]
   }
 ];

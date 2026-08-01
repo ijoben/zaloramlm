@@ -21,8 +21,8 @@ interface UserDashboardProps {
   orders?: Order[];
   onLogout: () => void;
   onRefresh: () => void;
-  onBuyProduct: (productId: number, paymentMethod?: 'saldo' | 'transfer', customAddress?: string) => Promise<void>;
-  onDeposit: (amount: number, method: 'qris' | 'bca' | 'mandiri' | 'transfer_bank' | string) => Promise<void>;
+  onBuyProduct: (productId: number, paymentMethod?: 'saldo' | 'transfer', customAddress?: string, selectedSize?: string, selectedColor?: string) => Promise<void>;
+  onDeposit: (amount: number, method: 'qris' | 'bca' | 'mandiri' | 'transfer_bank' | string, customUniqueCode?: number) => Promise<void>;
   onWithdraw: (amount: number, bank: string, accountNum: string, holder: string) => Promise<void>;
   onSimulatePayment: (depositId: number) => Promise<void>;
   onActivate: () => Promise<void>;
@@ -152,6 +152,11 @@ export default function UserDashboard({
   // Form states
   const [depAmount, setDepAmount] = useState('');
   const [depMethod, setDepMethod] = useState<'qris' | 'bca' | 'mandiri' | 'transfer_bank'>('transfer_bank');
+  const [depUniqueCode, setDepUniqueCode] = useState(() => Math.floor(100 + Math.random() * 900));
+  const [activationUniqueCode] = useState(() => Math.floor(100 + Math.random() * 900));
+  const [roUniqueCode] = useState(() => Math.floor(100 + Math.random() * 900));
+  const [copiedTotal, setCopiedTotal] = useState(false);
+  const [copiedDepId, setCopiedDepId] = useState<number | null>(null);
   const [wdAmount, setWdAmount] = useState('');
   const [selectedDetailProduct, setSelectedDetailProduct] = useState<Product | null>(null);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
@@ -372,9 +377,14 @@ export default function UserDashboard({
     }
     setLoadingAction(true);
     try {
-      await onDeposit(amt, depMethod);
+      await onDeposit(amt, depMethod, depUniqueCode);
       setDepAmount('');
-      setStatusMessage({ text: "Permintaan deposit berhasil dibuat. Silakan lakukan pembayaran di tabel bawah.", type: "success" });
+      const totalTrf = amt + depUniqueCode;
+      setStatusMessage({ 
+        text: `Permintaan deposit berhasil dibuat! Silakan transfer TEPAT Rp ${totalTrf.toLocaleString('id-ID')} (Termasuk 3 digit kode unik #${depUniqueCode}) agar verifikasi cepat oleh Admin.`, 
+        type: "success" 
+      });
+      setDepUniqueCode(Math.floor(100 + Math.random() * 900));
     } catch (err: any) {
       setStatusMessage({ text: err.message || "Gagal membuat deposit", type: "error" });
     } finally {
@@ -2230,9 +2240,16 @@ export default function UserDashboard({
                                     <span className="font-extrabold text-slate-900 truncate block">
                                       {ord.product_name}
                                     </span>
-                                    <span className="text-[11px] font-bold text-slate-500 font-mono">
-                                      Rp {(ord.amount || 0).toLocaleString('id-ID')}
-                                    </span>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[11px] font-black text-slate-900 font-mono">
+                                        Rp {((ord.amount || 0) + (ord.unique_code || 0)).toLocaleString('id-ID')}
+                                      </span>
+                                      {ord.unique_code ? (
+                                        <span className="bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded text-[9px] font-black font-mono">
+                                          Kode Unik: #{ord.unique_code}
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   </div>
 
                                   <div className="flex items-center gap-2 self-start sm:self-auto text-[10px]">
@@ -2479,6 +2496,32 @@ export default function UserDashboard({
                       </div>
                     </div>
 
+                    {Number(depAmount) >= 50000 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-1.5">
+                        <div className="flex justify-between items-center text-slate-700">
+                          <span>Nominal Deposit Pokok:</span>
+                          <span className="font-mono font-bold">Rp {Number(depAmount).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-amber-800">
+                          <span className="font-bold flex items-center gap-1">
+                            🔑 Kode Unik Verifikasi Admin:
+                          </span>
+                          <span className="font-mono font-black bg-amber-200/80 px-2 py-0.5 rounded text-amber-950 border border-amber-300">
+                            +Rp {depUniqueCode} (3 Angka)
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1.5 border-t border-amber-200 text-slate-900 font-extrabold">
+                          <span>TOTAL HARUS DITRANSFER:</span>
+                          <span className="font-mono font-black text-sm text-emerald-700">
+                            Rp {(Number(depAmount) + depUniqueCode).toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-amber-800 italic mt-0.5">
+                          📌 3 Digit Kode Unik ditambahkan otomatis di belakang nominal transfer agar transaksi Anda langsung terdeteksi & diverifikasi cepat oleh Admin.
+                        </p>
+                      </div>
+                    )}
+
                     <button
                       type="submit"
                       id="btn-submit-deposit"
@@ -2496,45 +2539,73 @@ export default function UserDashboard({
                       {deposits.length === 0 ? (
                         <p className="text-xs text-slate-400 py-3 text-center">Belum ada aktivitas deposit</p>
                       ) : (
-                        deposits.map((dep) => (
-                          <div key={dep.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col gap-3">
-                            <div className="flex justify-between items-start text-xs">
-                              <div>
-                                <p className="font-bold text-slate-700">Rp {dep.amount.toLocaleString()}</p>
-                                <p className="text-[10px] text-slate-400 uppercase font-mono">{dep.method} VA • ID #{dep.id}</p>
-                              </div>
-                              <span className={`px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase ${
-                                dep.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                {dep.status}
-                              </span>
-                            </div>
-
-                            {dep.status === 'pending' && (
-                              <div className="space-y-3 border-t border-slate-200/60 pt-3">
-                                {dep.method === 'qris' && (
-                                  <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-100">
-                                    <p className="text-[9px] text-red-600 font-bold tracking-widest uppercase mb-1">Pindai Kode QRIS Di Bawah</p>
-                                    <img referrerPolicy="no-referrer" src={dep.payment_code} className="w-32 h-32" alt="QRIS Code" />
+                        deposits.map((dep) => {
+                          const code = dep.unique_code || (100 + dep.id % 899);
+                          const totalPay = dep.amount + code;
+                          return (
+                            <div key={dep.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col gap-3">
+                              <div className="flex justify-between items-start text-xs">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-black text-slate-900 font-mono text-sm">Rp {totalPay.toLocaleString('id-ID')}</p>
+                                    <span className="bg-amber-100 border border-amber-300 text-amber-900 font-mono text-[10px] font-black px-2 py-0.5 rounded">
+                                      Kode Unik: #{code}
+                                    </span>
                                   </div>
-                                )}
-                                
-                                <div className="bg-blue-50 rounded-lg p-2.5 text-[10px] text-blue-900 border border-blue-100">
-                                  <strong>Kode/VA VA:</strong> <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 block mt-1 break-all">{dep.payment_code}</code>
+                                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                    Pokok Rp {dep.amount.toLocaleString('id-ID')} + Unik Rp {code}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400 uppercase font-mono mt-0.5">{dep.method} • ID #{dep.id}</p>
                                 </div>
-
-                                <button
-                                  type="button"
-                                  id={`btn-simulate-pay-${dep.id}`}
-                                  onClick={() => onSimulatePayment(dep.id)}
-                                  className="w-full bg-slate-900 hover:bg-slate-800 text-white text-[11px] py-2 rounded-lg font-bold transition flex items-center justify-center gap-1.5 shadow cursor-pointer"
-                                >
-                                  <RefreshCw className="w-3 h-3 animate-spin" /> Simulasi Verifikasi Gateway Instan
-                                </button>
+                                <span className={`px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase ${
+                                  dep.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  {dep.status}
+                                </span>
                               </div>
-                            )}
-                          </div>
-                        ))
+
+                              {dep.status === 'pending' && (
+                                <div className="space-y-3 border-t border-slate-200/60 pt-3">
+                                  <div className="flex items-center justify-between text-xs bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                                    <span className="text-[11px] text-amber-900 font-bold">Transfer Sesuai Nominal Unik:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(String(totalPay));
+                                        setCopiedDepId(dep.id);
+                                        setTimeout(() => setCopiedDepId(null), 2000);
+                                      }}
+                                      className="inline-flex items-center gap-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] px-3 py-1 rounded-lg transition shadow-xs cursor-pointer"
+                                    >
+                                      {copiedDepId === dep.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                      {copiedDepId === dep.id ? "Tersalin!" : `Salin Rp ${totalPay.toLocaleString('id-ID')}`}
+                                    </button>
+                                  </div>
+
+                                  {dep.method === 'qris' && (
+                                    <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-100">
+                                      <p className="text-[9px] text-red-600 font-bold tracking-widest uppercase mb-1">Pindai Kode QRIS Di Bawah</p>
+                                      <img referrerPolicy="no-referrer" src={dep.payment_code} className="w-32 h-32" alt="QRIS Code" />
+                                    </div>
+                                  )}
+                                  
+                                  <div className="bg-blue-50 rounded-lg p-2.5 text-[10px] text-blue-900 border border-blue-100">
+                                    <strong>Kode/VA VA:</strong> <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 block mt-1 break-all">{dep.payment_code}</code>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    id={`btn-simulate-pay-${dep.id}`}
+                                    onClick={() => onSimulatePayment(dep.id)}
+                                    className="w-full bg-slate-900 hover:bg-slate-800 text-white text-[11px] py-2 rounded-lg font-bold transition flex items-center justify-center gap-1.5 shadow cursor-pointer"
+                                  >
+                                    <RefreshCw className="w-3 h-3 animate-spin" /> Simulasi Verifikasi Gateway Instan
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   </div>
@@ -3758,9 +3829,29 @@ export default function UserDashboard({
                 {/* Bank Transfer Details Box when Transfer is chosen */}
                 {purchasePaymentMethod === 'transfer' && (
                   <div className="bg-slate-900 text-white rounded-xl p-3 text-xs space-y-2">
-                    <span className="text-[9px] font-extrabold uppercase text-blue-400 tracking-wider block">
-                      🏦 REKENING TUJUAN TRANSFER ADMIN
+                    <span className="text-[9px] font-extrabold uppercase text-amber-400 tracking-wider block">
+                      🏦 REKENING TUJUAN TRANSFER ADMIN & KODE UNIK
                     </span>
+                    
+                    <div className="bg-slate-950 p-2.5 rounded-lg border border-amber-500/40 space-y-1 text-[11px]">
+                      <div className="flex justify-between items-center text-slate-300">
+                        <span>Harga Produk Member:</span>
+                        <span className="font-mono">Rp {purchaseModalProduct.member_price.toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-amber-300 font-bold">
+                        <span>🔑 Kode Unik Verifikasi:</span>
+                        <span className="font-mono bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
+                          +Rp {roUniqueCode} (3 Angka)
+                        </span>
+                      </div>
+                      <div className="pt-1.5 border-t border-slate-800 flex justify-between items-center font-black">
+                        <span className="text-white text-[10px] uppercase">TOTAL DITRANSFER:</span>
+                        <span className="font-mono text-emerald-400 text-sm">
+                          Rp {(purchaseModalProduct.member_price + roUniqueCode).toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                    </div>
+
                     <div className="space-y-1 font-mono text-[10px] sm:text-[11px]">
                       {settings?.companyBankName ? (
                         <>
@@ -3811,7 +3902,7 @@ export default function UserDashboard({
                   <div>
                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Total Pembayaran</span>
                     <span className="text-xs sm:text-base font-black text-blue-600 font-mono">
-                      Rp {purchaseModalProduct.member_price.toLocaleString('id-ID')}
+                      Rp {(purchasePaymentMethod === 'transfer' ? purchaseModalProduct.member_price + roUniqueCode : purchaseModalProduct.member_price).toLocaleString('id-ID')}
                     </span>
                   </div>
 
@@ -4003,8 +4094,43 @@ export default function UserDashboard({
                     <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded">Rp 550.000</span>
                   </div>
 
-                  <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Transfer sebesar <strong className="text-white font-mono">Rp 550.000</strong> ke salah satu rekening bank resmi Admin Hedtro Jeans di bawah ini:
+                  <div className="bg-slate-950 p-3.5 rounded-xl border border-amber-500/40 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 font-medium">Nominal Paket Aktivasi:</span>
+                      <span className="font-mono font-bold text-slate-200">Rp 550.000</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-amber-400 font-bold flex items-center gap-1">
+                        🔑 Kode Unik Verifikasi:
+                      </span>
+                      <span className="font-mono font-black text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                        +Rp {activationUniqueCode} (3 Angka)
+                      </span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">TOTAL HARUS DITRANSFER:</span>
+                        <span className="text-lg font-black font-mono text-emerald-400 tracking-tight">
+                          Rp {(550000 + activationUniqueCode).toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(String(550000 + activationUniqueCode));
+                          setCopiedTotal(true);
+                          setTimeout(() => setCopiedTotal(false), 2000);
+                        }}
+                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-sm"
+                      >
+                        {copiedTotal ? <Check className="w-3.5 h-3.5 text-slate-950" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedTotal ? "Tersalin!" : "Salin Total"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-amber-200/90 leading-relaxed bg-amber-950/40 p-2.5 rounded-xl border border-amber-800/50">
+                    ⚠️ <strong>PENTING:</strong> Transfer WAJIB TEPAT <strong className="text-amber-300 font-mono font-extrabold">Rp {(550000 + activationUniqueCode).toLocaleString('id-ID')}</strong> (termasuk 3 digit kode unik) agar transaksi otomatis diverifikasi oleh Admin.
                   </p>
 
                   <div className="space-y-2 font-mono text-xs bg-slate-950 p-3 rounded-xl border border-slate-800">
@@ -4028,10 +4154,11 @@ export default function UserDashboard({
                         setDepAmount("550000");
                         setDepMethod("transfer_bank");
                         if (onDeposit) {
-                          await onDeposit(550000, "transfer_bank");
+                          await onDeposit(550000, "transfer_bank", activationUniqueCode);
                         }
                         setIsActivationModalOpen(false);
-                        const waMsg = encodeURIComponent(`Halo Admin Hedtro Jeans, saya member @${user.username} (Nama: ${user.fullname}) telah melakukan Transfer Bank sebesar Rp 550.000 untuk Aktivasi Member Premium. Mohon validasi akun saya.`);
+                        const totalAct = 550000 + activationUniqueCode;
+                        const waMsg = encodeURIComponent(`Halo Admin Hedtro Jeans, saya member @${user.username} (Nama: ${user.fullname}) telah melakukan Transfer Bank sebesar Rp ${totalAct.toLocaleString('id-ID')} (Nominal Rp 550.000 + Kode Unik ${activationUniqueCode}) untuk Aktivasi Member Premium. Mohon validasi akun saya.`);
                         window.open(`https://wa.me/6281234567890?text=${waMsg}`, '_blank');
                       }}
                       className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer"

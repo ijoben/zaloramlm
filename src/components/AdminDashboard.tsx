@@ -36,6 +36,8 @@ interface AdminDashboardProps {
   onDeleteProduct?: (productId: number) => Promise<boolean>;
   onProcessWithdrawal: (wdId: number, action: 'approve' | 'reject') => Promise<void>;
   onProcessDeposit?: (depositId: number, action: 'approve' | 'reject') => Promise<void>;
+  onDeleteDeposit?: (depositId: number | string) => Promise<boolean>;
+  onDeleteWithdrawal?: (wdId: number | string) => Promise<boolean>;
   onAddProduct?: (prodData: Omit<Product, "id">) => Promise<boolean>;
   onAddUser?: (userData: Partial<MLMUser>) => Promise<boolean>;
   onUpdateUserAdmin?: (userId: number, updateData: Partial<MLMUser>) => Promise<boolean>;
@@ -125,6 +127,8 @@ export default function AdminDashboard({
   onDeleteProduct,
   onProcessWithdrawal,
   onProcessDeposit,
+  onDeleteDeposit,
+  onDeleteWithdrawal,
   onAddProduct,
   onAddUser,
   onUpdateUserAdmin,
@@ -340,6 +344,7 @@ export default function AdminDashboard({
 
   // User search query
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchDepositQuery, setSearchDepositQuery] = useState('');
 
   // Pagination states (10 items per page)
   const [pageTransactions, setPageTransactions] = useState(1);
@@ -721,6 +726,8 @@ export default function AdminDashboard({
   const [newProdMemberPrice, setNewProdMemberPrice] = useState(120000);
   const [newProdStock, setNewProdStock] = useState(100);
   const [newProdDescription, setNewProdDescription] = useState('Bahan denim premium 12oz, jahitan kuat dan presisi, nyaman dipakai sehari-hari.');
+  const [newProdSizesStr, setNewProdSizesStr] = useState('28, 29, 30, 31, 32, 33, 34, 35, 36');
+  const [newProdColorsStr, setNewProdColorsStr] = useState('Deep Indigo Blue, Jet Black, Light Blue, Retro Wash');
 
   // File input refs & file reader handler for uploading product photos
   const newProductFileInputRef = useRef<HTMLInputElement>(null);
@@ -778,6 +785,50 @@ export default function AdminDashboard({
     }
   };
 
+  const handleDeleteDeposit = async (depositId: number) => {
+    if (!window.confirm(`Yakin ingin menghapus data deposit ID #${depositId}? Data akan dihapus dari database.`)) return;
+    setLoading(true);
+    try {
+      if (onDeleteDeposit) {
+        await onDeleteDeposit(depositId);
+      } else {
+        await fetch("/api/admin/deposits/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: depositId })
+        });
+      }
+      setMessage({ text: `Data deposit #${depositId} berhasil dihapus dari database!`, type: "success" });
+      onRefresh();
+    } catch (err: any) {
+      setMessage({ text: err.message || "Gagal menghapus deposit", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteWithdrawal = async (wdId: number) => {
+    if (!window.confirm(`Yakin ingin menghapus data penarikan WD ID #${wdId}? Data akan dihapus dari database.`)) return;
+    setLoading(true);
+    try {
+      if (onDeleteWithdrawal) {
+        await onDeleteWithdrawal(wdId);
+      } else {
+        await fetch("/api/admin/withdrawals/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: wdId })
+        });
+      }
+      setMessage({ text: `Data penarikan (WD) #${wdId} berhasil dihapus dari database!`, type: "success" });
+      onRefresh();
+    } catch (err: any) {
+      setMessage({ text: err.message || "Gagal menghapus WD", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAddProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProdName) {
@@ -786,13 +837,18 @@ export default function AdminDashboard({
     }
     setLoading(true);
     try {
+      const sizesArr = newProdSizesStr.split(',').map(s => s.trim()).filter(Boolean);
+      const colorsArr = newProdColorsStr.split(',').map(c => c.trim()).filter(Boolean);
+
       const prodData = {
         name: newProdName,
         image: newProdImage,
         price: Number(newProdPrice),
         member_price: Number(newProdMemberPrice),
         stock: Number(newProdStock),
-        description: newProdDescription
+        description: newProdDescription,
+        sizes: sizesArr.length > 0 ? sizesArr : ["28", "29", "30", "31", "32", "33", "34", "35", "36"],
+        colors: colorsArr.length > 0 ? colorsArr : ["Deep Indigo Blue", "Jet Black", "Light Wash"]
       };
 
       if (onAddProduct) {
@@ -2137,9 +2193,29 @@ export default function AdminDashboard({
                                 >
                                   <XCircle className="w-3.5 h-3.5" /> Tolak
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteWithdrawal(wd.id)}
+                                  disabled={loading}
+                                  className="bg-red-50 hover:bg-red-100 text-red-600 font-extrabold p-1.5 rounded-lg text-[10px] transition border border-red-200 flex items-center gap-1 cursor-pointer"
+                                  title="Hapus Data WD"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             ) : (
-                              <span className="text-[10px] text-slate-400 font-bold uppercase">Selesai divalidasi</span>
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Selesai divalidasi</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteWithdrawal(wd.id)}
+                                  disabled={loading}
+                                  className="bg-red-50 hover:bg-red-100 text-red-600 font-extrabold p-1.5 rounded-lg text-[10px] transition border border-red-200 flex items-center gap-1 cursor-pointer"
+                                  title="Hapus Data WD"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -2602,6 +2678,18 @@ export default function AdminDashboard({
                               <img referrerPolicy="no-referrer" src={p.image} className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0 bg-slate-100" alt={p.name} />
                               <div className="min-w-0">
                                 <h4 className="font-extrabold text-slate-900 truncate max-w-[220px]">{p.name}</h4>
+                                <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                  {p.sizes && p.sizes.length > 0 && (
+                                    <span className="text-[9px] font-mono font-bold bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded border border-blue-100">
+                                      Size: {p.sizes.slice(0, 4).join(', ')}{p.sizes.length > 4 ? '+' : ''}
+                                    </span>
+                                  )}
+                                  {p.colors && p.colors.length > 0 && (
+                                    <span className="text-[9px] font-bold bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200">
+                                      {p.colors.length} Warna
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5 max-w-[250px]">{p.description}</p>
                               </div>
                             </div>
@@ -2664,164 +2752,249 @@ export default function AdminDashboard({
           {/* TAB: DEPOSITS VALIDATION */}
           {activeTab === 'deposits' && (
             <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <ArrowDownLeft className="text-amber-500 w-5 h-5" /> Validasi Deposit Transfer Manual
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Periksa bukti transfer dan setujui atau tolak transaksi deposit manual yang diajukan oleh para member.
-                </p>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <ArrowDownLeft className="text-amber-500 w-5 h-5" /> Validasi Deposit Transfer Manual
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Periksa nominal unik transfer bank dan setujui atau tolak transaksi deposit manual yang diajukan oleh member.
+                  </p>
+                </div>
+
+                <div className="relative w-full md:w-72">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari username, kode unik, ID, Rp..."
+                    value={searchDepositQuery}
+                    onChange={(e) => {
+                      setSearchDepositQuery(e.target.value);
+                      setPageDeposits(1);
+                    }}
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-500 bg-slate-50"
+                  />
+                </div>
               </div>
 
-              {/* Mobile View: 1 Column per Row */}
-              <div className="grid grid-cols-1 gap-3 sm:hidden">
-                {deposits.length === 0 ? (
-                  <div className="py-6 text-center text-slate-400 text-xs font-medium">
-                    Tidak ada riwayat deposit
-                  </div>
-                ) : (
-                  deposits
-                    .slice((pageDeposits - 1) * 10, pageDeposits * 10)
-                    .map((dep) => (
-                    <div key={dep.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <span className="font-extrabold text-slate-900 truncate text-xs">{dep.username.replace(/^@/, '')}</span>
-                          <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ${
-                            dep.status === 'success' ? 'bg-green-100 text-green-800' :
-                            dep.status === 'failed' ? 'bg-red-100 text-red-800' :
-                            'bg-amber-100 text-amber-800'
-                          }`}>
-                            {dep.status === 'success' ? 'SUCCESS' : dep.status === 'failed' ? 'FAILED' : 'PENDING'}
-                          </span>
+              {(() => {
+                const filteredDeposits = deposits.filter(dep => {
+                  const q = searchDepositQuery.toLowerCase().trim();
+                  if (!q) return true;
+                  const codeStr = String(dep.unique_code || (100 + dep.id % 899));
+                  const totalTrfStr = String(dep.amount + (dep.unique_code || (100 + dep.id % 899)));
+                  return (
+                    dep.username.toLowerCase().includes(q) ||
+                    String(dep.id).includes(q) ||
+                    codeStr.includes(q) ||
+                    totalTrfStr.includes(q) ||
+                    String(dep.amount).includes(q) ||
+                    dep.method.toLowerCase().includes(q)
+                  );
+                });
+
+                return (
+                  <>
+                    {/* Mobile View: 1 Column per Row */}
+                    <div className="grid grid-cols-1 gap-3 sm:hidden">
+                      {filteredDeposits.length === 0 ? (
+                        <div className="py-6 text-center text-slate-400 text-xs font-medium">
+                          Tidak ada riwayat deposit sesuai pencarian
                         </div>
-                        <p className="text-[10px] text-slate-400 font-mono">Kode Ref: #DEP-{dep.id}</p>
-                        <p className="text-sm font-mono font-black text-slate-900 mt-1">Rp {dep.amount.toLocaleString()}</p>
-                        <p className="text-[10px] text-slate-500 uppercase font-semibold mt-0.5">{dep.method.startsWith('manual') ? "Transfer Manual" : dep.method}</p>
-                      </div>
+                      ) : (
+                        filteredDeposits
+                          .slice((pageDeposits - 1) * 10, pageDeposits * 10)
+                          .map((dep) => {
+                            const code = dep.unique_code || (100 + dep.id % 899);
+                            const totalTrf = dep.amount + code;
+                            return (
+                              <div key={dep.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
+                                <div>
+                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                    <span className="font-extrabold text-slate-900 truncate text-xs">@{dep.username.replace(/^@/, '')}</span>
+                                    <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ${
+                                      dep.status === 'success' ? 'bg-green-100 text-green-800' :
+                                      dep.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                      'bg-amber-100 text-amber-800'
+                                    }`}>
+                                      {dep.status === 'success' ? 'SUCCESS' : dep.status === 'failed' ? 'FAILED' : 'PENDING'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-sm font-mono font-black text-slate-900">
+                                      Rp {totalTrf.toLocaleString('id-ID')}
+                                    </p>
+                                    <span className="bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded font-mono font-black text-[10px]">
+                                      Kode Unik: #{code}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                    Nominal Pokok: Rp {dep.amount.toLocaleString('id-ID')}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400 uppercase font-mono mt-0.5">Metode: {dep.method.startsWith('manual') ? "Transfer Bank Manual" : dep.method} • Ref: #DEP-{dep.id}</p>
+                                </div>
 
-                      <div>
-                        {dep.status === 'pending' ? (
-                          <div className="flex items-center gap-2 pt-2 border-t border-slate-200/80">
-                            <button
-                              id={`btn-approve-dep-mob-${dep.id}`}
-                              disabled={loading}
-                              onClick={() => handleProcessDeposit(dep.id, 'approve')}
-                              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
-                            >
-                              <Check className="w-3.5 h-3.5" /> Setujui
-                            </button>
-                            <button
-                              id={`btn-reject-dep-mob-${dep.id}`}
-                              disabled={loading}
-                              onClick={() => handleProcessDeposit(dep.id, 'reject')}
-                              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" /> Tolak
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="block text-center text-[10px] text-slate-400 font-extrabold uppercase pt-1.5 border-t border-slate-200/60">
-                            Terproses
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Desktop View: Table */}
-              <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th className="px-4 py-3">ID / Tanggal</th>
-                      <th className="px-4 py-3">Username / Nama</th>
-                      <th className="px-4 py-3">Metode / Detail</th>
-                      <th className="px-4 py-3 text-right">Jumlah (IDR)</th>
-                      <th className="px-4 py-3 text-center">Status</th>
-                      <th className="px-4 py-3 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 text-xs">
-                    {deposits.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="text-center py-8 text-slate-400 font-medium">Tidak ada riwayat deposit</td>
-                      </tr>
-                    ) : (
-                      deposits
-                        .slice((pageDeposits - 1) * 10, pageDeposits * 10)
-                        .map((dep) => (
-                        <tr key={dep.id} className="hover:bg-slate-50/50">
-                          <td className="px-4 py-3.5">
-                            <p className="font-bold text-slate-800 font-mono">#DEP-{dep.id}</p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">{new Date(dep.created_at).toLocaleString()}</p>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <p className="font-bold text-slate-950">{dep.username.replace(/^@/, '')}</p>
-                            <p className="text-[10px] text-slate-500 mt-0.5">{dep.method.startsWith('manual') ? "Transfer Manual" : "Payment Gateway"}</p>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <span className="bg-slate-100 text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
-                              {dep.method.toUpperCase()}
-                            </span>
-                            {dep.method.startsWith('manual') && (
-                              <p className="text-[10px] text-amber-600 font-semibold mt-1 font-sans">Menunggu validasi transfer bank manual</p>
-                            )}
-                          </td>
-                          <td className="px-4 py-3.5 text-right font-bold font-mono text-slate-900">
-                            Rp {dep.amount.toLocaleString()}
-                          </td>
-                          <td className="px-4 py-3.5 text-center">
-                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                              dep.status === 'success' ? 'bg-green-100 text-green-800' :
-                              dep.status === 'failed' ? 'bg-red-100 text-red-800' :
-                              'bg-amber-100 text-amber-800'
-                            }`}>
-                              {dep.status === 'success' ? 'SUCCESS' :
-                               dep.status === 'failed' ? 'FAILED' : 'PENDING'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5 text-center">
-                            {dep.status === 'pending' ? (
-                              <div className="flex gap-2 justify-center">
-                                <button
-                                  id={`btn-approve-dep-${dep.id}`}
-                                  disabled={loading}
-                                  onClick={() => handleProcessDeposit(dep.id, 'approve')}
-                                  className="bg-green-600 hover:bg-green-700 text-white font-bold p-1.5 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
-                                  title="Approve & Tambah Saldo"
-                                >
-                                  <Check className="w-3.5 h-3.5" /> Approve
-                                </button>
-                                <button
-                                  id={`btn-reject-dep-${dep.id}`}
-                                  disabled={loading}
-                                  onClick={() => handleProcessDeposit(dep.id, 'reject')}
-                                  className="bg-red-600 hover:bg-red-700 text-white font-bold p-1.5 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
-                                  title="Tolak Request"
-                                >
-                                  <X className="w-3.5 h-3.5" /> Reject
-                                </button>
+                                <div>
+                                  {dep.status === 'pending' ? (
+                                    <div className="flex items-center gap-2 pt-2 border-t border-slate-200/80">
+                                      <button
+                                        id={`btn-approve-dep-mob-${dep.id}`}
+                                        disabled={loading}
+                                        onClick={() => handleProcessDeposit(dep.id, 'approve')}
+                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                                      >
+                                        <Check className="w-3.5 h-3.5" /> Setujui (Acc)
+                                      </button>
+                                      <button
+                                        id={`btn-reject-dep-mob-${dep.id}`}
+                                        disabled={loading}
+                                        onClick={() => handleProcessDeposit(dep.id, 'reject')}
+                                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                                      >
+                                        <X className="w-3.5 h-3.5" /> Tolak
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="block text-center text-[10px] text-slate-400 font-extrabold uppercase pt-1.5 border-t border-slate-200/60">
+                                      Terproses
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            ) : (
-                              <span className="text-slate-400 font-semibold text-[10px] uppercase">Terproses</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                            );
+                          })
+                      )}
+                    </div>
 
-              <PaginationControls
-                currentPage={pageDeposits}
-                totalItems={deposits.length}
-                itemsPerPage={10}
-                onPageChange={setPageDeposits}
-              />
+                    {/* Desktop View: Table */}
+                    <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            <th className="px-4 py-3">ID / Tanggal</th>
+                            <th className="px-4 py-3">Username / Member</th>
+                            <th className="px-4 py-3">Metode / Detail</th>
+                            <th className="px-4 py-3">Kode Unik Verifikasi</th>
+                            <th className="px-4 py-3 text-right">Total Ditransfer (IDR)</th>
+                            <th className="px-4 py-3 text-center">Status</th>
+                            <th className="px-4 py-3 text-center">Aksi (Validasi)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 text-xs">
+                          {filteredDeposits.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="text-center py-8 text-slate-400 font-medium">Tidak ada riwayat deposit ditemukan</td>
+                            </tr>
+                          ) : (
+                            filteredDeposits
+                              .slice((pageDeposits - 1) * 10, pageDeposits * 10)
+                              .map((dep) => {
+                                const code = dep.unique_code || (100 + dep.id % 899);
+                                const totalTrf = dep.amount + code;
+                                return (
+                                  <tr key={dep.id} className="hover:bg-slate-50/50">
+                                    <td className="px-4 py-3.5">
+                                      <p className="font-bold text-slate-800 font-mono">#DEP-{dep.id}</p>
+                                      <p className="text-[10px] text-slate-400 mt-0.5">{new Date(dep.created_at).toLocaleString()}</p>
+                                    </td>
+                                    <td className="px-4 py-3.5">
+                                      <p className="font-extrabold text-slate-950">@{dep.username.replace(/^@/, '')}</p>
+                                      <p className="text-[10px] text-slate-500 mt-0.5">{dep.method.startsWith('manual') ? "Transfer Manual" : "Payment Gateway"}</p>
+                                    </td>
+                                    <td className="px-4 py-3.5">
+                                      <span className="bg-slate-100 text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                                        {dep.method.toUpperCase()}
+                                      </span>
+                                      {dep.method.startsWith('manual') && (
+                                        <p className="text-[10px] text-amber-600 font-semibold mt-1 font-sans">Menunggu validasi mutasi bank</p>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3.5 font-mono">
+                                      <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded text-xs font-black">
+                                        #{code}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3.5 text-right font-mono">
+                                      <div className="font-black text-sm text-slate-900">
+                                        Rp {totalTrf.toLocaleString('id-ID')}
+                                      </div>
+                                      <div className="text-[10px] text-slate-400">
+                                        Pokok Rp {dep.amount.toLocaleString('id-ID')} + Unik Rp {code}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3.5 text-center">
+                                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                        dep.status === 'success' ? 'bg-green-100 text-green-800' :
+                                        dep.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                        'bg-amber-100 text-amber-800'
+                                      }`}>
+                                        {dep.status === 'success' ? 'SUCCESS' :
+                                         dep.status === 'failed' ? 'FAILED' : 'PENDING'}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3.5 text-center">
+                                      {dep.status === 'pending' ? (
+                                        <div className="flex gap-2 justify-center">
+                                          <button
+                                            id={`btn-approve-dep-${dep.id}`}
+                                            disabled={loading}
+                                            onClick={() => handleProcessDeposit(dep.id, 'approve')}
+                                            className="bg-green-600 hover:bg-green-700 text-white font-bold p-1.5 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
+                                            title="Approve & Tambah Saldo"
+                                          >
+                                            <Check className="w-3.5 h-3.5" /> Approve
+                                          </button>
+                                          <button
+                                            id={`btn-reject-dep-${dep.id}`}
+                                            disabled={loading}
+                                            onClick={() => handleProcessDeposit(dep.id, 'reject')}
+                                            className="bg-red-600 hover:bg-red-700 text-white font-bold p-1.5 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
+                                            title="Tolak Request"
+                                          >
+                                            <X className="w-3.5 h-3.5" /> Reject
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={loading}
+                                            onClick={() => handleDeleteDeposit(dep.id)}
+                                            className="bg-red-50 hover:bg-red-100 text-red-600 font-bold p-1.5 rounded-lg border border-red-200 transition text-[10px] cursor-pointer"
+                                            title="Hapus Data Deposit"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center justify-center gap-1.5">
+                                          <span className="text-slate-400 font-semibold text-[10px] uppercase">Terproses</span>
+                                          <button
+                                            type="button"
+                                            disabled={loading}
+                                            onClick={() => handleDeleteDeposit(dep.id)}
+                                            className="p-1 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-lg border border-red-200 transition text-[10px] cursor-pointer"
+                                            title="Hapus Data Deposit"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <PaginationControls
+                      currentPage={pageDeposits}
+                      totalItems={filteredDeposits.length}
+                      itemsPerPage={10}
+                      onPageChange={setPageDeposits}
+                    />
+                  </>
+                );
+              })()}
             </div>
           )}
 
@@ -4428,68 +4601,86 @@ export default function AdminDashboard({
                     if (orderStatusFilter !== 'ALL' && o.status !== orderStatusFilter) return false;
                     if (!orderSearchQuery) return true;
                     const q = orderSearchQuery.toLowerCase();
+                    const totalTrf = (o.amount || 0) + (o.unique_code || 0);
                     return (
                       (o.invoice_no && o.invoice_no.toLowerCase().includes(q)) ||
                       (o.fullname && o.fullname.toLowerCase().includes(q)) ||
                       (o.username && o.username.toLowerCase().includes(q)) ||
                       (o.tracking_number && o.tracking_number.toLowerCase().includes(q)) ||
-                      (o.phone && o.phone.toLowerCase().includes(q))
+                      (o.phone && o.phone.toLowerCase().includes(q)) ||
+                      (o.unique_code && String(o.unique_code).includes(q)) ||
+                      String(totalTrf).includes(q)
                     );
                   })
                   .slice((pageOrders - 1) * 10, pageOrders * 10)
-                  .map((ord) => (
-                    <div key={ord.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <span className="font-bold font-mono text-slate-900 text-xs">{ord.invoice_no}</span>
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase shrink-0 ${
-                            ord.status === 'TERIMA' ? 'bg-green-100 text-green-800' :
-                            ord.status === 'DIKIRIM' ? 'bg-blue-100 text-blue-800' :
-                            ord.status === 'BATAL' ? 'bg-red-100 text-red-800' :
-                            'bg-amber-100 text-amber-800'
-                          }`}>
-                            {ord.status === 'TERIMA' ? 'SELESAI' : ord.status === 'DIKIRIM' ? 'DIKIRIM' : ord.status === 'BATAL' ? 'BATAL' : 'DIPROSES'}
-                          </span>
-                        </div>
-                        <p className="font-bold text-slate-900 text-xs">{ord.fullname} <span className="text-blue-600 font-normal">(@{ord.username})</span></p>
-                        <p className="text-[11px] text-slate-700 font-medium mt-0.5">{ord.product_name} - <strong className="text-blue-600 font-mono">Rp {(ord.amount || 0).toLocaleString('id-ID')}</strong></p>
-                        <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{ord.address}</p>
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          <span className="text-[10px] font-bold text-slate-600 bg-slate-200/80 px-2 py-0.5 rounded">{ord.courier || 'JNE'}</span>
-                          {ord.tracking_number ? (
-                            <span className="font-mono font-bold text-blue-600 text-[10px] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                              Resi: {ord.tracking_number}
+                  .map((ord) => {
+                    const totalTrf = (ord.amount || 0) + (ord.unique_code || 0);
+                    return (
+                      <div key={ord.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="font-bold font-mono text-slate-900 text-xs">{ord.invoice_no}</span>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                              ord.status === 'TERIMA' ? 'bg-green-100 text-green-800' :
+                              ord.status === 'DIKIRIM' ? 'bg-blue-100 text-blue-800' :
+                              ord.status === 'BATAL' ? 'bg-red-100 text-red-800' :
+                              'bg-amber-100 text-amber-800'
+                            }`}>
+                              {ord.status === 'TERIMA' ? 'SELESAI' : ord.status === 'DIKIRIM' ? 'DIKIRIM' : ord.status === 'BATAL' ? 'BATAL' : 'DIPROSES'}
                             </span>
-                          ) : (
-                            <span className="text-[10px] text-amber-600 italic">Belum ada resi</span>
+                          </div>
+                          <p className="font-bold text-slate-900 text-xs">{ord.fullname} <span className="text-blue-600 font-normal">(@{ord.username})</span></p>
+                          <div className="mt-1">
+                            <p className="text-[11px] text-slate-700 font-medium">{ord.product_name}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-xs font-black text-blue-600 font-mono">
+                                Rp {totalTrf.toLocaleString('id-ID')}
+                              </span>
+                              {ord.unique_code ? (
+                                <span className="bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded font-mono font-black text-[9px]">
+                                  Kode Unik: #{ord.unique_code}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{ord.address}</p>
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-600 bg-slate-200/80 px-2 py-0.5 rounded">{ord.courier || 'JNE'}</span>
+                            {ord.tracking_number ? (
+                              <span className="font-mono font-bold text-blue-600 text-[10px] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                Resi: {ord.tracking_number}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-amber-600 italic">Belum ada resi</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between gap-2">
+                          {settings?.shippingTrackingMode !== 'MANUAL' && (
+                            <button
+                              onClick={() => handleSyncShippingApi(ord)}
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <RefreshCw className="w-3 h-3" /> Auto-Sync
+                            </button>
                           )}
+                          <button
+                            onClick={() => handleOpenEditOrderModal(ord)}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Edit className="w-3 h-3" /> Edit
+                          </button>
+                          <button
+                            onClick={() => setDeletingOrderId(ord.id)}
+                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition border border-red-200 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
-
-                      <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between gap-2">
-                        {settings?.shippingTrackingMode !== 'MANUAL' && (
-                          <button
-                            onClick={() => handleSyncShippingApi(ord)}
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <RefreshCw className="w-3 h-3" /> Auto-Sync
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleOpenEditOrderModal(ord)}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <Edit className="w-3 h-3" /> Edit
-                        </button>
-                        <button
-                          onClick={() => setDeletingOrderId(ord.id)}
-                          className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition border border-red-200 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 {orders.length === 0 && (
                   <div className="py-8 text-center text-slate-400 text-xs">Belum ada data order pesanan.</div>
                 )}
@@ -4514,36 +4705,51 @@ export default function AdminDashboard({
                         if (orderStatusFilter !== 'ALL' && o.status !== orderStatusFilter) return false;
                         if (!orderSearchQuery) return true;
                         const q = orderSearchQuery.toLowerCase();
+                        const totalTrf = (o.amount || 0) + (o.unique_code || 0);
                         return (
                           (o.invoice_no && o.invoice_no.toLowerCase().includes(q)) ||
                           (o.fullname && o.fullname.toLowerCase().includes(q)) ||
                           (o.username && o.username.toLowerCase().includes(q)) ||
                           (o.tracking_number && o.tracking_number.toLowerCase().includes(q)) ||
-                          (o.phone && o.phone.toLowerCase().includes(q))
+                          (o.phone && o.phone.toLowerCase().includes(q)) ||
+                          (o.unique_code && String(o.unique_code).includes(q)) ||
+                          String(totalTrf).includes(q)
                         );
                       })
                       .slice((pageOrders - 1) * 10, pageOrders * 10)
-                      .map((ord) => (
-                        <tr key={ord.id} className="hover:bg-slate-50/60 transition">
-                          <td className="px-4 py-3.5 align-top">
-                            <span className="font-bold text-slate-900 font-mono block">{ord.invoice_no}</span>
-                            <span className="text-[10px] text-slate-400 mt-0.5 block">{new Date(ord.created_at).toLocaleString('id-ID')}</span>
-                            <span className="inline-block mt-1 bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded">
-                              {ord.payment_method || 'Transfer Bank'}
-                            </span>
-                          </td>
+                      .map((ord) => {
+                        const totalTrf = (ord.amount || 0) + (ord.unique_code || 0);
+                        return (
+                          <tr key={ord.id} className="hover:bg-slate-50/60 transition">
+                            <td className="px-4 py-3.5 align-top">
+                              <span className="font-bold text-slate-900 font-mono block">{ord.invoice_no}</span>
+                              <span className="text-[10px] text-slate-400 mt-0.5 block">{new Date(ord.created_at).toLocaleString('id-ID')}</span>
+                              <span className="inline-block mt-1 bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded">
+                                {ord.payment_method || 'Transfer Bank'}
+                              </span>
+                            </td>
 
-                          <td className="px-4 py-3.5 align-top max-w-xs">
-                            <p className="font-bold text-slate-900">{ord.fullname}</p>
-                            <p className="text-[10px] text-blue-600 font-semibold font-mono">@{ord.username}</p>
-                            <p className="text-[11px] text-slate-500 mt-1">{ord.phone}</p>
-                            <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">{ord.address}</p>
-                          </td>
+                            <td className="px-4 py-3.5 align-top max-w-xs">
+                              <p className="font-bold text-slate-900">{ord.fullname}</p>
+                              <p className="text-[10px] text-blue-600 font-semibold font-mono">@{ord.username}</p>
+                              <p className="text-[11px] text-slate-500 mt-1">{ord.phone}</p>
+                              <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">{ord.address}</p>
+                            </td>
 
-                          <td className="px-4 py-3.5 align-top">
-                            <p className="font-bold text-slate-800 line-clamp-1">{ord.product_name}</p>
-                            <p className="font-black text-blue-600 font-mono mt-1 text-xs">Rp {(ord.amount || 0).toLocaleString('id-ID')}</p>
-                          </td>
+                            <td className="px-4 py-3.5 align-top">
+                              <p className="font-bold text-slate-800 line-clamp-1">{ord.product_name}</p>
+                              <p className="font-black text-blue-600 font-mono mt-1 text-xs">Rp {totalTrf.toLocaleString('id-ID')}</p>
+                              {ord.unique_code ? (
+                                <div className="mt-1">
+                                  <span className="bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded font-mono font-black text-[9px] inline-block">
+                                    Kode Unik: #{ord.unique_code}
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 block font-mono mt-0.5">
+                                    (Pokok Rp {(ord.amount || 0).toLocaleString('id-ID')})
+                                  </span>
+                                </div>
+                              ) : null}
+                            </td>
 
                           <td className="px-4 py-3.5 align-top">
                             <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[10px]">
@@ -4599,7 +4805,8 @@ export default function AdminDashboard({
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      );
+                    })}
 
                     {orders.length === 0 && (
                       <tr>
@@ -5084,6 +5291,35 @@ export default function AdminDashboard({
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Pilihan Size (pisahkan koma)</label>
+                  <input
+                    type="text"
+                    placeholder="28, 29, 30, 31, 32, 33"
+                    value={editingModalProduct.sizes ? editingModalProduct.sizes.join(', ') : ''}
+                    onChange={(e) => setEditingModalProduct({
+                      ...editingModalProduct,
+                      sizes: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                    })}
+                    className="w-full text-xs font-mono font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Pilihan Warna (pisahkan koma)</label>
+                  <input
+                    type="text"
+                    placeholder="Indigo, Black, Light Wash"
+                    value={editingModalProduct.colors ? editingModalProduct.colors.join(', ') : ''}
+                    onChange={(e) => setEditingModalProduct({
+                      ...editingModalProduct,
+                      colors: e.target.value.split(',').map(c => c.trim()).filter(Boolean)
+                    })}
+                    className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Deskripsi Ringkas</label>
                 <textarea
@@ -5211,6 +5447,29 @@ export default function AdminDashboard({
                     required
                     value={newProdStock}
                     onChange={(e) => setNewProdStock(Number(e.target.value))}
+                    className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Pilihan Size (pisahkan koma)</label>
+                  <input
+                    type="text"
+                    placeholder="28, 29, 30, 31, 32, 33, 34, 35, 36"
+                    value={newProdSizesStr}
+                    onChange={(e) => setNewProdSizesStr(e.target.value)}
+                    className="w-full text-xs font-mono font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Pilihan Warna (pisahkan koma)</label>
+                  <input
+                    type="text"
+                    placeholder="Deep Indigo Blue, Jet Black, Light Wash"
+                    value={newProdColorsStr}
+                    onChange={(e) => setNewProdColorsStr(e.target.value)}
                     className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
                   />
                 </div>

@@ -491,6 +491,7 @@ let deposits: DepositRequest[] = [
     user_id: 2,
     username: "budi",
     amount: 1000000,
+    unique_code: 482,
     method: "bca",
     status: "success",
     created_at: "2026-06-14T08:00:00Z"
@@ -500,6 +501,7 @@ let deposits: DepositRequest[] = [
     user_id: 3,
     username: "citra",
     amount: 500000,
+    unique_code: 159,
     method: "qris",
     status: "success",
     created_at: "2026-06-15T11:00:00Z"
@@ -509,6 +511,7 @@ let deposits: DepositRequest[] = [
     user_id: 4,
     username: "dedi",
     amount: 100000,
+    unique_code: 842,
     method: "qris",
     status: "pending",
     payment_code: "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=HedtroJeansDepositDedi100K",
@@ -1352,7 +1355,7 @@ app.post("/api/payment/midtrans-webhook", async (req, res) => {
 
 // Create Deposit request
 app.post("/api/user/deposit", async (req, res) => {
-  const { userId, amount, method } = req.body;
+  const { userId, amount, method, uniqueCode } = req.body;
   const user = users.find(u => u.id === userId);
   if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
 
@@ -1361,10 +1364,12 @@ app.post("/api/user/deposit", async (req, res) => {
     return res.status(400).json({ message: "Minimal deposit adalah Rp 50.000" });
   }
 
+  const numUniqueCode = Number(uniqueCode) || Math.floor(100 + Math.random() * 900);
+
   const newDepId = deposits.length + 1;
   const midtransOrderId = `DEP-MID-${newDepId}-${Date.now()}`;
   let paymentCode = method === 'qris' 
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=HedtroJeansQRISDep${numAmount}`
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=HedtroJeansQRISDep${numAmount + numUniqueCode}`
     : `MOCK-${method.toUpperCase()}-VA-${Math.floor(1000000000 + Math.random() * 9000000000)}`;
 
   if (systemSettings.midtransServerKey) {
@@ -1463,6 +1468,7 @@ app.post("/api/user/deposit", async (req, res) => {
     user_id: user.id,
     username: user.username,
     amount: numAmount,
+    unique_code: numUniqueCode,
     method,
     status: "pending",
     payment_code: paymentCode,
@@ -1773,7 +1779,7 @@ app.post("/api/admin/products", async (req, res) => {
 
 // Member Product Purchase (Repeat Order)
 app.post("/api/user/purchase", async (req, res) => {
-  const { userId, productId, paymentMethod = 'saldo', address } = req.body;
+  const { userId, productId, paymentMethod = 'saldo', address, selectedSize, selectedColor } = req.body;
   const user = users.find(u => u.id === userId);
   const prod = products.find(p => p.id === productId);
 
@@ -1804,7 +1810,7 @@ app.post("/api/user/purchase", async (req, res) => {
       username: user.username,
       type: "purchase",
       amount: -purchasePrice,
-      description: `Pembelian RO: ${prod.name} (Harga Member)`,
+      description: `Pembelian RO: ${prod.name}${selectedSize ? ` (Size ${selectedSize})` : ''}${selectedColor ? ` (${selectedColor})` : ''}`,
       created_at: new Date().toISOString()
     };
     transactions.push(purchaseTx);
@@ -1834,6 +1840,8 @@ app.post("/api/user/purchase", async (req, res) => {
   const resiNo = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
   const finalAddress = address || `${user.address || 'Alamat Utama'}${user.city ? ', ' + user.city : ''}`;
 
+  const fullProdName = `${prod.name}${selectedSize ? ` [Size: ${selectedSize}]` : ''}${selectedColor ? ` [Warna: ${selectedColor}]` : ''}`;
+
   const purchaseOrder: Order = {
     id: newOrderId,
     invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(newOrderId).slice(-3)}`,
@@ -1842,13 +1850,15 @@ app.post("/api/user/purchase", async (req, res) => {
     fullname: user.fullname,
     phone: user.phone || "-",
     address: finalAddress,
-    product_name: `Repeat Order (RO) - ${prod.name}`,
+    product_name: fullProdName,
+    selected_size: selectedSize || undefined,
+    selected_color: selectedColor || undefined,
     amount: purchasePrice,
     payment_method: payMethodText,
     status: "DIPROSES",
     courier: "JNE REGULER",
     tracking_number: resiNo,
-    notes: `Pembelian Repeat Order (RO) ${prod.name} via ${payMethodText}. Sedang disiapkan di gudang.`,
+    notes: `Pembelian RO ${fullProdName} via ${payMethodText}. Sedang disiapkan di gudang.`,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     steps: [
@@ -2092,7 +2102,7 @@ app.post("/api/shipping/sync-api", async (req, res) => {
 app.post("/api/admin/orders/delete", async (req, res) => {
   try {
     const { id } = req.body;
-    orders = orders.filter(o => Number(o.id) !== Number(id));
+    orders = orders.filter(o => Number(o.id) !== Number(id) && String(o.id) !== String(id));
     if (firestoreDb) {
       try {
         await deleteDoc(doc(firestoreDb, "orders", String(id)));
@@ -2103,6 +2113,135 @@ app.post("/api/admin/orders/delete", async (req, res) => {
     res.json({ message: "Pesanan berhasil dihapus!", orders });
   } catch (err: any) {
     res.status(500).json({ message: "Gagal menghapus pesanan: " + err.message });
+  }
+});
+
+// Admin Delete Member / User
+app.post("/api/admin/users/delete", async (req, res) => {
+  try {
+    const { id } = req.body;
+    const userId = Number(id) || 0;
+    users = users.filter(u => Number(u.id) !== userId && String(u.id) !== String(id));
+    if (firestoreDb) {
+      try {
+        await deleteDoc(doc(firestoreDb, "users", String(id)));
+      } catch (e) {
+        console.warn("Delete user firestore warn:", e);
+      }
+    }
+    res.json({ message: "Member/User berhasil dihapus!", users });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal menghapus user: " + err.message });
+  }
+});
+
+// Admin Delete Deposit
+app.post("/api/admin/deposits/delete", async (req, res) => {
+  try {
+    const { id } = req.body;
+    deposits = deposits.filter(d => Number(d.id) !== Number(id) && String(d.id) !== String(id));
+    if (firestoreDb) {
+      try {
+        await deleteDoc(doc(firestoreDb, "deposits", String(id)));
+      } catch (e) {
+        console.warn("Delete deposit firestore warn:", e);
+      }
+    }
+    res.json({ message: "Data deposit berhasil dihapus!", deposits });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal menghapus deposit: " + err.message });
+  }
+});
+
+// Admin Delete Withdrawal
+app.post("/api/admin/withdrawals/delete", async (req, res) => {
+  try {
+    const { id } = req.body;
+    withdrawals = withdrawals.filter(w => Number(w.id) !== Number(id) && String(w.id) !== String(id));
+    if (firestoreDb) {
+      try {
+        await deleteDoc(doc(firestoreDb, "withdrawals", String(id)));
+      } catch (e) {
+        console.warn("Delete withdrawal firestore warn:", e);
+      }
+    }
+    res.json({ message: "Data penarikan (WD) berhasil dihapus!", withdrawals });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal menghapus withdrawal: " + err.message });
+  }
+});
+
+// Admin Reset Database Category
+app.post("/api/admin/reset-database", async (req, res) => {
+  try {
+    const { category } = req.body;
+    if (category === 'members') {
+      users = users.filter(u => u.role === 'admin' || Number(u.id) === 1);
+      if (firestoreDb) {
+        try {
+          const snapshot = await getDocs(collection(firestoreDb, "users"));
+          for (const docSnap of snapshot.docs) {
+            const d = docSnap.data();
+            if (d.role !== 'admin' && Number(d.id) !== 1) {
+              await deleteDoc(doc(firestoreDb, "users", docSnap.id));
+            }
+          }
+        } catch (e) {
+          console.warn("Reset members firestore warn:", e);
+        }
+      }
+      return res.json({ message: "Berhasil mereset data member!", users });
+    }
+
+    if (category === 'sales') {
+      orders = [];
+      transactions = [];
+      deposits = [];
+      withdrawals = [];
+      if (firestoreDb) {
+        try {
+          const ordSnap = await getDocs(collection(firestoreDb, "orders"));
+          for (const d of ordSnap.docs) await deleteDoc(doc(firestoreDb, "orders", d.id));
+          const txSnap = await getDocs(collection(firestoreDb, "transactions"));
+          for (const d of txSnap.docs) await deleteDoc(doc(firestoreDb, "transactions", d.id));
+          const depSnap = await getDocs(collection(firestoreDb, "deposits"));
+          for (const d of depSnap.docs) await deleteDoc(doc(firestoreDb, "deposits", d.id));
+          const wdSnap = await getDocs(collection(firestoreDb, "withdrawals"));
+          for (const d of wdSnap.docs) await deleteDoc(doc(firestoreDb, "withdrawals", d.id));
+        } catch (e) {
+          console.warn("Reset sales firestore warn:", e);
+        }
+      }
+      return res.json({ message: "Berhasil mereset data penjualan & transaksi!", orders, transactions, deposits, withdrawals });
+    }
+
+    if (category === 'mlm_network') {
+      users = users.map(u => {
+        if (u.role === 'admin' || Number(u.id) === 1) {
+          return {
+            ...u,
+            left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
+            sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
+          };
+        }
+        return {
+          ...u,
+          upline_id: 1, sponsor_id: 1, position: 'L' as 'L' | 'R',
+          left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
+          balance: 0, sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
+        };
+      });
+      if (firestoreDb) {
+        for (const u of users) {
+          await syncUserToFirestore(u);
+        }
+      }
+      return res.json({ message: "Berhasil mereset struktur jaringan MLM!", users });
+    }
+
+    res.status(400).json({ message: "Kategori reset tidak dikenal" });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal mereset database: " + err.message });
   }
 });
 
