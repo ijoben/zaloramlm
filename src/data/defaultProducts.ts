@@ -10,7 +10,8 @@ export const DEFAULT_PRODUCTS: Product[] = [
     stock: 45,
     image: "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&q=80&w=600",
     sizes: ["28", "29", "30", "31", "32", "33", "34", "35", "36"],
-    colors: ["Deep Indigo Blue", "Dark Navy", "Washed Blue", "Retro Black"]
+    colors: ["Deep Indigo Blue", "Dark Navy", "Washed Blue", "Retro Black"],
+    badge: "BEST SELLER"
   },
   {
     id: 2,
@@ -21,7 +22,8 @@ export const DEFAULT_PRODUCTS: Product[] = [
     stock: 30,
     image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&q=80&w=600",
     sizes: ["28", "29", "30", "31", "32", "33", "34", "36"],
-    colors: ["Raw Indigo", "Dark Blue Raw", "Vintage Blue"]
+    colors: ["Raw Indigo", "Dark Blue Raw", "Vintage Blue"],
+    badge: "NEW ARRIVAL"
   },
   {
     id: 3,
@@ -32,7 +34,8 @@ export const DEFAULT_PRODUCTS: Product[] = [
     stock: 25,
     image: "https://images.unsplash.com/photo-1582562124811-c09040d0a901?auto=format&fit=crop&q=80&w=600",
     sizes: ["28", "29", "30", "31", "32", "33", "34", "35"],
-    colors: ["Jet Black", "Charcoal Gray"]
+    colors: ["Jet Black", "Charcoal Gray"],
+    badge: "HOT ITEM"
   },
   {
     id: 4,
@@ -43,7 +46,8 @@ export const DEFAULT_PRODUCTS: Product[] = [
     stock: 18,
     image: "https://images.unsplash.com/photo-1475178626620-a4d074967452?auto=format&fit=crop&q=80&w=600",
     sizes: ["28", "29", "30", "31", "32", "33", "34"],
-    colors: ["Light Wash Blue", "Sky Blue Wash"]
+    colors: ["Light Wash Blue", "Sky Blue Wash"],
+    badge: "DISKON 27%"
   },
   {
     id: 5,
@@ -54,7 +58,8 @@ export const DEFAULT_PRODUCTS: Product[] = [
     stock: 20,
     image: "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?auto=format&fit=crop&q=80&w=600",
     sizes: ["S", "M", "L", "XL", "XXL"],
-    colors: ["Heritage Indigo", "Black Denim", "Light Denim"]
+    colors: ["Heritage Indigo", "Black Denim", "Light Denim"],
+    badge: "LIMITED"
   },
   {
     id: 6,
@@ -65,7 +70,8 @@ export const DEFAULT_PRODUCTS: Product[] = [
     stock: 35,
     image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&q=80&w=600",
     sizes: ["26", "27", "28", "29", "30", "31", "32"],
-    colors: ["Indigo Blue", "Snow Black", "Light Blue"]
+    colors: ["Indigo Blue", "Snow Black", "Light Blue"],
+    badge: "POPULER"
   },
   {
     id: 7,
@@ -76,7 +82,8 @@ export const DEFAULT_PRODUCTS: Product[] = [
     stock: 50,
     image: "https://images.unsplash.com/photo-1624222247344-550fb60583dc?auto=format&fit=crop&q=80&w=600",
     sizes: ["110cm", "120cm", "130cm"],
-    colors: ["Vintage Brown", "Dark Chocolate", "Classic Black"]
+    colors: ["Vintage Brown", "Dark Chocolate", "Classic Black"],
+    badge: "AKSESORIS"
   },
   {
     id: 8,
@@ -87,6 +94,7 @@ export const DEFAULT_PRODUCTS: Product[] = [
     stock: 22,
     image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&q=80&w=600",
     sizes: ["S", "M", "L", "XL"],
-    colors: ["Vintage Blue Wash", "Black Wash"]
+    colors: ["Vintage Blue Wash", "Black Wash"],
+    badge: "FAVORIT"
   }
 ];

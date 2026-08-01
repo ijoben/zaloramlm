@@ -377,7 +377,10 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
         price: Number(data.price) || 0,
         member_price: Number(data.member_price) || 0,
         stock: Number(data.stock) || 0,
-        image: data.image || ""
+        image: data.image || "",
+        sizes: data.sizes,
+        colors: data.colors,
+        badge: data.badge
       });
     });
 
@@ -666,7 +669,10 @@ async function addFirestoreProduct(prod: Omit<Product, "id">): Promise<Product> 
     price: Number(prod.price) || 0,
     member_price: Number(prod.member_price) || 0,
     stock: Number(prod.stock) || 0,
-    image: prod.image
+    image: prod.image,
+    sizes: prod.sizes,
+    colors: prod.colors,
+    badge: prod.badge
   };
 
   if (db) {

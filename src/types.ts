@@ -43,6 +43,7 @@ export interface Product {
   image: string;
   sizes?: string[];
   colors?: string[];
+  badge?: string;
 }
 
 export interface Transaction {

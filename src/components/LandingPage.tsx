@@ -775,9 +775,11 @@ export default function LandingPage({
                   <Eye className="w-4 h-4" /> lihat Detail
                 </div>
 
-                <div className="absolute top-3 left-0 bg-[#C41230] text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 z-10">
-                  BEST SELLER
-                </div>
+                {p.badge ? (
+                  <div className="absolute top-3 left-0 bg-[#C41230] text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 z-10 shadow-sm">
+                    {p.badge}
+                  </div>
+                ) : null}
                 <button
                   onClick={(e) => { e.stopPropagation(); toggleWishlist(p.id); }}
                   className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition z-20 ${

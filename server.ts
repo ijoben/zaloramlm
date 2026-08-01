@@ -984,7 +984,7 @@ app.post("/api/admin/products/stock", async (req, res) => {
 
 // Update product full info (Admin operation)
 app.post("/api/admin/products/update", async (req, res) => {
-  const { id, name, description, price, member_price, stock, image } = req.body;
+  const { id, name, description, price, member_price, stock, image, sizes, colors, badge } = req.body;
   const product = products.find(p => p.id === Number(id) || String(p.id) === String(id));
   if (!product) return res.status(404).json({ message: "Produk tidak ditemukan" });
 
@@ -994,6 +994,9 @@ app.post("/api/admin/products/update", async (req, res) => {
   if (member_price !== undefined) product.member_price = Number(member_price);
   if (stock !== undefined) product.stock = Number(stock);
   if (image !== undefined) product.image = image;
+  if (sizes !== undefined) product.sizes = sizes;
+  if (colors !== undefined) product.colors = colors;
+  if (badge !== undefined) product.badge = badge;
 
   await syncProductToFirestore(product);
   res.json({ message: "Data produk berhasil diperbarui", product, products });
@@ -1739,7 +1742,7 @@ app.post("/api/admin/deposit/process", async (req, res) => {
 // Add New Product
 app.post("/api/admin/products", async (req, res) => {
   try {
-    const { name, description, price, member_price, stock, image, ro_bonus_custom } = req.body;
+    const { name, description, price, member_price, stock, image, sizes, colors, badge, ro_bonus_custom } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: "Nama produk wajib diisi!" });
@@ -1756,7 +1759,10 @@ app.post("/api/admin/products", async (req, res) => {
       price: Number(price) || 150000,
       member_price: Number(member_price) || 120000,
       stock: stock !== undefined && stock !== null ? Number(stock) : 100,
-      image: image ? String(image) : defaultImage
+      image: image ? String(image) : defaultImage,
+      sizes: Array.isArray(sizes) ? sizes : undefined,
+      colors: Array.isArray(colors) ? colors : undefined,
+      badge: badge !== undefined && badge !== null ? String(badge) : undefined
     };
 
     if (ro_bonus_custom !== undefined && ro_bonus_custom !== "") {

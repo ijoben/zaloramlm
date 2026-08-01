@@ -2083,10 +2083,16 @@ export default function UserDashboard({
                           <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-black uppercase tracking-wider gap-1">
                             <Eye className="w-4 h-4" /> Lihat Detail
                           </div>
-                          {/* Member Special Tag */}
-                          <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-blue-600 text-white text-[8px] sm:text-[10px] font-extrabold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg shadow-xs">
-                            MEMBER EXCLUSIVE
-                          </div>
+                          {/* Member Special Tag or Custom Badge */}
+                          {p.badge ? (
+                            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-red-600 text-white text-[8px] sm:text-[10px] font-extrabold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg shadow-xs uppercase tracking-wide">
+                              {p.badge}
+                            </div>
+                          ) : (
+                            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-blue-600 text-white text-[8px] sm:text-[10px] font-extrabold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg shadow-xs">
+                              MEMBER EXCLUSIVE
+                            </div>
+                          )}
                           {/* Stock Tag */}
                           <div className={`absolute top-2 right-2 sm:top-3 sm:right-3 text-[8px] sm:text-[10px] font-extrabold px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg border shadow-xs ${
                             p.stock > 10 ? 'bg-white/95 text-green-700 border-green-200' :

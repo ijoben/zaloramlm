@@ -729,6 +729,7 @@ export default function AdminDashboard({
   const [newProdDescription, setNewProdDescription] = useState('Bahan denim premium 12oz, jahitan kuat dan presisi, nyaman dipakai sehari-hari.');
   const [newProdSizesStr, setNewProdSizesStr] = useState('28, 29, 30, 31, 32, 33, 34, 35, 36');
   const [newProdColorsStr, setNewProdColorsStr] = useState('Deep Indigo Blue, Jet Black, Light Blue, Retro Wash');
+  const [newProdBadge, setNewProdBadge] = useState('');
 
   // File input refs & file reader handler for uploading product photos
   const newProductFileInputRef = useRef<HTMLInputElement>(null);
@@ -849,7 +850,8 @@ export default function AdminDashboard({
         stock: Number(newProdStock),
         description: newProdDescription,
         sizes: sizesArr.length > 0 ? sizesArr : ["28", "29", "30", "31", "32", "33", "34", "35", "36"],
-        colors: colorsArr.length > 0 ? colorsArr : ["Deep Indigo Blue", "Jet Black", "Light Wash"]
+        colors: colorsArr.length > 0 ? colorsArr : ["Deep Indigo Blue", "Jet Black", "Light Wash"],
+        badge: newProdBadge.trim() ? newProdBadge.trim() : undefined
       };
 
       if (onAddProduct) {
@@ -859,6 +861,7 @@ export default function AdminDashboard({
         setNewProdPrice(150000);
         setNewProdMemberPrice(120000);
         setNewProdStock(100);
+        setNewProdBadge('');
         setIsAddProductModalOpen(false);
         if (onRefreshProducts) onRefreshProducts();
         onRefresh();
@@ -2688,6 +2691,11 @@ export default function AdminDashboard({
                                   {p.colors && p.colors.length > 0 && (
                                     <span className="text-[9px] font-bold bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200">
                                       {p.colors.length} Warna
+                                    </span>
+                                  )}
+                                  {p.badge && (
+                                    <span className="text-[9px] font-extrabold bg-red-50 text-red-600 px-1.5 py-0.2 rounded border border-red-200 uppercase">
+                                      {p.badge}
                                     </span>
                                   )}
                                 </div>
@@ -5370,6 +5378,33 @@ export default function AdminDashboard({
               </div>
 
               <div>
+                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
+                  Label / Badge Produk (Opsional)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Contoh: BEST SELLER, DISKON 20%, NEW ARRIVAL, HOT ITEM (Kosongkan jika tidak ada)"
+                    value={editingModalProduct.badge || ''}
+                    onChange={(e) => setEditingModalProduct({ ...editingModalProduct, badge: e.target.value })}
+                    className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                  />
+                  {editingModalProduct.badge && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingModalProduct({ ...editingModalProduct, badge: '' })}
+                      className="px-2.5 py-1 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl whitespace-nowrap cursor-pointer transition"
+                    >
+                      Hapus Badge
+                    </button>
+                  )}
+                </div>
+                <p className="text-[9px] text-slate-400 mt-1">
+                  Label promo/status opsional yang akan muncul di pojok gambar produk (misal: BEST SELLER, DISKON 30%, HOT, NEW).
+                </p>
+              </div>
+
+              <div>
                 <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Deskripsi Ringkas</label>
                 <textarea
                   rows={2}
@@ -5522,6 +5557,22 @@ export default function AdminDashboard({
                     className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
+                  Label / Badge Produk (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: BEST SELLER, DISKON 20%, NEW ARRIVAL, HOT ITEM"
+                  value={newProdBadge}
+                  onChange={(e) => setNewProdBadge(e.target.value)}
+                  className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2"
+                />
+                <p className="text-[9px] text-slate-400 mt-1">
+                  Boleh dikosongkan jika tidak ingin menampilkan badge promo di foto produk.
+                </p>
               </div>
 
               <div>
