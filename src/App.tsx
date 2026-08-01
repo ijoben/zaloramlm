@@ -2307,17 +2307,24 @@ export default function App() {
     } catch (e) {
       console.warn("Delete user API warning:", e);
     }
-    try {
-      if (db) {
+    
+    // Always filter out user locally
+    setUsers(prev => prev.filter(u => Number(u.id) !== Number(userId) && String(u.id) !== String(userId)));
+
+    if (db) {
+      try {
         await deleteDoc(doc(db, "users", String(userId)));
+      } catch (err) {
+        console.warn("Firestore delete doc warning:", err);
       }
-      setUsers(prev => prev.filter(u => Number(u.id) !== Number(userId) && String(u.id) !== String(userId)));
-      await fetchDashboardData();
-      return true;
-    } catch (err) {
-      console.error("Error deleting user in admin:", err);
-      return false;
     }
+
+    try {
+      await fetchDashboardData();
+    } catch (e) {
+      console.warn("Fetch dashboard after user delete warning:", e);
+    }
+    return true;
   };
 
   const handleDeleteDeposit = async (depositId: number | string): Promise<boolean> => {
@@ -2570,11 +2577,15 @@ export default function App() {
         throw new Error(data.message || "Gagal mengirim bukti transfer");
       }
       if (db) {
-        await setDoc(doc(db, "deposits", String(depositId)), {
-          proof_image: proofImage,
-          proof_notes: proofNotes || '',
-          proof_submitted_at: new Date().toISOString()
-        }, { merge: true });
+        try {
+          await setDoc(doc(db, "deposits", String(depositId)), {
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          }, { merge: true });
+        } catch (fErr) {
+          console.warn("Firestore deposit proof setDoc warn:", fErr);
+        }
       }
       await fetchDashboardData();
       return true;

@@ -261,7 +261,7 @@ export default function UserDashboard({
   const [copiedTrackingId, setCopiedTrackingId] = useState<number | string | null>(null);
   const [orderStatusFilter, setOrderStatusFilter] = useState<'ALL' | 'DIPROSES' | 'DIKIRIM' | 'TERIMA' | 'BATAL'>('ALL');
 
-  const isMidtransEnabled = settings?.enableMidtrans !== false;
+  const isMidtransEnabled = settings?.enableMidtrans === true;
 
   // Repeat Order Checkout Modal States
   const [purchaseModalProduct, setPurchaseModalProduct] = useState<Product | null>(null);
@@ -2468,41 +2468,57 @@ export default function UserDashboard({
 
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Metode Pembayaran</label>
-                      <div className="grid grid-cols-3 gap-3">
-                        <button
-                          type="button"
-                          id="dep-method-qris"
-                          onClick={() => setDepMethod('qris')}
-                          className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
-                            depMethod === 'qris' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="font-black text-[10px] tracking-tighter text-red-600 block">QRIS</span>
-                          <span className="text-[8px] opacity-75">Saran (Instan)</span>
-                        </button>
+                      <div className={`grid ${isMidtransEnabled ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-1'} gap-2.5`}>
+                        {isMidtransEnabled && (
+                          <>
+                            <button
+                              type="button"
+                              id="dep-method-qris"
+                              onClick={() => setDepMethod('qris')}
+                              className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
+                                depMethod === 'qris' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span className="font-black text-[10px] tracking-tighter text-red-600 block">QRIS</span>
+                              <span className="text-[8px] opacity-75">Midtrans Instan</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              id="dep-method-bca"
+                              onClick={() => setDepMethod('bca')}
+                              className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
+                                depMethod === 'bca' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span className="font-extrabold block">BCA</span>
+                              <span className="text-[8px] opacity-75">Midtrans VA</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              id="dep-method-mandiri"
+                              onClick={() => setDepMethod('mandiri')}
+                              className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
+                                depMethod === 'mandiri' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span className="font-extrabold block">MANDIRI</span>
+                              <span className="text-[8px] opacity-75">Midtrans VA</span>
+                            </button>
+                          </>
+                        )}
 
                         <button
                           type="button"
-                          id="dep-method-bca"
-                          onClick={() => setDepMethod('bca')}
-                          className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
-                            depMethod === 'bca' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          id="dep-method-manual"
+                          onClick={() => setDepMethod('transfer_bank')}
+                          className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
+                            depMethod === 'transfer_bank' || depMethod === 'manual' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                           }`}
                         >
-                          <span className="font-extrabold block">BCA</span>
-                          <span className="text-[8px] opacity-75">VA Otomatis</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          id="dep-method-mandiri"
-                          onClick={() => setDepMethod('mandiri')}
-                          className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
-                            depMethod === 'mandiri' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="font-extrabold block">MANDIRI</span>
-                          <span className="text-[8px] opacity-75">VA Otomatis</span>
+                          <span className="font-extrabold block text-slate-800">BANK DIRECT</span>
+                          <span className="text-[8px] text-amber-700 font-extrabold">Transfer Manual Bank Admin</span>
                         </button>
                       </div>
                     </div>
@@ -2593,16 +2609,18 @@ export default function UserDashboard({
                                     </button>
                                   </div>
 
-                                  {dep.method === 'qris' && (
+                                  {isMidtransEnabled && dep.method === 'qris' && dep.payment_code && (
                                     <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-100">
                                       <p className="text-[9px] text-red-600 font-bold tracking-widest uppercase mb-1">Pindai Kode QRIS Di Bawah</p>
                                       <img referrerPolicy="no-referrer" src={dep.payment_code} className="w-32 h-32" alt="QRIS Code" />
                                     </div>
                                   )}
                                   
-                                  <div className="bg-blue-50 rounded-lg p-2.5 text-[10px] text-blue-900 border border-blue-100">
-                                    <strong>Kode/VA VA:</strong> <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 block mt-1 break-all">{dep.payment_code}</code>
-                                  </div>
+                                  {isMidtransEnabled && dep.payment_code && dep.method !== 'transfer_bank' && dep.method !== 'manual' && (
+                                    <div className="bg-blue-50 rounded-lg p-2.5 text-[10px] text-blue-900 border border-blue-100">
+                                      <strong>Kode/VA VA:</strong> <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 block mt-1 break-all">{dep.payment_code}</code>
+                                    </div>
+                                  )}
 
                                   {dep.proof_image ? (
                                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-xs text-emerald-900 flex items-center justify-between">
