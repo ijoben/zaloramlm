@@ -3729,7 +3729,19 @@ async function initFirestoreDataOnce() {
 async function initFirestoreData() {
   if (!firestoreDb) return;
   try {
-    // 1. Users
+    // 1. Check adminControl for reset flags before loading users
+    let serverMembersReset = false;
+    try {
+      const ctrlDoc: any = await withTimeout(getDoc(doc(firestoreDb, "settings", "adminControl")), 3000, "getDoc adminControl");
+      if (ctrlDoc && ctrlDoc.exists && typeof ctrlDoc.exists === 'function' && ctrlDoc.exists()) {
+        serverMembersReset = ctrlDoc.data()?.membersReset === true;
+      }
+      console.log(`🔥 adminControl.membersReset = ${serverMembersReset}`);
+    } catch (e) {
+      console.warn("Firestore adminControl read warning:", e);
+    }
+
+    // 2. Users
     try {
       const usersSnap: any = await withTimeout(getDocs(collection(firestoreDb, "users")), 6000, "getDocs users");
       if (usersSnap && !usersSnap.empty) {
@@ -3740,6 +3752,9 @@ async function initFirestoreData() {
             const rawId = u && u.id !== undefined && u.id !== null ? u.id : docSnap.id;
             const uId = Number(rawId);
             if (isNaN(uId)) return;
+
+            // If members were reset, only load admin user
+            if (serverMembersReset && u.role !== 'admin' && uId !== 1 && u.username !== 'admin') return;
 
             loadedUsers.push({
               ...u,
@@ -3768,7 +3783,7 @@ async function initFirestoreData() {
         });
         if (loadedUsers.length > 0) {
           users = loadedUsers;
-          console.log(`🔥 Loaded ${loadedUsers.length} users from Firestore into memory`);
+          console.log(`🔥 Loaded ${loadedUsers.length} users from Firestore into memory (membersReset=${serverMembersReset})`);
         }
       }
     } catch (e) {

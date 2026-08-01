@@ -38,16 +38,33 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
     isVercel: typeof window !== "undefined" && window.location.hostname.includes("vercel.app")
   });
 
+  // Check localStorage reset flag (set during active session)
+  const localResetFlag = typeof window !== 'undefined' && localStorage.getItem('zalora_reset_members') === 'true';
+
   if (!db) {
-    console.warn("⚠️ [fetchFirestoreUsers] Firestore `db` instance is NULL! Fallback to DEFAULT_USERS. On Vercel, ensure environment variables (VITE_FIREBASE_API_KEY) or firebase-applet-config.json are provided.");
+    console.warn("⚠️ [fetchFirestoreUsers] Firestore `db` instance is NULL!");
+    if (localResetFlag) return DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1);
     return DEFAULT_USERS;
   }
 
   try {
-    console.log("📡 [fetchFirestoreUsers] Reading 'users' collection from Firestore...");
+    // Check Firestore-persisted reset flag so even fresh server instances know
+    let firestoreResetFlag = false;
+    try {
+      const ctrlDoc: any = await withClientTimeout(getDoc(doc(db, "settings", "adminControl")), 3000, "getDoc adminControl");
+      if (ctrlDoc && ctrlDoc.exists && typeof ctrlDoc.exists === 'function' && ctrlDoc.exists()) {
+        firestoreResetFlag = ctrlDoc.data()?.membersReset === true;
+      }
+    } catch (e) { /* ignore */ }
+
+    const isReset = localResetFlag || firestoreResetFlag;
+
+    console.log("📡 [fetchFirestoreUsers] Reading 'users' collection from Firestore...", { isReset });
     const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "users")), 8000, "getDocs users");
     if (!querySnapshot) {
-      console.warn("⚠️ [fetchFirestoreUsers] Firestore read timed out or failed, using DEFAULT_USERS fallback.");
+      console.warn("⚠️ [fetchFirestoreUsers] Firestore read timed out or failed.");
+      // If reset was done, return admin only - never re-seed
+      if (isReset) return DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1);
       return DEFAULT_USERS;
     }
     console.log(`✅ [fetchFirestoreUsers] Firestore read successful! Received ${querySnapshot.size} user documents.`);
@@ -92,12 +109,16 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
       }
     });
 
+    // If Firestore users collection is empty:
     if (usersMap.size === 0) {
-      if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_members') === 'true') {
+      if (isReset) {
+        // After reset: only return admin, NEVER re-seed dummy users
         const adminOnly = DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1);
-        adminOnly.forEach(u => usersMap.set(u.id, u));
+        console.log("ℹ️ [fetchFirestoreUsers] Reset active. Returning admin only, skipping seed.");
+        return adminOnly;
       } else {
-        console.log("ℹ️ [fetchFirestoreUsers] Collection 'users' is empty in Firestore. Seeding default users...");
+        // Fresh install: seed default users
+        console.log("ℹ️ [fetchFirestoreUsers] Collection 'users' is empty (fresh install). Seeding default users...");
         for (const defU of DEFAULT_USERS) {
           usersMap.set(defU.id, defU);
           try {
@@ -110,14 +131,15 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
     }
 
     let finalUsers = Array.from(usersMap.values());
-    if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_members') === 'true') {
+    if (isReset) {
+      // Filter out non-admin users even if they are still in Firestore
       finalUsers = finalUsers.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
     }
     finalUsers.sort((a, b) => Number(a.id) - Number(b.id));
     return finalUsers;
   } catch (err: any) {
     console.error("❌ [fetchFirestoreUsers] Error reading 'users' from Firestore:", err);
-    if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_members') === 'true') {
+    if (localResetFlag) {
       return DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
     }
     return DEFAULT_USERS;
@@ -587,19 +609,24 @@ async function fetchFirestoreOrders(): Promise<Order[]> {
   if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_sales') === 'true') {
     return [];
   }
-  if (!db) return DEFAULT_ORDERS;
+  if (!db) return [];
 
   try {
     const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "orders")), 8000, "getDocs orders");
     if (!querySnapshot || querySnapshot.empty) {
+      // After reset or if db_initialized flag is set, never re-seed orders
       if (typeof window !== 'undefined' && (localStorage.getItem('zalora_reset_sales') === 'true' || localStorage.getItem('zalora_db_initialized') === 'true')) {
         return [];
       }
-      for (const ord of DEFAULT_ORDERS) {
-        withClientTimeout(setDoc(doc(db, "orders", String(ord.id)), ord), 8000, `seedOrder #${ord.id}`);
+      // Only seed on fresh install (no flag set)
+      if (typeof window !== 'undefined' && !localStorage.getItem('zalora_db_initialized')) {
+        for (const ord of DEFAULT_ORDERS) {
+          withClientTimeout(setDoc(doc(db, "orders", String(ord.id)), ord), 8000, `seedOrder #${ord.id}`);
+        }
+        localStorage.setItem('zalora_db_initialized', 'true');
+        return DEFAULT_ORDERS;
       }
-      if (typeof window !== 'undefined') localStorage.setItem('zalora_db_initialized', 'true');
-      return DEFAULT_ORDERS;
+      return [];
     }
 
     const ords: Order[] = [];
@@ -1761,6 +1788,19 @@ export default function App() {
       setRegConfirmPassword('');
       setRegSponsor('');
       setRegUpline('');
+
+      // Clear members reset flag when new member registers (reset is "done")
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('zalora_reset_members');
+      }
+      if (db) {
+        try {
+          await setDoc(doc(db, "settings", "adminControl"), {
+            membersReset: false
+          }, { merge: true }).catch(() => {});
+        } catch (e) { /* ignore */ }
+      }
+
       fetchDashboardData();
     } catch (err: any) {
       console.error("Error during registration:", err);
@@ -2495,6 +2535,7 @@ export default function App() {
         localStorage.setItem(`zalora_reset_${category}`, 'true');
       }
 
+      // Call backend API to reset in-memory server state
       await fetch("/api/admin/reset-database", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2502,26 +2543,39 @@ export default function App() {
       }).catch(() => {});
 
       if (category === 'members') {
+        // 1. Delete all non-admin users from Firestore directly from client
         if (db) {
           try {
-            const snapshot = await withClientTimeout(getDocs(collection(db, "users")), 5000, "getDocs users reset");
+            const snapshot = await withClientTimeout(getDocs(collection(db, "users")), 8000, "getDocs users reset");
             if (snapshot && snapshot.docs) {
-              for (const docSnap of snapshot.docs) {
-                const data = docSnap.data();
-                if (data.role !== 'admin' && Number(data.id) !== 1 && data.username !== 'admin') {
-                  try {
-                    await deleteDoc(doc(db, "users", docSnap.id));
-                  } catch (err) {
-                    console.warn("Error deleting member doc from Firestore:", err);
-                  }
-                }
-              }
+              const deletePromises = snapshot.docs
+                .filter((docSnap: any) => {
+                  const data = docSnap.data();
+                  return data.role !== 'admin' && Number(data.id) !== 1 && data.username !== 'admin';
+                })
+                .map((docSnap: any) => deleteDoc(doc(db, "users", docSnap.id)).catch(err => {
+                  console.warn("Error deleting member doc from Firestore:", err);
+                }));
+              await Promise.all(deletePromises);
+              console.log(`✅ [Reset Members] Deleted ${deletePromises.length} member docs from Firestore`);
             }
           } catch (err) {
             console.warn("Error getting users collection for reset:", err);
           }
+
+          // 2. Persist reset flag to Firestore so ALL server instances know
+          try {
+            await setDoc(doc(db, "settings", "adminControl"), {
+              membersReset: true,
+              membersResetAt: new Date().toISOString()
+            }, { merge: true });
+            console.log("✅ [Reset Members] Persisted membersReset flag to Firestore adminControl");
+          } catch (err) {
+            console.warn("Error saving adminControl reset flag:", err);
+          }
         }
 
+        // 3. Update React state immediately without refetching (to prevent stale reload)
         setAdminDashboardData(prev => {
           if (!prev) return null;
           const adminOnly = prev.users.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
@@ -2529,8 +2583,8 @@ export default function App() {
             ...prev,
             metrics: {
               ...prev.metrics,
-              totalMembers: adminOnly.length,
-              activeMembers: adminOnly.filter(u => u.is_active).length,
+              totalMembers: 0,
+              activeMembers: 0,
               inactiveMembers: 0,
               totalTurnover: 0,
               totalBonusesPaid: 0
@@ -2538,10 +2592,7 @@ export default function App() {
             users: adminOnly
           };
         });
-
-        try {
-          await fetchDashboardData();
-        } catch (err) {}
+        // DO NOT call fetchDashboardData here - it would reload stale server data
         return true;
       }
 
