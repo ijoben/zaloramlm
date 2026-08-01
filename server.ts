@@ -2234,6 +2234,39 @@ app.post("/api/admin/reset-database", async (req, res) => {
       return res.json({ message: "Berhasil mereset data member!", users });
     }
 
+    if (category === 'web_settings') {
+      const defaultSettings = {
+        webName: "Hedtro Jeans Official",
+        logoText: "HEDTRO.JEANS",
+        memberIdPrefix: "HDT-",
+        slogan: "OFFICIAL STORE & AFILIASI RESELLER",
+        siteDescription: "Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis Afiliasi Reseller Terpercaya.",
+        enableMlmBonus: true,
+        enableLevelBonus: true,
+        enableRewardBonus: true,
+        sponsorBonus: 20000,
+        pairingBonus: 10000,
+        roBonus: 5000,
+        levelBonusG1: 5000,
+        levelBonusG2: 4000,
+        levelBonusG3: 3000,
+        levelBonusG4: 1000,
+        levelBonusG5: 1000,
+        levelBonusG6: 1000,
+        levelBonusG7: 1000,
+        levelBonusG8: 1000,
+        levelBonusG9: 1000,
+        levelBonusG10: 1000
+      };
+      systemSettings = defaultSettings;
+      if (firestoreDb) {
+        try {
+          await setDoc(doc(firestoreDb, "settings", "system"), defaultSettings);
+        } catch (e) {}
+      }
+      return res.json({ message: "Berhasil mereset pengaturan web ke default!", settings: systemSettings });
+    }
+
     if (category === 'sales') {
       orders = [];
       transactions = [];
@@ -2283,6 +2316,79 @@ app.post("/api/admin/reset-database", async (req, res) => {
     res.status(400).json({ message: "Kategori reset tidak dikenal" });
   } catch (err: any) {
     res.status(500).json({ message: "Gagal mereset database: " + err.message });
+  }
+});
+
+// Admin Restore Database Category
+app.post("/api/admin/restore-database", async (req, res) => {
+  try {
+    const { category, data } = req.body;
+    if (category === 'members' && Array.isArray(data)) {
+      users = data;
+      if (firestoreDb) {
+        try {
+          const snapshot = await getDocs(collection(firestoreDb, "users"));
+          for (const docSnap of snapshot.docs) {
+            const d = docSnap.data();
+            if (d.role !== 'admin' && Number(d.id) !== 1) {
+              await deleteDoc(doc(firestoreDb, "users", docSnap.id));
+            }
+          }
+          for (const u of users) {
+            await syncUserToFirestore(u);
+          }
+        } catch (e) {}
+      }
+      return res.json({ message: "Berhasil merestore data member!", users });
+    }
+
+    if (category === 'web_settings' && data) {
+      systemSettings = { ...systemSettings, ...data };
+      if (firestoreDb) {
+        try {
+          await setDoc(doc(firestoreDb, "settings", "system"), data, { merge: true });
+        } catch (e) {}
+      }
+      return res.json({ message: "Berhasil merestore pengaturan web!", settings: systemSettings });
+    }
+
+    if (category === 'mlm_network' && Array.isArray(data)) {
+      users = data;
+      if (firestoreDb) {
+        for (const u of users) {
+          await syncUserToFirestore(u);
+        }
+      }
+      return res.json({ message: "Berhasil merestore jaringan MLM!", users });
+    }
+
+    if (category === 'sales' && data) {
+      if (Array.isArray(data.orders)) orders = data.orders;
+      if (Array.isArray(data.transactions)) transactions = data.transactions;
+      if (Array.isArray(data.deposits)) deposits = data.deposits;
+      if (Array.isArray(data.withdrawals)) withdrawals = data.withdrawals;
+
+      if (firestoreDb) {
+        try {
+          const ordSnap = await getDocs(collection(firestoreDb, "orders"));
+          for (const d of ordSnap.docs) await deleteDoc(doc(firestoreDb, "orders", d.id));
+          const txSnap = await getDocs(collection(firestoreDb, "transactions"));
+          for (const d of txSnap.docs) await deleteDoc(doc(firestoreDb, "transactions", d.id));
+          const depSnap = await getDocs(collection(firestoreDb, "deposits"));
+          for (const d of depSnap.docs) await deleteDoc(doc(firestoreDb, "deposits", d.id));
+          const wdSnap = await getDocs(collection(firestoreDb, "withdrawals"));
+          for (const d of wdSnap.docs) await deleteDoc(doc(firestoreDb, "withdrawals", d.id));
+
+          for (const o of orders) await syncOrderToFirestore(o);
+          for (const t of transactions) await syncTransactionToFirestore(t);
+        } catch (e) {}
+      }
+      return res.json({ message: "Berhasil merestore data penjualan!", orders, transactions, deposits, withdrawals });
+    }
+
+    res.status(400).json({ message: "Kategori restore tidak valid" });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal merestore database: " + err.message });
   }
 });
 

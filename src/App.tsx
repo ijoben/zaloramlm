@@ -93,13 +93,18 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
     });
 
     if (usersMap.size === 0) {
-      console.log("ℹ️ [fetchFirestoreUsers] Collection 'users' is empty in Firestore. Seeding default users...");
-      for (const defU of DEFAULT_USERS) {
-        usersMap.set(defU.id, defU);
-        try {
-          withClientTimeout(setDoc(doc(db, "users", String(defU.id)), defU), 1000, `seedUser ${defU.username}`);
-        } catch (e) {
-          console.warn(`Failed seeding user ${defU.username} to Firestore:`, e);
+      if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_members') === 'true') {
+        const adminOnly = DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1);
+        adminOnly.forEach(u => usersMap.set(u.id, u));
+      } else {
+        console.log("ℹ️ [fetchFirestoreUsers] Collection 'users' is empty in Firestore. Seeding default users...");
+        for (const defU of DEFAULT_USERS) {
+          usersMap.set(defU.id, defU);
+          try {
+            withClientTimeout(setDoc(doc(db, "users", String(defU.id)), defU), 1000, `seedUser ${defU.username}`);
+          } catch (e) {
+            console.warn(`Failed seeding user ${defU.username} to Firestore:`, e);
+          }
         }
       }
     }
@@ -569,9 +574,13 @@ async function fetchFirestoreOrders(): Promise<Order[]> {
   try {
     const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "orders")), 8000, "getDocs orders");
     if (!querySnapshot || querySnapshot.empty) {
+      if (typeof window !== 'undefined' && (localStorage.getItem('zalora_reset_sales') === 'true' || localStorage.getItem('zalora_db_initialized') === 'true')) {
+        return [];
+      }
       for (const ord of DEFAULT_ORDERS) {
         withClientTimeout(setDoc(doc(db, "orders", String(ord.id)), ord), 8000, `seedOrder #${ord.id}`);
       }
+      if (typeof window !== 'undefined') localStorage.setItem('zalora_db_initialized', 'true');
       return DEFAULT_ORDERS;
     }
 
@@ -2411,6 +2420,10 @@ export default function App() {
 
   const handleResetCategory = async (category: 'members' | 'web_settings' | 'mlm_network' | 'sales'): Promise<boolean> => {
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`zalora_reset_${category}`, 'true');
+      }
+
       await fetch("/api/admin/reset-database", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2422,7 +2435,7 @@ export default function App() {
           const snapshot = await getDocs(collection(db, "users"));
           for (const docSnap of snapshot.docs) {
             const data = docSnap.data();
-            if (data.role !== 'admin' && Number(data.id) !== 1) {
+            if (data.role !== 'admin' && Number(data.id) !== 1 && data.username !== 'admin') {
               await deleteDoc(doc(db, "users", docSnap.id));
             }
           }
@@ -2543,6 +2556,11 @@ export default function App() {
 
   const handleRestoreCategory = async (category: 'members' | 'web_settings' | 'mlm_network' | 'sales', data: any): Promise<boolean> => {
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`zalora_reset_${category}`);
+        localStorage.setItem('zalora_db_initialized', 'true');
+      }
+
       await fetch("/api/admin/restore-database", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2552,6 +2570,13 @@ export default function App() {
       if (category === 'members' && Array.isArray(data)) {
         const restoredUsers: MLMUser[] = data;
         if (db) {
+          const snapshot = await getDocs(collection(db, "users"));
+          for (const docSnap of snapshot.docs) {
+            const d = docSnap.data();
+            if (d.role !== 'admin' && Number(d.id) !== 1 && d.username !== 'admin') {
+              await deleteDoc(doc(db, "users", docSnap.id));
+            }
+          }
           for (const u of restoredUsers) {
             await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
           }
@@ -2583,6 +2608,18 @@ export default function App() {
         const { orders: restOrders, transactions: restTxs, deposits: restDeps, withdrawals: restWds } = data;
 
         if (db) {
+          const ordSnap = await getDocs(collection(db, "orders"));
+          for (const d of ordSnap.docs) await deleteDoc(doc(db, "orders", d.id));
+
+          const txSnap = await getDocs(collection(db, "transactions"));
+          for (const d of txSnap.docs) await deleteDoc(doc(db, "transactions", d.id));
+
+          const depSnap = await getDocs(collection(db, "deposits"));
+          for (const d of depSnap.docs) await deleteDoc(doc(db, "deposits", d.id));
+
+          const wdSnap = await getDocs(collection(db, "withdrawals"));
+          for (const d of wdSnap.docs) await deleteDoc(doc(db, "withdrawals", d.id));
+
           if (Array.isArray(restOrders)) for (const o of restOrders) await setDoc(doc(db, "orders", String(o.id)), o, { merge: true });
           if (Array.isArray(restTxs)) for (const t of restTxs) await setDoc(doc(db, "transactions", String(t.id)), t, { merge: true });
           if (Array.isArray(restDeps)) for (const d of restDeps) await setDoc(doc(db, "deposits", String(d.id)), d, { merge: true });
