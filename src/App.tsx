@@ -302,17 +302,6 @@ async function registerUserToFirestoreDirect(regData: {
       await setDoc(doc(db, "users", String(newUserId)), newUser);
       await updateAncestorCountsClient(updatedUsers, uplineId, finalPos);
 
-      // Log Gratis 1 Produk Paket Perdana (Rp 550.000) transaction for the new user
-      await createFirestoreTransaction({
-        id: Date.now(),
-        user_id: newUserId,
-        username: normalizedUsername,
-        type: "bonus_produk",
-        amount: 550000,
-        description: "Bonus Registrasi: Gratis 1 Produk Paket Perdana HEDTRO JEANS senilai Rp 550.000 (Termasuk Paket Pendaftaran Hak Usaha)",
-        created_at: new Date().toISOString()
-      });
-
       // Distribute Sponsor Bonus (Rp 40.000) to Sponsor
       if (sponsorId) {
         const sponsor = users.find(u => Number(u.id) === Number(sponsorId));
@@ -1394,43 +1383,33 @@ export default function App() {
         totalMembers: memberUsers.length,
         activeMembers: activeCount,
         inactiveMembers: memberUsers.length - activeCount,
-        totalTurnover: 15000000,
-        totalBonusesPaid: 3500000,
-        pendingWDCount: 1,
-        pendingWDAmount: 250000,
+        totalTurnover: 0,
+        totalBonusesPaid: 0,
+        pendingWDCount: 0,
+        pendingWDAmount: 0,
         isAutoPayout: false
       },
       users: DEFAULT_USERS,
       withdrawals: [],
       deposits: [],
       transactions: [],
-      orders: DEFAULT_ORDERS
+      orders: []
     };
   };
 
   const getDefaultUserDashboard = (user: MLMUser) => ({
     user,
-    transactions: [
-      {
-        id: 1,
-        user_id: user.id,
-        username: user.username,
-        type: "Sponsor Bonus",
-        amount: 40000,
-        description: "Bonus Sponsor Pendaftaran Member @agus",
-        created_at: new Date().toISOString()
-      }
-    ],
+    transactions: [],
     deposits: [],
     withdrawals: [],
-    orders: DEFAULT_ORDERS.filter(o => Number(o.user_id) === Number(user.id)),
+    orders: [],
     notifications: [
       { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Afiliasi HEDTRO JEANS.", read: false, time: "Baru saja" }
     ],
     binaryTree: {
       user: user,
-      left: { user: { username: "koko", fullname: "Koko Prasetyo", is_active: true }, left: null, right: null },
-      right: { user: { username: "siti", fullname: "Siti Rahma", is_active: true }, left: null, right: null }
+      left: null,
+      right: null
     },
     referrals: []
   });
@@ -2891,7 +2870,51 @@ export default function App() {
     }
   };
 
+  const handleClearMembersReset = async (): Promise<boolean> => {
+    try {
+      // 1. Clear localStorage flag
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('zalora_reset_members');
+      }
+
+      // 2. Clear Firestore flag directly (client-side)
+      if (db) {
+        try {
+          await setDoc(doc(db, "settings", "adminControl"), {
+            membersReset: false,
+            membersResetClearedAt: new Date().toISOString()
+          }, { merge: true });
+          console.log("✅ [handleClearMembersReset] Firestore flag cleared via client SDK");
+        } catch (e) {
+          console.warn("⚠️ [handleClearMembersReset] Could not clear Firestore flag:", e);
+        }
+      }
+
+      // 3. Call API endpoint to clear server-side flag and reload users
+      try {
+        const res = await fetch("/api/admin/clear-members-reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          console.log("✅ [handleClearMembersReset] Server flag cleared:", data.message);
+        }
+      } catch (apiErr) {
+        console.warn("⚠️ [handleClearMembersReset] API call failed (may be offline):", apiErr);
+      }
+
+      // 4. Refresh dashboard data
+      await fetchDashboardData();
+      return true;
+    } catch (e) {
+      console.error("Failed to clear members reset:", e);
+      return false;
+    }
+  };
+
   const handleConfirmDepositProof = async (depositId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
+
     try {
       await fetch("/api/user/deposit/confirm-proof", {
         method: "POST",
@@ -3082,6 +3105,7 @@ export default function App() {
                 onRefreshProducts={fetchProducts}
                 onResetCategory={handleResetCategory}
                 onRestoreCategory={handleRestoreCategory}
+                onClearMembersReset={handleClearMembersReset}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center p-12"><RefreshCw className="w-8 h-8 text-blue-600 animate-spin" /></div>

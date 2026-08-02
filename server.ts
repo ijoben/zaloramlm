@@ -282,138 +282,6 @@ let users: MLMUser[] = [
     upline_id: null,
     position: null,
     sponsor_id: null,
-    balance: 5000000,
-    sponsor_bonus: 0,
-    pairing_bonus: 0,
-    level_bonus: 0,
-    ro_bonus: 0,
-    left_count: 5,
-    right_count: 4,
-    left_sales: 5,
-    right_sales: 4,
-    created_at: "2026-06-01T09:00:00Z",
-    role: "admin"
-  },
-  {
-    id: 2,
-    username: "budi",
-    fullname: "Budi Santoso",
-    email: "budi@gmail.com",
-    phone: "081234567891",
-    is_active: true,
-    upline_id: 1,
-    position: "L",
-    sponsor_id: 1,
-    balance: 750000,
-    sponsor_bonus: 40000,
-    pairing_bonus: 20000,
-    level_bonus: 15000,
-    ro_bonus: 5000,
-    left_count: 2,
-    right_count: 2,
-    left_sales: 2,
-    right_sales: 2,
-    created_at: "2026-06-15T10:00:00Z",
-    role: "user"
-  },
-  {
-    id: 3,
-    username: "citra",
-    fullname: "Citra Lestari",
-    email: "citra@gmail.com",
-    phone: "081234567892",
-    is_active: true,
-    upline_id: 1,
-    position: "R",
-    sponsor_id: 1,
-    balance: 320000,
-    sponsor_bonus: 20000,
-    pairing_bonus: 10000,
-    level_bonus: 10000,
-    ro_bonus: 0,
-    left_count: 2,
-    right_count: 1,
-    left_sales: 2,
-    right_sales: 1,
-    created_at: "2026-06-16T11:00:00Z",
-    role: "user"
-  },
-  {
-    id: 4,
-    username: "dedi",
-    fullname: "Dedi Wijaya",
-    email: "dedi@gmail.com",
-    phone: "081234567893",
-    is_active: true,
-    upline_id: 2,
-    position: "L",
-    sponsor_id: 2,
-    balance: 150000,
-    sponsor_bonus: 20000,
-    pairing_bonus: 0,
-    level_bonus: 5000,
-    ro_bonus: 0,
-    left_count: 1,
-    right_count: 0,
-    left_sales: 1,
-    right_sales: 0,
-    created_at: "2026-07-01T08:30:00Z",
-    role: "user"
-  },
-  {
-    id: 5,
-    username: "elsa",
-    fullname: "Elsa Safira",
-    email: "elsa@gmail.com",
-    phone: "081234567894",
-    is_active: true,
-    upline_id: 2,
-    position: "R",
-    sponsor_id: 2,
-    balance: 90000,
-    sponsor_bonus: 0,
-    pairing_bonus: 0,
-    level_bonus: 0,
-    ro_bonus: 0,
-    left_count: 0,
-    right_count: 1,
-    left_sales: 0,
-    right_sales: 1,
-    created_at: "2026-07-02T14:15:00Z",
-    role: "user"
-  },
-  {
-    id: 6,
-    username: "fani",
-    fullname: "Fani Rahma",
-    email: "fani@gmail.com",
-    phone: "081234567895",
-    is_active: true,
-    upline_id: 3,
-    position: "L",
-    sponsor_id: 3,
-    balance: 210000,
-    sponsor_bonus: 0,
-    pairing_bonus: 0,
-    level_bonus: 0,
-    ro_bonus: 0,
-    left_count: 1,
-    right_count: 0,
-    left_sales: 1,
-    right_sales: 0,
-    created_at: "2026-07-03T10:00:00Z",
-    role: "user"
-  },
-  {
-    id: 7,
-    username: "guntur",
-    fullname: "Guntur Saputra",
-    email: "guntur@gmail.com",
-    phone: "081234567896",
-    is_active: false, // Inactive member
-    upline_id: 3,
-    position: "R",
-    sponsor_id: 1,
     balance: 0,
     sponsor_bonus: 0,
     pairing_bonus: 0,
@@ -423,74 +291,8 @@ let users: MLMUser[] = [
     right_count: 0,
     left_sales: 0,
     right_sales: 0,
-    created_at: "2026-07-10T16:20:00Z",
-    role: "user"
-  },
-  {
-    id: 8,
-    username: "hendra",
-    fullname: "Hendra Gunawan",
-    email: "hendra@gmail.com",
-    phone: "081234567897",
-    is_active: true,
-    upline_id: 4,
-    position: "L",
-    sponsor_id: 4,
-    balance: 50000,
-    sponsor_bonus: 0,
-    pairing_bonus: 0,
-    level_bonus: 0,
-    ro_bonus: 0,
-    left_count: 0,
-    right_count: 0,
-    left_sales: 0,
-    right_sales: 0,
-    created_at: "2026-07-12T09:00:00Z",
-    role: "user"
-  },
-  {
-    id: 9,
-    username: "irma",
-    fullname: "Irma Suryani",
-    email: "irma@gmail.com",
-    phone: "081234567898",
-    is_active: true,
-    upline_id: 5,
-    position: "R",
-    sponsor_id: 2,
-    balance: 100000,
-    sponsor_bonus: 0,
-    pairing_bonus: 0,
-    level_bonus: 0,
-    ro_bonus: 0,
-    left_count: 0,
-    right_count: 0,
-    left_sales: 0,
-    right_sales: 0,
-    created_at: "2026-07-15T13:40:00Z",
-    role: "user"
-  },
-  {
-    id: 10,
-    username: "joko",
-    fullname: "Joko Widodo",
-    email: "joko@gmail.com",
-    phone: "081234567899",
-    is_active: true,
-    upline_id: 6,
-    position: "L",
-    sponsor_id: 6,
-    balance: 50000,
-    sponsor_bonus: 0,
-    pairing_bonus: 0,
-    level_bonus: 0,
-    ro_bonus: 0,
-    left_count: 0,
-    right_count: 0,
-    left_sales: 0,
-    right_sales: 0,
-    created_at: "2026-07-18T11:10:00Z",
-    role: "user"
+    created_at: "2026-06-01T09:00:00Z",
+    role: "admin"
   }
 ];
 
@@ -533,133 +335,15 @@ let products: Product[] = [
   }
 ];
 
-let transactions: Transaction[] = [
-  {
-    id: 1,
-    user_id: 2,
-    username: "budi",
-    type: "activation",
-    amount: -100000,
-    description: "Aktifasi Hak Usaha Member Budi Santoso",
-    created_at: "2026-06-15T10:00:00Z"
-  },
-  {
-    id: 2,
-    user_id: 1,
-    username: "admin",
-    type: "sponsor_bonus",
-    amount: 20000,
-    description: "Bonus Sponsor dari aktifasi budi",
-    created_at: "2026-06-15T10:00:00Z"
-  },
-  {
-    id: 3,
-    user_id: 3,
-    username: "citra",
-    type: "activation",
-    amount: -100000,
-    description: "Aktifasi Hak Usaha Member Citra Lestari",
-    created_at: "2026-06-16T11:00:00Z"
-  },
-  {
-    id: 4,
-    user_id: 1,
-    username: "admin",
-    type: "sponsor_bonus",
-    amount: 20000,
-    description: "Bonus Sponsor dari aktifasi citra",
-    created_at: "2026-06-16T11:00:00Z"
-  },
-  {
-    id: 5,
-    user_id: 1,
-    username: "admin",
-    type: "pairing_bonus",
-    amount: 10000,
-    description: "Bonus Pairing Kiri (budi) & Kanan (citra)",
-    created_at: "2026-06-16T11:15:00Z"
-  }
-];
+let transactions: Transaction[] = [];
 
-let deposits: DepositRequest[] = [
-  {
-    id: 1,
-    user_id: 2,
-    username: "budi",
-    amount: 1000000,
-    unique_code: 482,
-    method: "bca",
-    status: "success",
-    created_at: "2026-06-14T08:00:00Z"
-  },
-  {
-    id: 2,
-    user_id: 3,
-    username: "citra",
-    amount: 500000,
-    unique_code: 159,
-    method: "qris",
-    status: "success",
-    created_at: "2026-06-15T11:00:00Z"
-  },
-  {
-    id: 3,
-    user_id: 4,
-    username: "dedi",
-    amount: 100000,
-    unique_code: 842,
-    method: "qris",
-    status: "pending",
-    payment_code: "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=HedtroJeansDepositDedi100K",
-    created_at: "2026-07-20T11:00:00Z"
-  }
-];
+let deposits: DepositRequest[] = [];
 
-let withdrawals: WDRequest[] = [
-  {
-    id: 1,
-    user_id: 2,
-    username: "budi",
-    amount: 200000,
-    bank_name: "BCA",
-    account_number: "8830129321",
-    account_holder: "Budi Santoso",
-    status: "success",
-    created_at: "2026-07-10T12:00:00Z"
-  },
-  {
-    id: 2,
-    user_id: 3,
-    username: "citra",
-    amount: 150000,
-    bank_name: "Mandiri",
-    account_number: "131002938210",
-    account_holder: "Citra Lestari",
-    status: "pending",
-    created_at: "2026-07-21T02:00:00Z"
-  }
-];
+let withdrawals: WDRequest[] = [];
 
-let orders: Order[] = [...DEFAULT_ORDERS];
+let orders: Order[] = [];
 
-let notifications: MLMNotification[] = [
-  {
-    id: 1,
-    user_id: 1,
-    title: "Member Baru!",
-    message: "guntur telah mendaftar di jaringan Kanan Anda melalui Citra Lestari.",
-    type: "info",
-    created_at: "2026-07-10T16:20:00Z"
-  },
-  {
-    id: 2,
-    user_id: 2,
-    title: "Bonus Sponsor!",
-    message: "Selamat! Anda mendapatkan Bonus Sponsor Rp 20,000 dari aktifasi dedi.",
-    type: "success",
-    created_at: "2026-07-01T08:30:00Z"
-  }
-];
+let notifications: MLMNotification[] = [];
 
 let isAutoPayout = true;
 
@@ -2310,185 +1994,7 @@ app.post("/api/admin/withdrawals/delete", async (req, res) => {
   }
 });
 
-// Admin Reset Database Category
-app.post("/api/admin/reset-database", async (req, res) => {
-  try {
-    const { category } = req.body;
-    if (category === 'members') {
-      users = users.filter(u => u.role === 'admin' || Number(u.id) === 1);
-      if (firestoreDb) {
-        try {
-          const snapshot = await getDocs(collection(firestoreDb, "users"));
-          for (const docSnap of snapshot.docs) {
-            const d = docSnap.data();
-            if (d.role !== 'admin' && Number(d.id) !== 1) {
-              await deleteDoc(doc(firestoreDb, "users", docSnap.id));
-            }
-          }
-        } catch (e) {
-          console.warn("Reset members firestore warn:", e);
-        }
-      }
-      return res.json({ message: "Berhasil mereset data member!", users });
-    }
 
-    if (category === 'web_settings') {
-      const defaultSettings = {
-        webName: "Hedtro Jeans Official",
-        logoText: "HEDTRO.JEANS",
-        memberIdPrefix: "HDT-",
-        slogan: "OFFICIAL STORE & AFILIASI RESELLER",
-        siteDescription: "Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis Afiliasi Reseller Terpercaya.",
-        enableMlmBonus: true,
-        enableLevelBonus: true,
-        enableRewardBonus: true,
-        sponsorBonus: 20000,
-        pairingBonus: 10000,
-        roBonus: 5000,
-        levelBonusG1: 5000,
-        levelBonusG2: 4000,
-        levelBonusG3: 3000,
-        levelBonusG4: 1000,
-        levelBonusG5: 1000,
-        levelBonusG6: 1000,
-        levelBonusG7: 1000,
-        levelBonusG8: 1000,
-        levelBonusG9: 1000,
-        levelBonusG10: 1000
-      };
-      systemSettings = defaultSettings;
-      if (firestoreDb) {
-        try {
-          await setDoc(doc(firestoreDb, "settings", "system"), defaultSettings);
-        } catch (e) {}
-      }
-      return res.json({ message: "Berhasil mereset pengaturan web ke default!", settings: systemSettings });
-    }
-
-    if (category === 'sales') {
-      orders = [];
-      transactions = [];
-      deposits = [];
-      withdrawals = [];
-      if (firestoreDb) {
-        try {
-          const ordSnap = await getDocs(collection(firestoreDb, "orders"));
-          for (const d of ordSnap.docs) await deleteDoc(doc(firestoreDb, "orders", d.id));
-          const txSnap = await getDocs(collection(firestoreDb, "transactions"));
-          for (const d of txSnap.docs) await deleteDoc(doc(firestoreDb, "transactions", d.id));
-          const depSnap = await getDocs(collection(firestoreDb, "deposits"));
-          for (const d of depSnap.docs) await deleteDoc(doc(firestoreDb, "deposits", d.id));
-          const wdSnap = await getDocs(collection(firestoreDb, "withdrawals"));
-          for (const d of wdSnap.docs) await deleteDoc(doc(firestoreDb, "withdrawals", d.id));
-        } catch (e) {
-          console.warn("Reset sales firestore warn:", e);
-        }
-      }
-      return res.json({ message: "Berhasil mereset data penjualan & transaksi!", orders, transactions, deposits, withdrawals });
-    }
-
-    if (category === 'mlm_network') {
-      users = users.map(u => {
-        if (u.role === 'admin' || Number(u.id) === 1) {
-          return {
-            ...u,
-            left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
-            sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
-          };
-        }
-        return {
-          ...u,
-          upline_id: 1, sponsor_id: 1, position: 'L' as 'L' | 'R',
-          left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
-          balance: 0, sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
-        };
-      });
-      if (firestoreDb) {
-        for (const u of users) {
-          await syncUserToFirestore(u);
-        }
-      }
-      return res.json({ message: "Berhasil mereset struktur jaringan MLM!", users });
-    }
-
-    res.status(400).json({ message: "Kategori reset tidak dikenal" });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal mereset database: " + err.message });
-  }
-});
-
-// Admin Restore Database Category
-app.post("/api/admin/restore-database", async (req, res) => {
-  try {
-    const { category, data } = req.body;
-    if (category === 'members' && Array.isArray(data)) {
-      users = data;
-      if (firestoreDb) {
-        try {
-          const snapshot = await getDocs(collection(firestoreDb, "users"));
-          for (const docSnap of snapshot.docs) {
-            const d = docSnap.data();
-            if (d.role !== 'admin' && Number(d.id) !== 1) {
-              await deleteDoc(doc(firestoreDb, "users", docSnap.id));
-            }
-          }
-          for (const u of users) {
-            await syncUserToFirestore(u);
-          }
-        } catch (e) {}
-      }
-      return res.json({ message: "Berhasil merestore data member!", users });
-    }
-
-    if (category === 'web_settings' && data) {
-      systemSettings = { ...systemSettings, ...data };
-      if (firestoreDb) {
-        try {
-          await setDoc(doc(firestoreDb, "settings", "system"), data, { merge: true });
-        } catch (e) {}
-      }
-      return res.json({ message: "Berhasil merestore pengaturan web!", settings: systemSettings });
-    }
-
-    if (category === 'mlm_network' && Array.isArray(data)) {
-      users = data;
-      if (firestoreDb) {
-        for (const u of users) {
-          await syncUserToFirestore(u);
-        }
-      }
-      return res.json({ message: "Berhasil merestore jaringan MLM!", users });
-    }
-
-    if (category === 'sales' && data) {
-      if (Array.isArray(data.orders)) orders = data.orders;
-      if (Array.isArray(data.transactions)) transactions = data.transactions;
-      if (Array.isArray(data.deposits)) deposits = data.deposits;
-      if (Array.isArray(data.withdrawals)) withdrawals = data.withdrawals;
-
-      if (firestoreDb) {
-        try {
-          const ordSnap = await getDocs(collection(firestoreDb, "orders"));
-          for (const d of ordSnap.docs) await deleteDoc(doc(firestoreDb, "orders", d.id));
-          const txSnap = await getDocs(collection(firestoreDb, "transactions"));
-          for (const d of txSnap.docs) await deleteDoc(doc(firestoreDb, "transactions", d.id));
-          const depSnap = await getDocs(collection(firestoreDb, "deposits"));
-          for (const d of depSnap.docs) await deleteDoc(doc(firestoreDb, "deposits", d.id));
-          const wdSnap = await getDocs(collection(firestoreDb, "withdrawals"));
-          for (const d of wdSnap.docs) await deleteDoc(doc(firestoreDb, "withdrawals", d.id));
-
-          for (const o of orders) await syncOrderToFirestore(o);
-          for (const t of transactions) await syncTransactionToFirestore(t);
-        } catch (e) {}
-      }
-      return res.json({ message: "Berhasil merestore data penjualan!", orders, transactions, deposits, withdrawals });
-    }
-
-    res.status(400).json({ message: "Kategori restore tidak valid" });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal merestore database: " + err.message });
-  }
-});
 
 // User Upload Proof of Payment / Transfer for Deposit
 app.post("/api/user/deposit/confirm-proof", async (req, res) => {
@@ -2552,6 +2058,73 @@ app.post("/api/user/orders/confirm-proof", async (req, res) => {
   }
 });
 
+// Admin: Clear Members Reset Flag (restore member visibility without wiping data)
+app.post("/api/admin/clear-members-reset", async (req, res) => {
+  try {
+    console.log("🔧 [API] Clearing membersReset flag in Firestore...");
+    if (firestoreDb) {
+      await setDoc(doc(firestoreDb, "settings", "adminControl"), {
+        membersReset: false,
+        membersResetClearedAt: new Date().toISOString()
+      }, { merge: true });
+      // Reload users from Firestore to repopulate server memory
+      try {
+        const snap = await getDocs(collection(firestoreDb, "users"));
+        const reloadedUsers: MLMUser[] = [];
+        snap.forEach((d: any) => {
+          const data = d.data();
+          reloadedUsers.push({
+            id: Number(data.id ?? d.id),
+            username: data.username || "",
+            fullname: data.fullname || "",
+            email: data.email || "",
+            phone: data.phone || "",
+            password: data.password || "",
+            is_active: data.is_active !== undefined ? Boolean(data.is_active) : true,
+            upline_id: data.upline_id != null ? Number(data.upline_id) : null,
+            position: data.position || null,
+            sponsor_id: data.sponsor_id != null ? Number(data.sponsor_id) : null,
+            balance: Number(data.balance) || 0,
+            sponsor_bonus: Number(data.sponsor_bonus) || 0,
+            pairing_bonus: Number(data.pairing_bonus) || 0,
+            level_bonus: Number(data.level_bonus) || 0,
+            ro_bonus: Number(data.ro_bonus) || 0,
+            left_count: Number(data.left_count) || 0,
+            right_count: Number(data.right_count) || 0,
+            left_sales: Number(data.left_sales) || 0,
+            right_sales: Number(data.right_sales) || 0,
+            created_at: data.created_at || new Date().toISOString(),
+            role: data.role || "user",
+            firebase_uid: data.firebase_uid || "",
+            ktp: data.ktp || "",
+            whatsapp: data.whatsapp || "",
+            bank_name: data.bank_name || "",
+            bank_account: data.bank_account || "",
+            bank_holder: data.bank_holder || "",
+            address: data.address || "",
+            city: data.city || ""
+          } as MLMUser);
+        });
+        if (reloadedUsers.length > 0) {
+          users = reloadedUsers;
+          console.log(`✅ [API] Reloaded ${users.length} users from Firestore after clearing reset flag`);
+        }
+      } catch (e) {
+        console.warn("⚠️ [API] Could not reload users from Firestore:", e);
+      }
+    }
+    console.log(`✅ [API] membersReset flag cleared. Now serving ${users.length} users.`);
+    return res.json({ 
+      message: `Flag membersReset berhasil dihapus! Data member sekarang terlihat kembali (${users.length} user dimuat).`,
+      userCount: users.length,
+      users 
+    });
+  } catch (err: any) {
+    console.error("❌ [API] Error clearing membersReset flag:", err);
+    res.status(500).json({ message: "Gagal menghapus flag reset: " + err.message });
+  }
+});
+
 // Admin Reset Database Category
 app.post(["/api/admin/reset-database", "/admin/reset-database"], async (req, res) => {
   try {
@@ -2562,6 +2135,22 @@ app.post(["/api/admin/reset-database", "/admin/reset-database"], async (req, res
       // Collect non-admin users BEFORE filtering (for Firebase Auth deletion)
       const nonAdminUsers = users.filter(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
       users = users.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
+      if (users[0]) {
+        users[0].left_count = 0;
+        users[0].right_count = 0;
+        users[0].left_sales = 0;
+        users[0].right_sales = 0;
+        users[0].balance = 0;
+        users[0].sponsor_bonus = 0;
+        users[0].pairing_bonus = 0;
+        users[0].level_bonus = 0;
+        users[0].ro_bonus = 0;
+      }
+      transactions = [];
+      deposits = [];
+      withdrawals = [];
+      orders = [];
+      notifications = [];
 
       // 1. Delete Firebase Auth accounts for all non-admin users
       await deleteAllNonAdminFirebaseAuthUsers(nonAdminUsers);
@@ -2576,16 +2165,28 @@ app.post(["/api/admin/reset-database", "/admin/reset-database"], async (req, res
               await deleteDoc(doc(firestoreDb, "users", docSnap.id)).catch(() => {});
             }
           }
-          // Persist reset flag in Firestore
+          // Also wipe Firestore transactions, deposits, withdrawals, orders, notifications
+          const txSnap = await getDocs(collection(firestoreDb, "transactions")).catch(() => null);
+          if (txSnap) for (const d of txSnap.docs) await deleteDoc(doc(firestoreDb, "transactions", d.id)).catch(() => {});
+          const depSnap = await getDocs(collection(firestoreDb, "deposits")).catch(() => null);
+          if (depSnap) for (const d of depSnap.docs) await deleteDoc(doc(firestoreDb, "deposits", d.id)).catch(() => {});
+          const wdSnap = await getDocs(collection(firestoreDb, "withdrawals")).catch(() => null);
+          if (wdSnap) for (const d of wdSnap.docs) await deleteDoc(doc(firestoreDb, "withdrawals", d.id)).catch(() => {});
+          const ordSnap = await getDocs(collection(firestoreDb, "orders")).catch(() => null);
+          if (ordSnap) for (const d of ordSnap.docs) await deleteDoc(doc(firestoreDb, "orders", d.id)).catch(() => {});
+          const notifSnap = await getDocs(collection(firestoreDb, "notifications")).catch(() => null);
+          if (notifSnap) for (const d of notifSnap.docs) await deleteDoc(doc(firestoreDb, "notifications", d.id)).catch(() => {});
+
+          // Reset flag to false so newly registered users work seamlessly
           await setDoc(doc(firestoreDb, "settings", "adminControl"), {
-            membersReset: true,
+            membersReset: false,
             membersResetAt: new Date().toISOString()
           }, { merge: true }).catch(() => {});
         } catch (e) {
           console.warn("Firestore reset members warn:", e);
         }
       }
-      return res.json({ message: "Berhasil mereset data member (selain admin) dan akun Firebase Auth telah dihapus!", users });
+      return res.json({ message: "Berhasil mereset data member dan seluruh data transaksi!", users });
     }
 
     if (category === 'sales') {
@@ -3909,9 +3510,17 @@ async function initFirestoreData() {
           users = loadedUsers;
           const hasNonAdminInLoaded = loadedUsers.some(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
           if (hasNonAdminInLoaded && serverMembersReset) {
+            // Members exist in Firestore despite reset flag — clear the flag
             serverMembersReset = false;
             if (firestoreDb) {
               setDoc(doc(firestoreDb, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
+            }
+          } else if (!hasNonAdminInLoaded && serverMembersReset) {
+            // No non-admin users and reset flag is true — clear the flag since reset already happened
+            serverMembersReset = false;
+            if (firestoreDb) {
+              setDoc(doc(firestoreDb, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
+              console.log("🧹 [Startup] Auto-cleared stale membersReset flag (Firestore has no member data)");
             }
           }
           console.log(`🔥 Loaded ${loadedUsers.length} users from Firestore into memory (membersReset=${serverMembersReset})`);

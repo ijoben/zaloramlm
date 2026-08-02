@@ -61,6 +61,7 @@ interface AdminDashboardProps {
   onRefreshProducts?: () => void;
   onResetCategory?: (category: 'members' | 'web_settings' | 'mlm_network' | 'sales') => Promise<boolean>;
   onRestoreCategory?: (category: 'members' | 'web_settings' | 'mlm_network' | 'sales', data: any) => Promise<boolean>;
+  onClearMembersReset?: () => Promise<boolean>;
 }
 
 const PaginationControls = ({
@@ -140,6 +141,7 @@ export default function AdminDashboard({
   onUpdateSettings,
   onRefreshProducts,
   onResetCategory,
+  onClearMembersReset,
   onRestoreCategory
 }: AdminDashboardProps) {
   const getInitialAdminTab = (): 'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'orders' | 'settings' | 'landing-editor' | 'profil' => {
@@ -4129,6 +4131,25 @@ export default function AdminDashboard({
                           </label>
                         </div>
 
+                        {onClearMembersReset && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (window.confirm('Pulihkan tampilan member yang hilang? Ini akan menghapus flag reset tanpa menghapus data member yang ada di Firestore.')) {
+                                setMessage({ text: 'Memulihkan data member...', type: 'info' });
+                                const ok = await onClearMembersReset();
+                                if (ok) {
+                                  setMessage({ text: '✅ Data member berhasil dipulihkan! Refresh halaman untuk melihat perubahan.', type: 'success' });
+                                } else {
+                                  setMessage({ text: '❌ Gagal memulihkan data member.', type: 'error' });
+                                }
+                              }
+                            }}
+                            className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold py-2 px-3 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            🔄 Pulihkan Tampilan Member
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleConfirmReset('members', 'Data Member (selain Admin)')}
