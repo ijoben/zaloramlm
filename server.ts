@@ -813,7 +813,7 @@ app.post("/api/auth/login", async (req, res) => {
       (u.email && u.email.toLowerCase().trim() === searchVal)
     );
     if (!user) {
-      return res.status(404).json({ message: "User/Email tidak ditemukan dalam database!" });
+      return res.status(404).json({ message: "Username atau email tidak ditemukan atau akun telah dihapus oleh Admin!" });
     }
 
     // Password check against user password or default role password

@@ -1325,7 +1325,7 @@ export default function App() {
     return apiSuccess || fsSuccess;
   };
 
-  const getFallbackUser = (username: string): MLMUser => {
+  const getFallbackUser = (username: string): MLMUser | null => {
     const u = username.toLowerCase().trim();
     if (u === 'admin') {
       return {
@@ -1343,36 +1343,15 @@ export default function App() {
         pairing_bonus: 0,
         level_bonus: 0,
         ro_bonus: 0,
-        left_count: 5,
-        right_count: 4,
-        left_sales: 5,
-        right_sales: 4,
+        left_count: 0,
+        right_count: 0,
+        left_sales: 0,
+        right_sales: 0,
         created_at: new Date().toISOString(),
         role: "admin"
       };
     }
-    return {
-      id: 2,
-      username: u || "budi",
-      fullname: u === "budi" ? "Budi Santoso" : (u.charAt(0).toUpperCase() + u.slice(1)),
-      email: `${u || "budi"}@gmail.com`,
-      phone: "081234567891",
-      is_active: true,
-      upline_id: 1,
-      position: "L",
-      sponsor_id: 1,
-      balance: 750000,
-      sponsor_bonus: 40000,
-      pairing_bonus: 20000,
-      level_bonus: 15000,
-      ro_bonus: 5000,
-      left_count: 2,
-      right_count: 2,
-      left_sales: 2,
-      right_sales: 2,
-      created_at: new Date().toISOString(),
-      role: "user"
-    };
+    return null;
   };
 
   const getDefaultAdminDashboard = (user: MLMUser) => {
@@ -1640,15 +1619,30 @@ export default function App() {
       );
 
       if (matched) {
+        // Validate password if match exists and password is specified
+        if (matched.password && loginPassword && matched.password !== loginPassword) {
+          setLoginError("Kata sandi yang Anda masukkan salah!");
+          return;
+        }
         setCurrentUser(matched);
+        setShowLoginModal(false);
+        setLoginUsername('');
+        setLoginPassword('');
+        setActiveView('dashboard');
       } else {
-        const fallbackUser = getFallbackUser(loginUsername);
-        setCurrentUser(fallbackUser);
+        if (uSearch === 'admin') {
+          const fallbackAdmin = getFallbackUser('admin');
+          if (fallbackAdmin) {
+            setCurrentUser(fallbackAdmin);
+            setShowLoginModal(false);
+            setLoginUsername('');
+            setLoginPassword('');
+            setActiveView('dashboard');
+            return;
+          }
+        }
+        setLoginError("Username atau email tidak terdaftar atau akun Anda telah dihapus oleh Admin!");
       }
-      setShowLoginModal(false);
-      setLoginUsername('');
-      setLoginPassword('');
-      setActiveView('dashboard');
     } finally {
       setIsSubmittingLogin(false);
     }
@@ -1821,55 +1815,57 @@ export default function App() {
   };
 
   const handleQuickLogin = async (role: 'user' | 'admin') => {
-    const username = role === 'user' ? 'budi' : 'admin';
-    const password = role === 'user' ? 'user123' : 'admin123';
-    setLoginUsername(username);
-    setLoginPassword(password);
     setLoginError('');
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.user) {
-          setCurrentUser(data.user);
-          setShowLoginModal(false);
-          setLoginUsername('');
-          setLoginPassword('');
-          if (data.user.role === 'admin') {
-            try {
-              const r = await fetch("/api/admin/dashboard");
-              if (r.ok) {
-                const d = await r.json();
-                setAdminDashboardData(d);
-              }
-            } catch {}
-          } else {
-            try {
-              const r = await fetch(`/api/user/${data.user.id}/dashboard`);
-              if (r.ok) {
-                const d = await r.json();
-                setUserDashboardData(d);
-              }
-            } catch {}
+    if (role === 'admin') {
+      const username = 'admin';
+      const password = 'admin123';
+      setLoginUsername(username);
+      setLoginPassword(password);
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setCurrentUser(data.user);
+            setShowLoginModal(false);
+            setLoginUsername('');
+            setLoginPassword('');
+            setActiveView('dashboard');
+            return;
           }
-          setActiveView('dashboard');
-          return;
         }
+      } catch {}
+      const fallbackAdmin = getFallbackUser('admin');
+      if (fallbackAdmin) {
+        setCurrentUser(fallbackAdmin);
+        setShowLoginModal(false);
+        setLoginUsername('');
+        setLoginPassword('');
+        setActiveView('dashboard');
       }
-    } catch (err) {
-      console.warn("Quick login API unreachable, using client fallback", err);
+      return;
     }
 
-    // Fallback for demo mode on static hosting
-    const fallbackUser = getFallbackUser(username);
-    setCurrentUser(fallbackUser);
-    setShowLoginModal(false);
-    setLoginUsername('');
-    setActiveView('dashboard');
+    // Role 'user' (Demo Member Quick Login)
+    try {
+      const fsUsers = await fetchFirestoreUsers();
+      const demoMember = fsUsers.find(u => u.role !== 'admin' && u.username !== 'admin');
+      if (demoMember) {
+        setLoginUsername(demoMember.username);
+        setLoginPassword(demoMember.password || 'user123');
+        setCurrentUser(demoMember);
+        setShowLoginModal(false);
+        setActiveView('dashboard');
+      } else {
+        setLoginError("Tidak ada akun member terdaftar dalam database. Silakan lakukan pendaftaran member baru.");
+      }
+    } catch {
+      setLoginError("Gagal menghubungkan ke data member.");
+    }
   };
 
   const handleBuyProduct = async (productId: number, paymentMethod: 'saldo' | 'transfer' = 'saldo', customAddress?: string, selectedSize?: string, selectedColor?: string) => {
@@ -2423,6 +2419,13 @@ export default function App() {
         } catch (err) {
           console.warn("Firestore delete doc warning:", err);
         }
+      }
+
+      if (currentUser && (Number(currentUser.id) === targetNumId || String(currentUser.id) === String(userId))) {
+        setCurrentUser(null);
+        localStorage.removeItem("zalora_session_user");
+        setActiveView('landing');
+      }
 
         // Re-assign orphan children in Firestore to ID 1 so network tree stays intact
         try {
@@ -2440,7 +2443,6 @@ export default function App() {
         } catch (e) {
           console.warn("Error cleaning orphan downlines in Firestore:", e);
         }
-      }
 
       setAdminDashboardData(prev => {
         if (!prev) return null;
