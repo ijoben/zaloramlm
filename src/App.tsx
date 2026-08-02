@@ -888,7 +888,7 @@ export default function App() {
   
   // Login form
   const [loginUsername, setLoginUsername] = useState('');
-  const [loginPassword, setLoginPassword] = useState('password123'); // Demo bypass
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
 
@@ -3167,33 +3167,6 @@ export default function App() {
               <p className="text-xs text-slate-500">Silakan isi username terdaftar Anda untuk menjelajahi dashboard.</p>
             </div>
 
-            {/* Quick Demo Accounts Fill */}
-            <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 space-y-2.5">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-blue-600" /> Uji Coba Demo Akun Sekali-Klik:
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  id="btn-quick-budi"
-                  onClick={() => handleQuickLogin('user')}
-                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold transition text-left flex flex-col justify-between shadow-sm hover:border-blue-500"
-                >
-                  <span className="text-blue-600">👤 Demo Member</span>
-                  <strong className="block mt-1 font-extrabold text-slate-900">budi</strong>
-                </button>
-                <button
-                  type="button"
-                  id="btn-quick-admin"
-                  onClick={() => handleQuickLogin('admin')}
-                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold transition text-left flex flex-col justify-between shadow-sm hover:border-blue-500"
-                >
-                  <span className="text-red-600">⚙️ Administrator</span>
-                  <strong className="block mt-1 font-extrabold text-slate-900">admin</strong>
-                </button>
-              </div>
-            </div>
-
             {loginError && <p className="bg-red-50 text-red-800 p-2.5 rounded-xl border border-red-200 text-xs font-bold">{loginError}</p>}
 
             <form onSubmit={handleLoginSubmit} className="space-y-4">
@@ -3222,8 +3195,7 @@ export default function App() {
                   />
                   <Key className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
                 </div>
-                <div className="flex justify-between items-center pt-1">
-                  <span className="text-[10px] text-slate-400 italic">Default: admin123 / user123</span>
+                <div className="flex justify-end items-center pt-1">
                   <button
                     type="button"
                     id="btn-forgot-password-trigger"
