@@ -2417,17 +2417,17 @@ export default function UserDashboard({
                                             </span>
                                             {ord.proof_notes && <p className="text-[10px] text-slate-600 font-mono mt-0.5">{ord.proof_notes}</p>}
                                             <span className="text-[9px] text-slate-400">
-                                              Waktu: {ord.proof_submitted_at ? new Date(ord.proof_submitted_at).toLocaleString('id-ID') : 'Menunggu Verifikasi Admin'}
+                                              Waktu: {ord.proof_submitted_at ? new Date(ord.proof_submitted_at).toLocaleString('id-ID') : 'Menunggu Verifikasi'}
                                             </span>
                                           </div>
                                         </div>
                                         <span className="text-[10px] bg-amber-100 text-amber-800 font-black px-2.5 py-1 rounded-full border border-amber-200 shrink-0">
-                                          Sedang Diverifikasi Admin
+                                          Sedang Diverifikasi
                                         </span>
                                       </div>
                                     ) : (
                                       <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                                        <span>Jika Anda memilih pembayaran Transfer Bank, silakan unggah foto / struk bukti transfer agar Admin memproses pengiriman paket Anda.</span>
+                                        <span>Jika Anda memilih pembayaran Transfer Bank, silakan unggah foto / struk bukti transfer agar sistem memproses pengiriman paket Anda.</span>
                                       </div>
                                     )}
                                   </div>
@@ -2620,7 +2620,7 @@ export default function UserDashboard({
                           }`}
                         >
                           <span className="font-extrabold block text-slate-800">BANK DIRECT</span>
-                          <span className="text-[8px] text-amber-700 font-extrabold">Transfer Manual Bank Admin</span>
+                          <span className="text-[8px] text-amber-700 font-extrabold">Transfer Manual Bank Official</span>
                         </button>
                       </div>
                     </div>
@@ -2633,7 +2633,7 @@ export default function UserDashboard({
                         </div>
                         <div className="flex justify-between items-center text-amber-800">
                           <span className="font-bold flex items-center gap-1">
-                            🔑 Kode Unik Verifikasi Admin:
+                            🔑 Kode Unik Verifikasi:
                           </span>
                           <span className="font-mono font-black bg-amber-200/80 px-2 py-0.5 rounded text-amber-950 border border-amber-300">
                             +Rp {depUniqueCode} (3 Angka)
@@ -2646,7 +2646,7 @@ export default function UserDashboard({
                           </span>
                         </div>
                         <p className="text-[10px] text-amber-800 italic mt-0.5">
-                          📌 3 Digit Kode Unik ditambahkan otomatis di belakang nominal transfer agar transaksi Anda langsung terdeteksi & diverifikasi cepat oleh Admin.
+                          📌 3 Digit Kode Unik ditambahkan otomatis di belakang nominal transfer agar transaksi Anda langsung terdeteksi & diverifikasi otomatis.
                         </p>
                       </div>
                     )}
@@ -2730,7 +2730,7 @@ export default function UserDashboard({
                                         <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                                         <div>
                                           <p className="font-extrabold text-[11px]">Bukti Transfer Terkirim</p>
-                                          <p className="text-[10px] text-emerald-700">Menunggu Verifikasi & Approval Admin</p>
+                                          <p className="text-[10px] text-emerald-700">Menunggu Verifikasi & Persetujuan</p>
                                         </div>
                                       </div>
                                       <button
@@ -3175,7 +3175,7 @@ export default function UserDashboard({
                     <Award className="w-6 h-6 text-slate-400 shrink-0" />
                     <div>
                       <p className="font-extrabold text-slate-800">Skema Target Reward Jaringan (Non-Aktif)</p>
-                      <p className="text-[11px] text-slate-500">Admin sedang menonaktifkan sementara skema pencapaian target reward jaringan.</p>
+                      <p className="text-[11px] text-slate-500">Sistem sedang memperbarui skema pencapaian target reward jaringan.</p>
                     </div>
                   </div>
                   <span className="bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shrink-0">NON-AKTIF</span>
@@ -4028,7 +4028,7 @@ export default function UserDashboard({
                       <div className="flex-1 min-w-0">
                         <span className="font-extrabold text-[11px] sm:text-xs text-slate-900 block">🏦 Transfer Bank / QRIS Direct</span>
                         <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
-                          BCA / Mandiri / BRI / QRIS. Pesanan otomatis ke Admin Area.
+                          BCA / Mandiri / BRI / QRIS. Pesanan otomatis terkonfirmasi.
                         </p>
                       </div>
                     </label>
@@ -4039,7 +4039,7 @@ export default function UserDashboard({
                 {purchasePaymentMethod === 'transfer' && (
                   <div className="bg-slate-900 text-white rounded-xl p-3 text-xs space-y-2">
                     <span className="text-[9px] font-extrabold uppercase text-amber-400 tracking-wider block">
-                      🏦 REKENING TUJUAN TRANSFER ADMIN & KODE UNIK
+                      🏦 REKENING TUJUAN TRANSFER OFFICIAL & KODE UNIK
                     </span>
                     
                     <div className="bg-slate-950 p-2.5 rounded-lg border border-amber-500/40 space-y-1 text-[11px]">
@@ -4066,18 +4066,18 @@ export default function UserDashboard({
                         <>
                           <div className="flex justify-between border-b border-slate-800 pb-1">
                             <span className="text-slate-400 font-sans">{settings.companyBankName}:</span>
-                            <span className="font-extrabold text-white">{settings.companyBankAccount} ({settings.companyBankHolder || 'Admin'})</span>
+                            <span className="font-extrabold text-white">{settings.companyBankAccount} ({settings.companyBankHolder || 'OFFICIAL'})</span>
                           </div>
                           {settings.companyBank2Name && (
                             <div className="flex justify-between border-b border-slate-800 pb-1">
                               <span className="text-slate-400 font-sans">{settings.companyBank2Name}:</span>
-                              <span className="font-extrabold text-white">{settings.companyBank2Account} ({settings.companyBank2Holder || 'Admin'})</span>
+                              <span className="font-extrabold text-white">{settings.companyBank2Account} ({settings.companyBank2Holder || 'OFFICIAL'})</span>
                             </div>
                           )}
                           {settings.companyBank3Name && (
                             <div className="flex justify-between border-b border-slate-800 pb-1">
                               <span className="text-slate-400 font-sans">{settings.companyBank3Name}:</span>
-                              <span className="font-extrabold text-white">{settings.companyBank3Account} ({settings.companyBank3Holder || 'Admin'})</span>
+                              <span className="font-extrabold text-white">{settings.companyBank3Account} ({settings.companyBank3Holder || 'OFFICIAL'})</span>
                             </div>
                           )}
                         </>
@@ -4575,7 +4575,7 @@ export default function UserDashboard({
                     if (onConfirmOrderProof) {
                       await onConfirmOrderProof(selectedProofOrder.id, proofImageInput, proofNotesInput);
                     }
-                    alert("Bukti transfer pesanan RO berhasil dikirim! Tim Admin akan memverifikasi dan memproses pesanan Anda.");
+                    alert("Bukti transfer pesanan RO berhasil dikirim! Tim Customer Service kami akan memverifikasi dan memproses pesanan Anda.");
                     setSelectedProofOrder(null);
                     if (onRefresh) onRefresh();
                   } catch (err: any) {

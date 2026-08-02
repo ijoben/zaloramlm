@@ -182,7 +182,7 @@ export default function WorkflowModal({ isOpen, onClose, webName = "HEDTRO JEANS
       points: [
         "Member memilih Paket Hak Usaha Premium (Termasuk Paket Perdana Produk Jeans Premium HEDTRO).",
         "Member melakukan pembayaran via Deposit / Transfer Bank resmi.",
-        "Admin / Sistem melakukan konfirmasi verifikasi pembayaran.",
+        "Sistem / Layanan Pelanggan melakukan konfirmasi verifikasi pembayaran.",
         "Status member berubah otomatis menjadi MEMBER PREMIUM (AKTIF) dan terpasang di Pohon Jaringan Binary (Kiri / Kanan)."
       ]
     },
@@ -232,16 +232,16 @@ export default function WorkflowModal({ isOpen, onClose, webName = "HEDTRO JEANS
     },
     {
       step: 6,
-      title: "6. VERIFIKASI ADMIN & TRANSFER REKENING",
+      title: "6. VERIFIKASI SISTEM & TRANSFER REKENING",
       icon: CheckCircle2,
       color: "from-blue-700 to-slate-900",
       badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
       badgeText: "Selesai / Sukses",
-      description: "Admin memproses transfer dana dan memperbarui status transaksi.",
+      description: "Sistem dan Tim Keuangan memproses transfer dana dan memperbarui status transaksi.",
       points: [
-        "Admin menerima notifikasi pengajuan WD di Manajemen Penarikan Dana (Admin Dashboard).",
-        "Admin memverifikasi keabsahan data rekening member dan mentransfer dana ke rekening bank tujuan.",
-        "Admin mengubah status pengajuan menjadi 'DISETUJUI' (APPROVED).",
+        "Sistem menerima notifikasi pengajuan WD di Manajemen Penarikan Dana.",
+        "Tim Keuangan memverifikasi keabsahan data rekening member dan mentransfer dana ke rekening bank tujuan.",
+        "Status pengajuan secara otomatis diperbarui menjadi 'DISETUJUI' (APPROVED).",
         "Member menerima dana di rekening bank & riwayat pencairan dana tercatat secara transparan di Laporan Mutasi."
       ]
     }
@@ -394,7 +394,7 @@ export default function WorkflowModal({ isOpen, onClose, webName = "HEDTRO JEANS
               <FileText className="w-5 h-5" /> RINGKASAN INTEGRASI & KEAMANAN SISTEM
             </div>
             <p className="text-xs text-neutral-300 leading-relaxed">
-              Sistem HEDTRO JEANS telah dilengkapi dengan basis data Firebase Firestore berkecepatan tinggi, integrasi perhitungan bonus binary otomatis real-time, perlindungan transaksi tingkat lanjut, serta validasi riwayat mutasi transparan. Seluruh pencairan dana (WD) diproses langsung oleh Admin dengan garansi verifikasi rekening ganda.
+              Sistem HEDTRO JEANS telah dilengkapi dengan basis data Firebase Firestore berkecepatan tinggi, integrasi perhitungan bonus binary otomatis real-time, perlindungan transaksi tingkat lanjut, serta validasi riwayat mutasi transparan. Seluruh pencairan dana (WD) diproses cepat dengan garansi verifikasi rekening ganda.
             </p>
 
             <div className="pt-3 border-t border-neutral-800 flex flex-col sm:flex-row justify-between items-center text-[10px] text-neutral-400 gap-2 font-mono">
