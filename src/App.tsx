@@ -81,7 +81,7 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
           email: data.email || "",
           phone: data.phone || "",
           password: data.password || (parsedId === 1 || data.role === "admin" || data.username === "admin" ? "admin123" : "user123"),
-          is_active: data.is_active !== undefined ? Boolean(data.is_active) : true,
+          is_active: data.is_active !== undefined ? Boolean(data.is_active) : (parsedId === 1 || data.role === "admin" || data.username === "admin"),
           upline_id: data.upline_id !== null && data.upline_id !== undefined ? Number(data.upline_id) : null,
           position: data.position || "L",
           sponsor_id: data.sponsor_id !== null && data.sponsor_id !== undefined ? Number(data.sponsor_id) : null,
@@ -270,7 +270,7 @@ async function registerUserToFirestoreDirect(regData: {
     email: regData.email,
     phone: regData.phone,
     password: regData.password || "password123",
-    is_active: true, // Auto Active upon registration package
+    is_active: false, // Default Free Member (Harus bayar registrasi Rp 550.000 untuk status Verified)
     upline_id: uplineId,
     position: finalPos,
     sponsor_id: sponsorId,
@@ -302,27 +302,7 @@ async function registerUserToFirestoreDirect(regData: {
       await setDoc(doc(db, "users", String(newUserId)), newUser);
       await updateAncestorCountsClient(updatedUsers, uplineId, finalPos);
 
-      // Distribute Sponsor Bonus (Rp 40.000) to Sponsor
-      if (sponsorId) {
-        const sponsor = users.find(u => Number(u.id) === Number(sponsorId));
-        if (sponsor) {
-          const newSponBal = (Number(sponsor.balance) || 0) + 40000;
-          const newSponBonus = (Number(sponsor.sponsor_bonus) || 0) + 40000;
-          await updateFirestoreUserProfile(sponsor.id, {
-            balance: newSponBal,
-            sponsor_bonus: newSponBonus
-          } as any);
-          await createFirestoreTransaction({
-            id: Date.now() + 1,
-            user_id: sponsor.id,
-            username: sponsor.username,
-            type: "sponsor_bonus",
-            amount: 40000,
-            description: `Bonus Sponsor Pendaftaran Member Baru ${normalizedUsername} (+Rp 40.000)`,
-            created_at: new Date().toISOString()
-          });
-        }
-      }
+      // Sponsor Bonus & Level Bonus are distributed ONLY when member is activated (pays Rp 550.000)
     } catch (e) {
       console.warn("Firestore setDoc failed for user registration:", e);
     }

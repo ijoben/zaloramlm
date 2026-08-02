@@ -2302,9 +2302,9 @@ export default function AdminDashboard({
                             </span>
 
                             <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                              u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              u.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                             }`}>
-                              {u.is_active ? 'Aktif' : 'Non-Aktif'}
+                              {u.is_active ? '✓ Verified Premium' : 'Free Member (Belum Bayar)'}
                             </span>
                           </div>
 
@@ -2465,9 +2465,9 @@ export default function AdminDashboard({
                             <td className="py-3.5 px-4 leading-normal">
                               <div className="mb-1">
                                 <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase tracking-wide ${
-                                  u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                  u.is_active ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
                                 }`}>
-                                  {u.is_active ? '✓ Lisensi Aktif' : 'Tidak Aktif'}
+                                  {u.is_active ? '✓ Verified Premium' : 'Free Member (Belum Bayar)'}
                                 </span>
                               </div>
                               <div className="text-[10px] text-slate-600 space-y-0.5">

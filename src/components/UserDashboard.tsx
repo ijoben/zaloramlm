@@ -655,7 +655,7 @@ export default function UserDashboard({
             </div>
             <div className="text-right">
               <p className="text-xs font-bold text-neutral-100">{user.fullname}</p>
-              <p className="text-[10px] text-neutral-400 font-mono">ID: {idPrefix}{String(user.id).padStart(6, '0')} • {user.username.replace(/^@/, '')} • {user.is_active ? 'Member Premium' : 'Inactive'}</p>
+              <p className="text-[10px] text-neutral-400 font-mono">ID: {idPrefix}{String(user.id).padStart(6, '0')} • {user.username.replace(/^@/, '')} • {user.is_active ? 'Member Premium (Verified)' : 'Free Member (Belum Aktif)'}</p>
             </div>
           </div>
           <button 
@@ -730,12 +730,16 @@ export default function UserDashboard({
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                         : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                     }`}>
-                      {user.is_active ? 'PREMIUM' : 'FREE'}
+                      {user.is_active ? 'MEMBER PREMIUM' : 'FREE MEMBER'}
                     </span>
-                    {user.is_active && (
-                      <span className="text-[9px] font-extrabold text-blue-400 flex items-center gap-0.5">
+                    {user.is_active ? (
+                      <span className="text-[9px] font-extrabold text-emerald-400 flex items-center gap-0.5">
                         <span>Verified</span>
-                        <CheckCircle className="w-3 h-3 text-blue-400 fill-blue-500/30" />
+                        <CheckCircle className="w-3 h-3 text-emerald-400 fill-emerald-500/30" />
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-extrabold text-amber-400 flex items-center gap-0.5">
+                        <span>Belum Bayar (Free)</span>
                       </span>
                     )}
                   </div>
@@ -1216,7 +1220,7 @@ export default function UserDashboard({
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
                             : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                         }`}>
-                          {user.is_active ? '● PREMIUM' : '○ FREE'}
+                          {user.is_active ? '● MEMBER PREMIUM (VERIFIED)' : '○ FREE MEMBER (BELUM BAYAR)'}
                         </span>
                       </div>
 
@@ -3049,9 +3053,9 @@ export default function UserDashboard({
                           <div className="flex items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-0 border-slate-200/60 shrink-0">
                             <span className="text-[10px] text-slate-400 font-bold sm:hidden">Status Member:</span>
                             <span className={`px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wide ${
-                              ref.is_active ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                              ref.is_active ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
                             }`}>
-                              {ref.is_active ? '● Premium Aktif' : '○ Tidak Aktif'}
+                              {ref.is_active ? '● Premium (Verified)' : '○ Free Member (Belum Bayar)'}
                             </span>
                           </div>
                         </div>
@@ -3446,7 +3450,7 @@ export default function UserDashboard({
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
                           : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                       }`}>
-                        {user.is_active ? '● PREMIUM' : '○ FREE'}
+                        {user.is_active ? '● MEMBER PREMIUM (VERIFIED)' : '○ FREE MEMBER (BELUM BAYAR)'}
                       </span>
                       {user.is_active && (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center gap-1">
