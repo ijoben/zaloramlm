@@ -12,6 +12,7 @@ interface LandingPageProps {
   products: Product[];
   orders?: Order[];
   onLoginClick: () => void;
+  onAdminLoginClick?: () => void;
   onRegisterClick: (sponsorUsername?: string) => void;
   isLoggedIn: boolean;
   onDashboardClick: () => void;
@@ -30,6 +31,7 @@ export default function LandingPage({
   products,
   orders = [],
   onLoginClick,
+  onAdminLoginClick,
   onRegisterClick,
   isLoggedIn,
   onDashboardClick,
@@ -1523,11 +1525,21 @@ export default function LandingPage({
 
           <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-neutral-500 font-mono gap-4">
             <p>© 2026 {webName}. Hak Cipta Dilindungi Undang-Undang.</p>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-center">
               <span>BCA</span>
               <span>MANDIRI</span>
               <span>QRIS</span>
               <span>COD</span>
+              <span className="text-neutral-700">|</span>
+              <button
+                type="button"
+                id="btn-footer-admin-login"
+                onClick={onAdminLoginClick || onLoginClick}
+                className="text-neutral-400 hover:text-red-400 font-bold transition flex items-center gap-1 cursor-pointer"
+                title="Akses Portal Login Administrator"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-red-500" /> Akses Admin
+              </button>
             </div>
           </div>
 
