@@ -815,7 +815,7 @@ export default function UserDashboard({
                   }`}
                 >
                   <span className="flex items-center gap-2.5 text-left">
-                    <Truck className="w-4 h-4 shrink-0 text-blue-400" /> Pengiriman & Resi Saya
+                    <Truck className="w-4 h-4 shrink-0 text-blue-400" /> Data Pembelian Produk RO
                   </span>
                   {orders && orders.filter(o => o.username === user.username || o.phone === user.phone).length > 0 && (
                     <span className="text-[9px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-bold shrink-0">
@@ -1056,7 +1056,7 @@ export default function UserDashboard({
               }`}
             >
               <Truck className="w-4 h-4 shrink-0 text-blue-400" />
-              <span className="flex-1 text-left">Pengiriman & Resi Saya</span>
+              <span className="flex-1 text-left">Data Pembelian Produk RO</span>
               {orders && orders.filter(o => o.username === user.username || o.phone === user.phone).length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'orders' ? 'bg-blue-500/20 text-white' : 'bg-slate-800 text-slate-300'}`}>
                   {orders.filter(o => o.username === user.username || o.phone === user.phone).length}
@@ -2161,15 +2161,15 @@ export default function UserDashboard({
             </div>
           )}
 
-          {/* TAB: STATUS PENGIRIMAN & RESI SAYA (FAQ ACCORDION STYLE) */}
+          {/* TAB: DATA PEMBELIAN PRODUK RO & STATUS PENGIRIMAN */}
           {activeTab === 'orders' && (
             <div className="space-y-6 text-left" id="user-orders-tab-content">
               <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-1 flex items-center gap-2 text-left">
-                    <Truck className="text-blue-600 w-5 h-5 shrink-0" /> Status Pengiriman & Nomor Resi Pesanan Saya
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 mb-1 flex items-center gap-2 text-left">
+                    <Truck className="text-blue-600 w-5 h-5 shrink-0" /> Data Pembelian & Status Pengiriman Produk RO
                   </h3>
-                  <p className="text-xs text-slate-500 text-left">Klik pada baris pesanan di bawah untuk membuka/menutup detail resi dan histori pengiriman paket.</p>
+                  <p className="text-xs text-slate-500 text-left">Lacak seluruh riwayat invoice pembelian produk RO Anda, upload bukti transfer bank, ekspedisi pengiriman, hingga nomor resi paket Anda.</p>
                 </div>
               </div>
 

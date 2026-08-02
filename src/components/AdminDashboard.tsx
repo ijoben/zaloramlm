@@ -1569,11 +1569,11 @@ export default function AdminDashboard({
                   }`}
                 >
                   <span className="flex items-center gap-2.5 text-left">
-                    <Truck className="w-4 h-4 shrink-0" /> Pengiriman & Resi Pesanan
+                    <Truck className="w-4 h-4 shrink-0 text-blue-400" /> Penjualan Produk (RO)
                   </span>
                   {orders.length > 0 && (
                     <span className="text-[9px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-bold shrink-0">
-                      {orders.length} order
+                      {orders.length} penjualan
                     </span>
                   )}
                 </button>
@@ -1721,8 +1721,8 @@ export default function AdminDashboard({
                 activeTab === 'orders' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <Truck className="w-4 h-4 shrink-0" />
-              <span className="flex-1 text-left">Pengiriman & Resi</span>
+              <Truck className="w-4 h-4 shrink-0 text-blue-400" />
+              <span className="flex-1 text-left">Penjualan Produk (RO)</span>
               {orders.length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'orders' ? 'bg-blue-500/20 text-white' : 'bg-slate-800 text-slate-300'}`}>
                   {orders.length}
@@ -3021,6 +3021,246 @@ export default function AdminDashboard({
                       totalItems={filteredDeposits.length}
                       itemsPerPage={10}
                       onPageChange={setPageDeposits}
+                    />
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* TAB: DATA PENJUALAN PRODUK RO & PENGIRIMAN */}
+          {activeTab === 'orders' && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6" id="admin-orders-panel">
+              {/* Top Header & Action */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                    <Truck className="text-blue-600 w-6 h-6" /> Data Penjualan Produk & Resi Pengiriman (RO)
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Laporan lengkap seluruh transaksi penjualan produk Repeat Order (RO) member, verifikasi bukti transfer, update kurir ekspedisi, dan penerbitan nomor resi.
+                  </p>
+                </div>
+                
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddOrderModalOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs transition shadow-md shadow-blue-600/10 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4" /> Order Manual Baru
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              {(() => {
+                const totalOmsetRO = orders.reduce((acc, o) => acc + (o.amount || 0), 0);
+                const pendingProofCount = orders.filter(o => o.proof_image && o.status === 'PENDING').length;
+                const shippedCount = orders.filter(o => o.status === 'DIKIRIM' || o.status === 'TERIMA' || o.status === 'SELESAI').length;
+
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-blue-50/60 border border-blue-200 p-4 rounded-2xl">
+                      <span className="text-[10px] font-extrabold uppercase text-blue-700 tracking-wider block">Total Omset Penjualan RO</span>
+                      <p className="text-lg font-black text-blue-950 font-mono mt-1">Rp {totalOmsetRO.toLocaleString('id-ID')}</p>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                      <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">Total Transaksi Penjualan</span>
+                      <p className="text-lg font-black text-slate-900 font-mono mt-1">{orders.length} Order</p>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl">
+                      <span className="text-[10px] font-extrabold uppercase text-amber-700 tracking-wider block">Verifikasi Bukti Transfer</span>
+                      <p className="text-lg font-black text-amber-900 font-mono mt-1">{pendingProofCount} Pesanan</p>
+                    </div>
+
+                    <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl">
+                      <span className="text-[10px] font-extrabold uppercase text-emerald-700 tracking-wider block">Sudah Dikirim / Resi Terbit</span>
+                      <p className="text-lg font-black text-emerald-900 font-mono mt-1">{shippedCount} Paket</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Filter & Search Bar */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari invoice, username, nama pembeli, nama produk, nomor resi..."
+                    value={orderSearchQuery}
+                    onChange={(e) => {
+                      setOrderSearchQuery(e.target.value);
+                      setPageOrders(1);
+                    }}
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Filter Status:</span>
+                  <select
+                    value={orderStatusFilter}
+                    onChange={(e) => {
+                      setOrderStatusFilter(e.target.value as any);
+                      setPageOrders(1);
+                    }}
+                    className="bg-white border border-slate-200 text-xs font-bold text-slate-700 rounded-xl px-3 py-2 focus:outline-none cursor-pointer"
+                  >
+                    <option value="ALL">Semua Status Order</option>
+                    <option value="DIPROSES">Diproses / Pending</option>
+                    <option value="DIKIRIM">Dikirim / Resi Ada</option>
+                    <option value="TERIMA">Selesai / Diterima</option>
+                    <option value="BATAL">Dibatalkan</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Order List Table */}
+              {(() => {
+                const filteredOrders = orders.filter(ord => {
+                  const q = orderSearchQuery.toLowerCase().trim();
+                  const matchQuery = !q || (
+                    (ord.invoice_no || '').toLowerCase().includes(q) ||
+                    (ord.username || '').toLowerCase().includes(q) ||
+                    (ord.fullname || '').toLowerCase().includes(q) ||
+                    (ord.product_name || '').toLowerCase().includes(q) ||
+                    (ord.tracking_number || '').toLowerCase().includes(q) ||
+                    (ord.courier || '').toLowerCase().includes(q)
+                  );
+                  const matchStatus = orderStatusFilter === 'ALL' || (
+                    orderStatusFilter === 'DIPROSES' ? (ord.status === 'DIPROSES' || ord.status === 'PENDING') :
+                    orderStatusFilter === 'DIKIRIM' ? ord.status === 'DIKIRIM' :
+                    orderStatusFilter === 'TERIMA' ? (ord.status === 'TERIMA' || ord.status === 'SELESAI') :
+                    ord.status === orderStatusFilter
+                  );
+                  return matchQuery && matchStatus;
+                });
+
+                return (
+                  <>
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-900 text-white uppercase text-[9px] tracking-wider font-extrabold">
+                          <tr>
+                            <th className="py-3.5 px-4">INVOICE & TGL</th>
+                            <th className="py-3.5 px-4">PEMBELI (MEMBER)</th>
+                            <th className="py-3.5 px-4">PRODUK RO</th>
+                            <th className="py-3.5 px-4 text-right">TOTAL Rp & BUKTI TF</th>
+                            <th className="py-3.5 px-4 text-center">EKSPEDISI & RESI</th>
+                            <th className="py-3.5 px-4 text-center">STATUS</th>
+                            <th className="py-3.5 px-4 text-center">AKSI</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {filteredOrders.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="text-center py-10 text-slate-400 font-medium">
+                                Tidak ada data penjualan produk RO ditemukan.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredOrders
+                              .slice((pageOrders - 1) * 10, pageOrders * 10)
+                              .map((ord) => (
+                                <tr key={ord.id} className="hover:bg-slate-50/80 transition">
+                                  {/* Invoice */}
+                                  <td className="py-3.5 px-4">
+                                    <span className="font-mono font-black text-slate-900 text-xs block">{ord.invoice_no || `#INV-RO-${ord.id}`}</span>
+                                    <span className="text-[10px] text-slate-400 block mt-0.5">{new Date(ord.created_at).toLocaleString('id-ID')}</span>
+                                  </td>
+
+                                  {/* Member / Pembeli */}
+                                  <td className="py-3.5 px-4">
+                                    <span className="font-extrabold text-blue-600 block text-xs">@{ord.username.replace(/^@/, '')}</span>
+                                    <span className="font-bold text-slate-800 block text-xs">{ord.fullname}</span>
+                                    <span className="text-[10px] text-slate-500 font-mono">{ord.phone}</span>
+                                  </td>
+
+                                  {/* Produk */}
+                                  <td className="py-3.5 px-4">
+                                    <span className="font-extrabold text-slate-900 block text-xs">{ord.product_name}</span>
+                                    {(ord.selected_size || ord.size || ord.selected_color || ord.color) && (
+                                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px]">
+                                        {(ord.selected_size || ord.size) && <span className="bg-slate-100 font-mono font-bold text-slate-700 px-1.5 py-0.2 rounded">Size: {ord.selected_size || ord.size}</span>}
+                                        {(ord.selected_color || ord.color) && <span className="bg-slate-100 font-bold text-slate-700 px-1.5 py-0.2 rounded">Warna: {ord.selected_color || ord.color}</span>}
+                                      </div>
+                                    )}
+                                  </td>
+
+                                  {/* Total Rp & Bukti TF */}
+                                  <td className="py-3.5 px-4 text-right">
+                                    <span className="font-mono font-black text-slate-900 text-sm block">Rp {(ord.amount || 0).toLocaleString('id-ID')}</span>
+                                    <span className="text-[10px] text-slate-500 block uppercase font-bold">{ord.payment_method || 'Transfer Bank'}</span>
+                                    {ord.proof_image && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setViewAdminProofImage(ord.proof_image || null)}
+                                        className="mt-1 ml-auto bg-emerald-50 border border-emerald-300 text-emerald-700 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 hover:bg-emerald-100 transition cursor-pointer"
+                                      >
+                                        <Eye className="w-3 h-3 text-emerald-600" /> Lihat Bukti TF
+                                      </button>
+                                    )}
+                                  </td>
+
+                                  {/* Ekspedisi & Resi */}
+                                  <td className="py-3.5 px-4 text-center">
+                                    <span className="bg-slate-100 text-slate-800 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase block w-fit mx-auto">
+                                      {ord.courier || 'JNE REGULER'}
+                                    </span>
+                                    <span className="font-mono font-extrabold text-blue-600 text-xs block mt-1">
+                                      {ord.tracking_number || 'Belum Ada Resi'}
+                                    </span>
+                                  </td>
+
+                                  {/* Status */}
+                                  <td className="py-3.5 px-4 text-center">
+                                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                      ord.status === 'SELESAI' || ord.status === 'TERIMA' ? 'bg-green-100 text-green-800' :
+                                      ord.status === 'DIKIRIM' ? 'bg-blue-100 text-blue-800' :
+                                      ord.status === 'BATAL' ? 'bg-red-100 text-red-800' :
+                                      'bg-amber-100 text-amber-800'
+                                    }`}>
+                                      {ord.status}
+                                    </span>
+                                  </td>
+
+                                  {/* Aksi */}
+                                  <td className="py-3.5 px-4 text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditOrderModal(ord)}
+                                        className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold rounded-lg text-[10px] transition border border-blue-200 flex items-center gap-1 cursor-pointer"
+                                        title="Edit Resi & Status Pengiriman"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" /> Input Resi
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setDeletingOrderId(ord.id)}
+                                        className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-extrabold rounded-lg text-[10px] transition border border-red-200 cursor-pointer"
+                                        title="Hapus Order"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <PaginationControls
+                      currentPage={pageOrders}
+                      totalItems={filteredOrders.length}
+                      itemsPerPage={10}
+                      onPageChange={setPageOrders}
                     />
                   </>
                 );
