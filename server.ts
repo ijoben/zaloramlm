@@ -460,6 +460,50 @@ async function activateUserMLM(userId: number) {
   transactions.push(prodBonusTx);
   await syncTransactionToFirestore(prodBonusTx);
 
+  // Auto-create or update Physical Order for 1 Pcs Perdana Jeans Shipment (Rp 550.000)
+  const existingOrderForUser = orders.find(o => 
+    (o.username && o.username.toLowerCase() === user.username.toLowerCase()) && 
+    (o.product_name && o.product_name.includes("Perdana"))
+  );
+
+  if (existingOrderForUser) {
+    existingOrderForUser.status = "DIPROSES";
+    existingOrderForUser.payment_method = "Transfer Bank / Aktivasi Verified (Lunas)";
+    if (existingOrderForUser.steps && existingOrderForUser.steps.length > 0) {
+      existingOrderForUser.steps[0].done = true;
+      existingOrderForUser.steps[0].time = new Date().toLocaleString("id-ID");
+      existingOrderForUser.steps[1].done = true;
+      existingOrderForUser.steps[1].time = "Diproses Gudang";
+    }
+    await syncOrderToFirestore(existingOrderForUser);
+  } else {
+    const newOrdId = Math.max(...orders.map(o => Number(o.id) || 0), 0) + 1;
+    const perdanaOrder: Order = {
+      id: newOrdId,
+      invoice_no: `INV-PERDANA-${newOrdId}-${Date.now().toString().slice(-4)}`,
+      user_id: user.id,
+      username: user.username,
+      fullname: user.fullname,
+      phone: user.phone || (user as any).whatsapp || "081234567890",
+      address: (user as any).address || "Alamat sesuai registrasi member",
+      product_name: "Paket Perdana Member - Hedtro Jeans Raw Denim Premium (Rp 550.000)",
+      amount: 550000,
+      payment_method: "Transfer Bank / Aktivasi Verified (Lunas)",
+      status: "DIPROSES",
+      courier: "JNE REGULER",
+      tracking_number: `JNE-PERDANA-${Math.floor(100000000 + Math.random() * 900000000)}`,
+      created_at: new Date().toISOString(),
+      steps: [
+        { title: "Registrasi & Pembayaran Rp 550.000 Terverifikasi", time: new Date().toLocaleString("id-ID"), done: true, description: "Status akun terverifikasi Member Premium" },
+        { title: "Penyiapan 1 Pcs Jeans Perdana Gudang", time: "Diproses Gudang", done: true, description: "Potong stok gudang & bungkus" },
+        { title: "Penyerahan ke Kurir Ekspedisi", time: "Menunggu Resi", done: false, description: "Nomor resi diterbitkan admin" },
+        { title: "Paket Tiba di Alamat Member", time: "Estimasi 2-3 Hari", done: false, description: "Diterima pemesan" }
+      ]
+    };
+    orders.push(perdanaOrder);
+    await syncOrderToFirestore(perdanaOrder);
+  }
+
   // 2. Distribute Sponsor Bonus (If MLM Bonus Active)
   if (systemSettings.enableMlmBonus !== false && user.sponsor_id) {
     const sponsor = users.find(u => u.id === user.sponsor_id);
@@ -1510,6 +1554,13 @@ app.post("/api/admin/deposit/process", async (req, res) => {
       };
       notifications.push(newNotif);
       await syncNotificationToFirestore(newNotif);
+
+      // Auto-activate Free Member if deposit covers the Rp 550.000 registration fee
+      if (!user.is_active && dep.amount >= 550000) {
+        user.balance -= 550000;
+        await activateUserMLM(user.id);
+        console.log(`[Deposit Approval] Member @${user.username} successfully auto-activated to Member Premium!`);
+      }
     }
   } else {
     dep.status = "failed";
