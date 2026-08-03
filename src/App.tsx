@@ -346,7 +346,20 @@ async function registerUserToFirestoreDirect(regData: {
       await setDoc(doc(db, "users", String(newUserId)), newUser);
       await updateAncestorCountsClient(updatedUsers, uplineId, finalPos);
 
-      // Sponsor Bonus & Level Bonus are distributed ONLY when member is activated (pays Rp 550.000)
+      // Auto-create initial pending deposit request for Rp 550.000 for member activation
+      const actCode = 100 + (newUserId * 37) % 899;
+      const initialDep: DepositRequest = {
+        id: Date.now(),
+        user_id: newUserId,
+        username: normalizedUsername,
+        amount: 550000,
+        unique_code: actCode,
+        method: "transfer_bank",
+        status: "pending",
+        payment_code: `ACT-${newUserId}`,
+        created_at: new Date().toISOString()
+      };
+      await setDoc(doc(db, "deposits", String(initialDep.id)), initialDep);
     } catch (e) {
       console.warn("Firestore setDoc failed for user registration:", e);
     }
@@ -714,8 +727,12 @@ async function updateFirestoreDepositStatus(depositId: number, status: 'success'
     const users = await fetchFirestoreUsers();
     const targetUser = users.find(u => Number(u.id) === Number(depData.user_id));
     if (targetUser) {
-      const newBal = (Number(targetUser.balance) || 0) + depData.amount;
-      await updateFirestoreUserProfile(targetUser.id, { balance: newBal });
+      const isActivating = !targetUser.is_active && depData.amount >= 550000;
+      const newBal = isActivating ? (Number(targetUser.balance) || 0) : ((Number(targetUser.balance) || 0) + depData.amount);
+      await updateFirestoreUserProfile(targetUser.id, { 
+        balance: newBal, 
+        is_active: isActivating ? true : targetUser.is_active 
+      });
     }
 
     await createFirestoreTransaction({
@@ -1569,9 +1586,30 @@ export default function App() {
         const binaryTree = buildClientBinaryTree(fsUsers, Number(freshUser.id), 0, 30);
         const referrals = fsUsers.filter(u => Number(u.sponsor_id) === Number(freshUser.id));
         const userWDs = fsWithdrawals.filter(w => Number(w.user_id) === Number(freshUser.id));
-        const userDeps = fsDeposits.filter(d => Number(d.user_id) === Number(freshUser.id));
+        let userDeps = fsDeposits.filter(d => Number(d.user_id) === Number(freshUser.id));
         const userTxs = fsTransactions.filter(t => Number(t.user_id) === Number(freshUser.id));
         const userOrds = fsOrders.filter(o => Number(o.user_id) === Number(freshUser.id));
+
+        // Auto-ensure unactivated member has an activation deposit request item
+        if (!freshUser.is_active) {
+          let hasActDep = userDeps.some(d => Number(d.amount) === 550000);
+          if (!hasActDep) {
+            const actCode = 100 + (Number(freshUser.id) * 37) % 899;
+            const newActDep: DepositRequest = {
+              id: Date.now(),
+              user_id: Number(freshUser.id),
+              username: freshUser.username,
+              amount: 550000,
+              unique_code: actCode,
+              method: "transfer_bank",
+              status: "pending",
+              payment_code: `ACT-${freshUser.id}`,
+              created_at: new Date().toISOString()
+            };
+            userDeps = [newActDep, ...userDeps];
+            createFirestoreDeposit(newActDep).catch(() => {});
+          }
+        }
 
         setUserDashboardData({
           user: freshUser,

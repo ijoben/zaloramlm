@@ -1128,10 +1128,28 @@ app.post("/api/auth/register", async (req, res) => {
   orders.push(regOrder);
   await syncOrderToFirestore(regOrder);
 
+  // Create initial activation deposit request for new member (Rp 550.000 + Unique Code)
+  const actCode = Math.floor(100 + Math.random() * 900);
+  const newDepId = Math.max(...deposits.map(d => Number(d.id) || 0), 0) + 1;
+  const regDep: DepositRequest = {
+    id: newDepId,
+    user_id: newUserId,
+    username: normalizedUsername,
+    amount: 550000,
+    unique_code: actCode,
+    method: "transfer_bank",
+    status: "pending",
+    payment_code: `ACT-${newUserId}-${Date.now().toString().slice(-4)}`,
+    created_at: new Date().toISOString()
+  };
+  deposits.push(regDep);
+  await syncDepositToFirestore(regDep);
+
   res.status(201).json({
     message: "Pendaftaran berhasil! Akun Anda berstatus TIDAK AKTIF. Lakukan pembayaran aktifasi Rp 550,000 untuk menikmati seluruh fitur dan berbelanja produk Hedtro Jeans.",
     user: newUser,
-    order: regOrder
+    order: regOrder,
+    deposit: regDep
   });
   } catch (err: any) {
     console.error("Register route error:", err);

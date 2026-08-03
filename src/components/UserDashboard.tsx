@@ -165,6 +165,9 @@ export default function UserDashboard({
   const [selectedDetailProduct, setSelectedDetailProduct] = useState<Product | null>(null);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [isActivationModalOpen, setIsActivationModalOpen] = useState(false);
+  const [actProofImage, setActProofImage] = useState('');
+  const [actProofNotes, setActProofNotes] = useState('');
+  const [isUploadingActProof, setIsUploadingActProof] = useState(false);
   const [wdBank, setWdBank] = useState('BCA');
   const [wdAccount, setWdAccount] = useState('');
   const [wdHolder, setWdHolder] = useState(user.fullname);
@@ -968,27 +971,65 @@ export default function UserDashboard({
                   </span>
                 </div>
               </div>
-            ) : (
-              <div className="bg-amber-950/60 border border-amber-800/80 text-amber-200 rounded-xl p-3.5 flex flex-col gap-2.5">
-                <div className="flex items-start gap-2">
-                  <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                  <div className="text-xs leading-normal font-medium">
-                    <span className="font-black text-amber-400 text-base tracking-wide">FREE</span>
-                    <span className="inline-block my-1 px-2 py-0.5 rounded bg-amber-900/80 text-amber-300 font-mono font-bold text-[10px] border border-amber-700/50">
-                      ID MEMBER: {idPrefix}{String(user.id).padStart(6, '0')}
-                    </span>
-                    <p className="text-[11px] text-amber-300/90 mt-0.5">Wajib aktivasi Rp 550.000 untuk bonus komisi & belanja.</p>
+            ) : (() => {
+              const actDepItem = deposits.find(d => Number(d.amount) === 550000 && d.status === 'pending') || deposits.find(d => Number(d.amount) === 550000) || deposits[0];
+              const actCodeVal = actDepItem?.unique_code || activationUniqueCode || 123;
+              const totalActVal = 550000 + actCodeVal;
+              const hasUploadedProof = Boolean(actDepItem?.proof_image);
+
+              return (
+                <div className="bg-amber-950/70 border border-amber-500/50 text-amber-200 rounded-2xl p-4 flex flex-col gap-3 shadow-lg text-left">
+                  <div className="flex items-start gap-2.5">
+                    <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="text-xs leading-normal font-medium flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-amber-400 text-sm tracking-wide">AKUN BELUM AKTIF</span>
+                        <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                          FREE MEMBER
+                        </span>
+                      </div>
+                      <span className="inline-block my-1 px-2 py-0.5 rounded bg-amber-900/80 text-amber-300 font-mono font-bold text-[10px] border border-amber-700/50">
+                        ID MEMBER: {idPrefix}{String(user.id).padStart(6, '0')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Box Data Pembelian Tagihan Aktivasi */}
+                  <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-3 space-y-2 text-xs">
+                    <div className="flex items-center justify-between text-amber-300 border-b border-slate-800 pb-1.5 font-bold">
+                      <span className="text-[11px]">📦 Tagihan Aktivasi Member:</span>
+                      <span className="font-mono text-emerald-400 font-black text-xs">Rp {totalActVal.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="space-y-1 text-[11px] font-mono text-slate-300">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-sans text-[10px]">Produk Perdana:</span>
+                        <span className="font-bold text-white text-[10px]">Hedtro Raw Denim 15oz</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-sans text-[10px]">Kode Unik:</span>
+                        <span className="font-bold text-amber-300 text-[10px]">+Rp {actCodeVal}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-1.5 border-t border-slate-800">
+                        <span className="text-slate-400 font-sans text-[10px]">Status Bukti Transfer:</span>
+                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${hasUploadedProof ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'}`}>
+                          {hasUploadedProof ? '⏳ Bukti Terkirim (Pending Admin)' : '🔴 Belum Transfer / Kirim Bukti'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <button
+                      id="btn-activate-account"
+                      onClick={() => setIsActivationModalOpen(true)}
+                      className="w-full text-xs font-extrabold py-2.5 rounded-xl transition text-center shadow-md bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      ⚡ {hasUploadedProof ? 'Lihat / Ganti Bukti Transfer (Rp 550k)' : 'Aktifkan Akun / Upload Bukti TF (Rp 550k)'}
+                    </button>
                   </div>
                 </div>
-                <button
-                  id="btn-activate-account"
-                  onClick={() => setIsActivationModalOpen(true)}
-                  className="w-full text-xs font-bold py-2.5 rounded-xl transition text-center shadow-sm bg-amber-600 hover:bg-amber-500 text-white cursor-pointer"
-                >
-                  ⚡ Aktifkan Akun / Transfer Bank (Rp 550.000)
-                </button>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Referral Link */}
             <div className="space-y-1.5 pt-3 border-t border-slate-800">
@@ -4361,7 +4402,77 @@ export default function UserDashboard({
                     </div>
                   </div>
 
-                  <div className="pt-2 flex flex-col gap-2">
+                  {/* Form Upload Bukti Transfer */}
+                  <div className="bg-slate-950 p-3.5 rounded-xl border border-amber-500/40 space-y-3 font-sans">
+                    <div className="text-xs font-extrabold text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Camera className="w-4 h-4 text-amber-400" /> UPLOAD STRUK / BUKTI TRANSFER:
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Upload foto / screenshot bukti transfer bank Anda untuk langsung dikirim ke Admin untuk verifikasi & approval.
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const compressed = await compressImageFile(file);
+                            setActProofImage(compressed);
+                          } catch (err) {
+                            console.warn("Compression error:", err);
+                          }
+                        }
+                      }}
+                      className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-amber-600 file:text-white hover:file:bg-amber-500 cursor-pointer"
+                    />
+                    {actProofImage && (
+                      <div className="mt-2 relative rounded-xl overflow-hidden border border-slate-800 max-h-40 bg-slate-900 flex items-center justify-center p-2">
+                        <img src={actProofImage} alt="Bukti Transfer Preview" className="max-h-36 object-contain rounded-lg" />
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      placeholder="Catatan Transfer (opsional, contoh: TF M-BCA a.n Budi)"
+                      value={actProofNotes}
+                      onChange={(e) => setActProofNotes(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={isUploadingActProof || !actProofImage}
+                      onClick={async () => {
+                        if (!actProofImage) {
+                          alert("Silakan pilih file foto / screenshot bukti transfer terlebih dahulu!");
+                          return;
+                        }
+                        setIsUploadingActProof(true);
+                        try {
+                          let actDepItem = deposits.find(d => Number(d.amount) === 550000 && d.status === 'pending');
+                          if (!actDepItem && onDeposit) {
+                            await onDeposit(550000, "transfer_bank", activationUniqueCode);
+                          }
+                          const depToUse = actDepItem || deposits.find(d => Number(d.amount) === 550000) || deposits[0];
+                          if (depToUse && onConfirmDepositProof) {
+                            await onConfirmDepositProof(depToUse.id, actProofImage, actProofNotes);
+                          }
+                          alert("Bukti transfer berhasil dikirim ke Admin! Mohon tunggu konfirmasi approval.");
+                          setIsActivationModalOpen(false);
+                          setActProofImage('');
+                          setActProofNotes('');
+                        } catch (err: any) {
+                          alert("Gagal mengirim bukti transfer: " + (err.message || err));
+                        } finally {
+                          setIsUploadingActProof(false);
+                        }
+                      }}
+                      className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <Camera className="w-4 h-4" /> {isUploadingActProof ? 'Mengirim Bukti Transfer...' : 'Kirim Bukti Transfer ke Admin'}
+                    </button>
+                  </div>
+
+                  <div className="pt-1 flex flex-col gap-2">
                     <button
                       onClick={async () => {
                         setDepAmount("550000");
@@ -4374,9 +4485,9 @@ export default function UserDashboard({
                         const waMsg = encodeURIComponent(`Halo Admin Hedtro Jeans, saya member @${user.username} (Nama: ${user.fullname}) telah melakukan Transfer Bank sebesar Rp ${totalAct.toLocaleString('id-ID')} (Nominal Rp 550.000 + Kode Unik ${activationUniqueCode}) untuk Aktivasi Member Premium. Mohon validasi akun saya.`);
                         window.open(`https://wa.me/6281234567890?text=${waMsg}`, '_blank');
                       }}
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <Send className="w-4 h-4" /> Kirim Tagihan & Konfirmasi WA Admin
+                      <Send className="w-3.5 h-3.5" /> Atau Konfirmasi via WhatsApp Admin
                     </button>
                   </div>
                 </div>
