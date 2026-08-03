@@ -632,22 +632,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const saved = localStorage.getItem("zalora_products");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return DEFAULT_PRODUCTS;
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("zalora_products", JSON.stringify(products));
-    } catch {}
-  }, [products]);
+  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
   
   // Auth state
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -803,20 +788,8 @@ export default function App() {
       rewardName: "Honda Vario Matic Baru",
       rewardCashEquivalent: 20000000
     };
-    try {
-      const saved = localStorage.getItem("zalora_system_settings");
-      if (saved) {
-        return { ...defaults, ...JSON.parse(saved) };
-      }
-    } catch {}
     return defaults;
   });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("zalora_system_settings", JSON.stringify(systemSettings));
-    } catch {}
-  }, [systemSettings]);
 
   // Active user data
   const [userDashboardData, setUserDashboardData] = useState<{
