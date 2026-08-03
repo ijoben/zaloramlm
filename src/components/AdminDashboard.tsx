@@ -2910,21 +2910,42 @@ export default function AdminDashboard({
                                 </div>
 
                                 <div>
+                                  {dep.proof_image ? (
+                                    <div className="my-2 bg-emerald-50 border border-emerald-300 rounded-lg p-2 flex flex-col gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => setViewAdminProofImage(dep.proof_image || null)}
+                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-1.5 px-2.5 rounded-md flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                                      >
+                                        <Eye className="w-4 h-4" /> 📸 Lihat Bukti Transfer User
+                                      </button>
+                                      {dep.proof_notes && (
+                                        <p className="text-[10px] text-emerald-900 font-mono italic">
+                                          Catatan User: "{dep.proof_notes}"
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="my-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded text-center">
+                                      Belum Upload Bukti Transfer
+                                    </div>
+                                  )}
+
                                   {dep.status === 'pending' ? (
                                     <div className="flex items-center gap-2 pt-2 border-t border-slate-200/80">
                                       <button
                                         id={`btn-approve-dep-mob-${dep.id}`}
                                         disabled={loading}
-                                        onClick={() => handleProcessDeposit(dep.id, 'approve')}
-                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                                        onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'approve') : null}
+                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-extrabold py-2 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                                       >
-                                        <Check className="w-3.5 h-3.5" /> Setujui (Acc)
+                                        <Check className="w-3.5 h-3.5" /> Setujui (Acc & Aktifkan)
                                       </button>
                                       <button
                                         id={`btn-reject-dep-mob-${dep.id}`}
                                         disabled={loading}
-                                        onClick={() => handleProcessDeposit(dep.id, 'reject')}
-                                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                                        onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'reject') : null}
+                                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-extrabold py-2 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                                       >
                                         <X className="w-3.5 h-3.5" /> Tolak
                                       </button>
@@ -3026,30 +3047,32 @@ export default function AdminDashboard({
                                           <button
                                             id={`btn-approve-dep-${dep.id}`}
                                             disabled={loading}
-                                            onClick={() => handleProcessDeposit(dep.id, 'approve')}
-                                            className="bg-green-600 hover:bg-green-700 text-white font-bold p-1.5 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
-                                            title="Approve & Tambah Saldo"
+                                            onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'approve') : null}
+                                            className="bg-green-600 hover:bg-green-700 text-white font-bold px-2 py-1 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
+                                            title="Setujui (Acc & Aktifkan Member)"
                                           >
-                                            <Check className="w-3.5 h-3.5" /> Approve
+                                            <Check className="w-3.5 h-3.5" /> Setujui (Acc)
                                           </button>
                                           <button
                                             id={`btn-reject-dep-${dep.id}`}
                                             disabled={loading}
-                                            onClick={() => handleProcessDeposit(dep.id, 'reject')}
-                                            className="bg-red-600 hover:bg-red-700 text-white font-bold p-1.5 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
+                                            onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'reject') : null}
+                                            className="bg-red-600 hover:bg-red-700 text-white font-bold px-2 py-1 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
                                             title="Tolak Request"
                                           >
-                                            <X className="w-3.5 h-3.5" /> Reject
+                                            <X className="w-3.5 h-3.5" /> Tolak
                                           </button>
-                                          <button
-                                            type="button"
-                                            disabled={loading}
-                                            onClick={() => handleDeleteDeposit(dep.id)}
-                                            className="bg-red-50 hover:bg-red-100 text-red-600 font-bold p-1.5 rounded-lg border border-red-200 transition text-[10px] cursor-pointer"
-                                            title="Hapus Data Deposit"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
+                                          {onDeleteDeposit && (
+                                            <button
+                                              type="button"
+                                              disabled={loading}
+                                              onClick={() => onDeleteDeposit(dep.id)}
+                                              className="bg-red-50 hover:bg-red-100 text-red-600 font-bold p-1 rounded-lg border border-red-200 transition text-[10px] cursor-pointer"
+                                              title="Hapus Data Deposit"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          )}
                                         </div>
                                       ) : (
                                         <div className="flex items-center justify-center gap-1.5">

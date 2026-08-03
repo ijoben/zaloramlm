@@ -1569,6 +1569,83 @@ app.post("/api/admin/withdraw/process", async (req, res) => {
   res.json({ message: `Status penarikan berhasil diubah menjadi: ${wd.status}`, withdrawal: wd, user });
 });
 
+// Admin Deposit & Activation Approval Processing
+app.post("/api/admin/deposit/process", async (req, res) => {
+  try {
+    const depositId = req.body.depositId || req.body.deposit_id;
+    const action = req.body.action; // 'approve' | 'reject'
+
+    const dep = deposits.find(d => Number(d.id) === Number(depositId) || String(d.id) === String(depositId));
+    if (!dep) {
+      return res.status(404).json({ message: "Data deposit tidak ditemukan" });
+    }
+
+    if (action === "approve") {
+      dep.status = "success";
+      if (firestoreDb) {
+        setDoc(doc(firestoreDb, "deposits", String(dep.id)), dep, { merge: true }).catch(() => {});
+      }
+
+      const targetUser = users.find(u => Number(u.id) === Number(dep.user_id));
+      if (targetUser) {
+        const wasInactive = !targetUser.is_active;
+        targetUser.is_active = true;
+        await syncUserToFirestore(targetUser);
+
+        // Update order status to DIPROSES
+        const ord = orders.find(o => Number(o.user_id) === Number(targetUser.id));
+        if (ord) {
+          ord.status = "DIPROSES";
+          await syncOrderToFirestore(ord);
+        }
+
+        // Payout Sponsor Bonus Rp 100.000 to Sponsor if user was activated
+        if (wasInactive && targetUser.sponsor_id) {
+          const sponsor = users.find(u => Number(u.id) === Number(targetUser.sponsor_id));
+          if (sponsor && sponsor.is_active) {
+            sponsor.balance += 100000;
+            sponsor.sponsor_bonus += 100000;
+            await syncUserToFirestore(sponsor);
+
+            const spTx: Transaction = {
+              id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
+              user_id: sponsor.id,
+              username: sponsor.username,
+              type: "sponsor_bonus",
+              amount: 100000,
+              description: `Bonus Sponsor Aktivasi Member dari @${targetUser.username}`,
+              created_at: new Date().toISOString()
+            };
+            transactions.push(spTx);
+            await syncTransactionToFirestore(spTx);
+
+            const spNotif: MLMNotification = {
+              id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
+              user_id: sponsor.id,
+              title: "Bonus Sponsor Rp 100.000!",
+              message: `Member @${targetUser.username} telah mengaktifkan akun! Bonus Sponsor Rp 100.000 telah masuk ke saldo Anda.`,
+              type: "success",
+              created_at: new Date().toISOString()
+            };
+            notifications.push(spNotif);
+            await syncNotificationToFirestore(spNotif);
+          }
+        }
+      }
+
+      return res.json({ message: "Deposit & Aktivasi berhasil disetujui!", deposit: dep });
+    } else {
+      dep.status = "failed";
+      if (firestoreDb) {
+        setDoc(doc(firestoreDb, "deposits", String(dep.id)), dep, { merge: true }).catch(() => {});
+      }
+      return res.json({ message: "Deposit ditolak.", deposit: dep });
+    }
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal memproses deposit: " + err.message });
+  }
+});
+
 // Toggle Payout Automation Settings
 app.post("/api/admin/settings/payout", async (req, res) => {
   const { autoPayout } = req.body;
