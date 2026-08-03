@@ -351,8 +351,9 @@ export default function AdminDashboard({
   const [newStepTitle, setNewStepTitle] = useState('');
   const [newStepDesc, setNewStepDesc] = useState('');
 
-  // User search query
+  // User search query & status filter
   const [searchQuery, setSearchQuery] = useState('');
+  const [memberStatusFilter, setMemberStatusFilter] = useState<'ALL' | 'VERIFIED' | 'FREE'>('ALL');
   const [searchDepositQuery, setSearchDepositQuery] = useState('');
 
   // Pagination states (10 items per page)
@@ -2280,6 +2281,60 @@ export default function AdminDashboard({
                 </div>
               </div>
 
+              {/* Status Filter Pills: All, Verified Premium, Free Member */}
+              <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => { setMemberStatusFilter('ALL'); setPageMembers(1); }}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                    memberStatusFilter === 'ALL' ? 'bg-slate-900 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  Semua Anggota
+                  <span className="bg-slate-700 text-white px-2 py-0.2 rounded-full text-[10px] font-extrabold">{users.length}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setMemberStatusFilter('VERIFIED'); setPageMembers(1); }}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                    memberStatusFilter === 'VERIFIED' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-50'
+                  }`}
+                >
+                  ✓ Verified Premium (Sudah Bayar)
+                  <span className="bg-emerald-700 text-white px-2 py-0.2 rounded-full text-[10px] font-extrabold">{users.filter(u => u.is_active).length}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setMemberStatusFilter('FREE'); setPageMembers(1); }}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
+                    memberStatusFilter === 'FREE' ? 'bg-amber-500 text-white shadow-xs' : 'bg-white border border-amber-300 text-amber-900 hover:bg-amber-50'
+                  }`}
+                >
+                  ○ Free Member (Belum Bayar)
+                  <span className="bg-amber-600 text-white px-2 py-0.2 rounded-full text-[10px] font-extrabold">{users.filter(u => !u.is_active).length}</span>
+                </button>
+              </div>
+
+              {(() => {
+                const filteredUsers = users.filter(u => {
+                  const q = searchQuery.toLowerCase().trim();
+                  const matchesSearch = !q || (
+                    (u.username || '').toLowerCase().includes(q) ||
+                    (u.fullname || '').toLowerCase().includes(q) ||
+                    (u.phone || '').toLowerCase().includes(q) ||
+                    (u.email || '').toLowerCase().includes(q)
+                  );
+                  const matchesStatus = memberStatusFilter === 'ALL' || (
+                    memberStatusFilter === 'VERIFIED' ? u.is_active : !u.is_active
+                  );
+                  return matchesSearch && matchesStatus;
+                });
+
+                return (
+                  <>
+
               {/* Mobile View: 1 Column per Row */}
               <div className="grid grid-cols-1 gap-2.5 sm:hidden">
                 {filteredUsers.length === 0 ? (
@@ -2569,6 +2624,9 @@ export default function AdminDashboard({
                 itemsPerPage={10}
                 onPageChange={setPageMembers}
               />
+                  </>
+                );
+              })()}
             </div>
           )}
 
