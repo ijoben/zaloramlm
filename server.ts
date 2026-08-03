@@ -1429,6 +1429,60 @@ app.post("/api/user/deposit", async (req, res) => {
   res.status(201).json({ message: "Instruksi deposit berhasil dibuat", deposit: newDep });
 });
 
+// Confirm Deposit Proof Upload
+app.post("/api/user/deposit/confirm-proof", async (req, res) => {
+  const depositId = req.body.depositId || req.body.deposit_id;
+  const proofImage = req.body.proofImage || req.body.proof_image;
+  const proofNotes = req.body.proofNotes || req.body.proof_notes || "";
+
+  const dep = deposits.find(d => Number(d.id) === Number(depositId) || String(d.id) === String(depositId));
+  if (dep) {
+    dep.proof_image = proofImage;
+    dep.proof_notes = proofNotes;
+    dep.proof_submitted_at = new Date().toISOString();
+    await syncDepositToFirestore(dep);
+
+    // Dual-sync proof image to user's matching activation order
+    const matchOrd = orders.find(o => Number(o.user_id) === Number(dep.user_id));
+    if (matchOrd) {
+      matchOrd.proof_image = proofImage;
+      matchOrd.proof_notes = proofNotes;
+      matchOrd.proof_submitted_at = new Date().toISOString();
+      await syncOrderToFirestore(matchOrd);
+    }
+    return res.json({ message: "Bukti transfer deposit berhasil disimpan", deposit: dep });
+  }
+
+  res.status(404).json({ message: "Deposit tidak ditemukan" });
+});
+
+// Confirm Order Proof Upload
+app.post("/api/user/orders/confirm-proof", async (req, res) => {
+  const orderId = req.body.orderId || req.body.order_id;
+  const proofImage = req.body.proofImage || req.body.proof_image;
+  const proofNotes = req.body.proofNotes || req.body.proof_notes || "";
+
+  const ord = orders.find(o => Number(o.id) === Number(orderId) || String(o.id) === String(orderId));
+  if (ord) {
+    ord.proof_image = proofImage;
+    ord.proof_notes = proofNotes;
+    ord.proof_submitted_at = new Date().toISOString();
+    await syncOrderToFirestore(ord);
+
+    // Dual-sync to matching deposit if any
+    const matchDep = deposits.find(d => Number(d.user_id) === Number(ord.user_id));
+    if (matchDep) {
+      matchDep.proof_image = proofImage;
+      matchDep.proof_notes = proofNotes;
+      matchDep.proof_submitted_at = new Date().toISOString();
+      await syncDepositToFirestore(matchDep);
+    }
+    return res.json({ message: "Bukti transfer order berhasil disimpan", order: ord });
+  }
+
+  res.status(404).json({ message: "Order tidak ditemukan" });
+});
+
 // Create WD request
 app.post("/api/user/withdraw", async (req, res) => {
   const { userId, amount, bankName, accountNumber, accountHolder } = req.body;
