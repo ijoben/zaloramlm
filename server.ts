@@ -1013,7 +1013,7 @@ app.get(["/api/users", "/users"], async (req, res) => {
 });
 
 // Authentication: Register Member
-app.post("/api/auth/register", async (req, res) => {
+app.post(["/api/auth/register", "/auth/register"], async (req, res) => {
   try {
     await initFirestoreDataOnce();
     const regData = req.body;
@@ -1093,7 +1093,7 @@ app.post("/api/auth/register", async (req, res) => {
 });
 
 // Authentication: Login
-app.post("/api/auth/login", async (req, res) => {
+app.post(["/api/auth/login", "/auth/login"], async (req, res) => {
   try {
     await initFirestoreDataOnce();
     const { username, password } = req.body;
@@ -1127,7 +1127,7 @@ app.get(["/api/deposits", "/deposits"], async (req, res) => {
 });
 
 // Create Deposit (With Proof Image Support)
-app.post("/api/deposits/create", async (req, res) => {
+app.post(["/api/deposits/create", "/deposits/create"], async (req, res) => {
   try {
     await initFirestoreDataOnce();
     const depData = req.body;
@@ -1171,7 +1171,7 @@ app.get(["/api/withdrawals", "/withdrawals"], async (req, res) => {
 });
 
 // Create Withdrawal
-app.post("/api/withdrawals/create", async (req, res) => {
+app.post(["/api/withdrawals/create", "/withdrawals/create"], async (req, res) => {
   try {
     await initFirestoreDataOnce();
     const wdData = req.body;
@@ -1217,7 +1217,7 @@ app.get(["/api/orders", "/orders"], async (req, res) => {
 });
 
 // Create Order
-app.post("/api/orders/create", async (req, res) => {
+app.post(["/api/orders/create", "/orders/create"], async (req, res) => {
   try {
     await initFirestoreDataOnce();
     const ordData = req.body;
@@ -4299,7 +4299,14 @@ async function initFirestoreDataOnce() {
   if (isD1Initialized) return;
   isD1Initialized = true;
   loadLocalStore();
-  await loadFromCloudflareD1().catch(() => {});
+  try {
+    await Promise.race([
+      loadFromCloudflareD1(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Fast D1 Load Timeout")), 2500))
+    ]);
+  } catch (e) {
+    console.warn("Fast D1 Load Timeout or Error:", e);
+  }
 }
 
 
