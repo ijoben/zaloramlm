@@ -29,6 +29,34 @@ function withClientTimeout<T>(promise: Promise<T>, ms: number = 8000, label = "O
   ]);
 }
 
+// Localstorage persistence helpers for client-side user fallback
+function getLocalStoredUsers(): MLMUser[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('zalora_local_users');
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalStoredUser(user: MLMUser): void {
+  if (typeof window === 'undefined' || !user) return;
+  try {
+    const existing = getLocalStoredUsers();
+    const idx = existing.findIndex(u => Number(u.id) === Number(user.id) || (u.username && u.username.toLowerCase() === (user.username || "").toLowerCase()));
+    if (idx >= 0) {
+      existing[idx] = user;
+    } else {
+      existing.push(user);
+    }
+    localStorage.setItem('zalora_local_users', JSON.stringify(existing));
+  } catch (e) {
+    console.warn("Failed saving local user to localStorage:", e);
+  }
+}
+
 // Firebase Firestore Direct Data Helpers
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
   console.log("🔍 [fetchFirestoreUsers] Checking Firestore `db` status...", {
@@ -42,9 +70,16 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
   const localResetFlag = typeof window !== 'undefined' && localStorage.getItem('zalora_reset_members') === 'true';
 
   if (!db) {
-    console.warn("⚠️ [fetchFirestoreUsers] Firestore `db` instance is NULL!");
-    if (localResetFlag) return DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1);
-    return DEFAULT_USERS;
+    console.warn("⚠️ [fetchFirestoreUsers] Firestore `db` instance is NULL! Using local cache & default users.");
+    const cachedUsers = getLocalStoredUsers();
+    const combinedMap = new Map<number, MLMUser>();
+    if (!localResetFlag) {
+      DEFAULT_USERS.forEach(u => combinedMap.set(Number(u.id), u));
+    } else {
+      DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1).forEach(u => combinedMap.set(Number(u.id), u));
+    }
+    cachedUsers.forEach(u => combinedMap.set(Number(u.id), u));
+    return Array.from(combinedMap.values()).sort((a, b) => Number(a.id) - Number(b.id));
   }
 
   try {
@@ -61,63 +96,67 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
 
     console.log("📡 [fetchFirestoreUsers] Reading 'users' collection from Firestore...", { isReset });
     const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "users")), 8000, "getDocs users");
-    if (!querySnapshot) {
-      console.warn("⚠️ [fetchFirestoreUsers] Firestore read timed out or failed.");
-      // If reset was done, return admin only - never re-seed
-      if (isReset) return DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1);
-      return DEFAULT_USERS;
-    }
-    console.log(`✅ [fetchFirestoreUsers] Firestore read successful! Received ${querySnapshot.size} user documents.`);
     const usersMap = new Map<number, MLMUser>();
 
-    querySnapshot.forEach((docSnap: any) => {
-      const data = docSnap.data();
-      const parsedId = Number(data.id ?? docSnap.id);
-      if (!isNaN(parsedId)) {
-        usersMap.set(parsedId, {
-          id: parsedId,
-          username: data.username || "",
-          fullname: data.fullname || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          password: data.password || (parsedId === 1 || data.role === "admin" || data.username === "admin" ? "admin123" : "user123"),
-          is_active: data.is_active !== undefined ? Boolean(data.is_active) : (parsedId === 1 || data.role === "admin" || data.username === "admin"),
-          upline_id: data.upline_id !== null && data.upline_id !== undefined ? Number(data.upline_id) : null,
-          position: data.position || "L",
-          sponsor_id: data.sponsor_id !== null && data.sponsor_id !== undefined ? Number(data.sponsor_id) : null,
-          balance: Number(data.balance) || 0,
-          sponsor_bonus: Number(data.sponsor_bonus) || 0,
-          pairing_bonus: Number(data.pairing_bonus) || 0,
-          level_bonus: Number(data.level_bonus) || 0,
-          ro_bonus: Number(data.ro_bonus) || 0,
-          left_count: Number(data.left_count) || 0,
-          right_count: Number(data.right_count) || 0,
-          left_sales: Number(data.left_sales) || 0,
-          right_sales: Number(data.right_sales) || 0,
-          created_at: data.created_at || new Date().toISOString(),
-          role: data.role || (parsedId === 1 ? "admin" : "user"),
-          firebase_uid: data.firebase_uid || "",
-          ktp: data.ktp || "",
-          whatsapp: data.whatsapp || "",
-          bank_name: data.bank_name || "",
-          bank_account: data.bank_account || "",
-          bank_holder: data.bank_holder || "",
-          address: data.address || "",
-          city: data.city || "",
-          profile_photo: data.profile_photo || ""
-        });
+    if (querySnapshot) {
+      console.log(`✅ [fetchFirestoreUsers] Firestore read successful! Received ${querySnapshot.size} user documents.`);
+      querySnapshot.forEach((docSnap: any) => {
+        const data = docSnap.data();
+        const parsedId = Number(data.id ?? docSnap.id);
+        if (!isNaN(parsedId)) {
+          usersMap.set(parsedId, {
+            id: parsedId,
+            username: data.username || "",
+            fullname: data.fullname || "",
+            email: data.email || "",
+            phone: data.phone || "",
+            password: data.password || (parsedId === 1 || data.role === "admin" || data.username === "admin" ? "admin123" : "user123"),
+            is_active: data.is_active !== undefined ? Boolean(data.is_active) : (parsedId === 1 || data.role === "admin" || data.username === "admin"),
+            upline_id: data.upline_id !== null && data.upline_id !== undefined ? Number(data.upline_id) : null,
+            position: data.position || "L",
+            sponsor_id: data.sponsor_id !== null && data.sponsor_id !== undefined ? Number(data.sponsor_id) : null,
+            balance: Number(data.balance) || 0,
+            sponsor_bonus: Number(data.sponsor_bonus) || 0,
+            pairing_bonus: Number(data.pairing_bonus) || 0,
+            level_bonus: Number(data.level_bonus) || 0,
+            ro_bonus: Number(data.ro_bonus) || 0,
+            left_count: Number(data.left_count) || 0,
+            right_count: Number(data.right_count) || 0,
+            left_sales: Number(data.left_sales) || 0,
+            right_sales: Number(data.right_sales) || 0,
+            created_at: data.created_at || new Date().toISOString(),
+            role: data.role || (parsedId === 1 ? "admin" : "user"),
+            firebase_uid: data.firebase_uid || "",
+            ktp: data.ktp || "",
+            whatsapp: data.whatsapp || "",
+            bank_name: data.bank_name || "",
+            bank_account: data.bank_account || "",
+            bank_holder: data.bank_holder || "",
+            address: data.address || "",
+            city: data.city || "",
+            profile_photo: data.profile_photo || ""
+          });
+        }
+      });
+    } else {
+      console.warn("⚠️ [fetchFirestoreUsers] Firestore read timed out or failed.");
+    }
+
+    // Merge locally cached registered users
+    const cachedUsers = getLocalStoredUsers();
+    cachedUsers.forEach(lu => {
+      if (lu && lu.id && !usersMap.has(Number(lu.id))) {
+        usersMap.set(Number(lu.id), lu);
       }
     });
 
-    // If Firestore users collection is empty:
+    // If users collection and local cache are empty:
     if (usersMap.size === 0) {
       if (isReset) {
-        // After reset: only return admin, NEVER re-seed dummy users
         const adminOnly = DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1);
         console.log("ℹ️ [fetchFirestoreUsers] Reset active. Returning admin only, skipping seed.");
         return adminOnly;
       } else {
-        // Fresh install: seed default users
         console.log("ℹ️ [fetchFirestoreUsers] Collection 'users' is empty (fresh install). Seeding default users...");
         for (const defU of DEFAULT_USERS) {
           usersMap.set(defU.id, defU);
@@ -133,7 +172,6 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
     let finalUsers = Array.from(usersMap.values());
     const hasNonAdminUsers = finalUsers.some(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
     if (hasNonAdminUsers && isReset) {
-      // If Firestore actually has member records, automatically clear the reset flag!
       if (typeof window !== 'undefined') {
         localStorage.removeItem('zalora_reset_members');
       }
@@ -293,6 +331,7 @@ async function registerUserToFirestoreDirect(regData: {
   };
 
   const updatedUsers = [...users, newUser];
+  saveLocalStoredUser(newUser);
 
   if (db) {
     try {
@@ -1619,11 +1658,13 @@ export default function App() {
     // 3. Fallback if API backend is unreachable (e.g. Vercel serverless error)
     try {
       const fsUsers = await fetchFirestoreUsers();
-      const uSearch = loginUsername.toLowerCase().replace(/\s+/g, "").trim();
-      const matched = fsUsers.find(u => 
-        (u.username && u.username.toLowerCase().trim() === uSearch) || 
-        (u.email && u.email.toLowerCase().trim() === uSearch)
-      );
+      const uSearchRaw = loginUsername.trim().toLowerCase();
+      const uSearchClean = loginUsername.toLowerCase().replace(/\s+/g, "").trim();
+      const matched = fsUsers.find(u => {
+        const uname = (u.username || "").trim().toLowerCase();
+        const uemail = (u.email || "").trim().toLowerCase();
+        return uname === uSearchClean || uemail === uSearchRaw || uemail === uSearchClean;
+      });
 
       if (matched) {
         const isAdmin = matched.role === 'admin' || matched.username === 'admin' || Number(matched.id) === 1;
@@ -1795,9 +1836,31 @@ export default function App() {
       await saveFirestoreOrder(regOrder);
       setOrders(prev => [regOrder, ...prev]);
 
+      // Clear members reset flag when new member registers (reset is "done")
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('zalora_reset_members');
+      }
+      if (db) {
+        try {
+          await setDoc(doc(db, "settings", "adminControl"), {
+            membersReset: false
+          }, { merge: true }).catch(() => {});
+        } catch (e) { /* ignore */ }
+      }
+
       setRegSuccessMessage(`Pendaftaran Berhasil! Order ID Invoice: ${regOrder.invoice_no} (Resi: ${newResi}) telah dibuat & terhubung ke sistem lacak pesanan.`);
-      setLoginUsername(regEmail);
-      setLoginPassword(regPassword);
+
+      if (registeredUser) {
+        saveLocalStoredUser(registeredUser);
+        setCurrentUser(registeredUser);
+        setShowRegisterModal(false);
+        setShowLoginModal(false);
+        setActiveView('dashboard');
+      } else {
+        setLoginUsername(regEmail);
+        setLoginPassword(regPassword);
+      }
+
       setRegUsername('');
       setRegFullname('');
       setRegKtp('');
@@ -1810,18 +1873,6 @@ export default function App() {
       setRegConfirmPassword('');
       setRegSponsor('');
       setRegUpline('');
-
-      // Clear members reset flag when new member registers (reset is "done")
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('zalora_reset_members');
-      }
-      if (db) {
-        try {
-          await setDoc(doc(db, "settings", "adminControl"), {
-            membersReset: false
-          }, { merge: true }).catch(() => {});
-        } catch (e) { /* ignore */ }
-      }
 
       fetchDashboardData();
     } catch (err: any) {
