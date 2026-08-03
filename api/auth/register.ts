@@ -1,0 +1,112 @@
+import { queryD1, setCorsHeaders } from '../_d1';
+
+export default async function handler(req: any, res: any) {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ message: "Method Not Allowed" });
+
+  try {
+    const regData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    if (!regData || !regData.username || !regData.fullname) {
+      return res.status(400).json({ message: "Username dan nama lengkap harus diisi" });
+    }
+
+    const normalizedUsername = String(regData.username).toLowerCase().replace(/\s+/g, "").trim();
+
+    // Fetch existing users from Cloudflare D1
+    const resUsers = await queryD1("SELECT data_json FROM users;");
+    const users: any[] = [];
+    if (resUsers?.success && resUsers.result?.[0]?.results) {
+      resUsers.result[0].results.forEach((row: any) => {
+        try { if (row.data_json) users.push(JSON.parse(row.data_json)); } catch (e) {}
+      });
+    }
+
+    if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
+      return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
+    }
+
+    let sponsorId: number = 1;
+    if (regData.sponsor_username) {
+      const sSearch = String(regData.sponsor_username).toLowerCase().trim();
+      const sponsor = users.find(u => u.username && u.username.toLowerCase().trim() === sSearch);
+      if (sponsor) sponsorId = Number(sponsor.id);
+    }
+
+    let uplineId: number = sponsorId || 1;
+    let finalPos: 'L' | 'R' = (regData.position === 'R' || regData.position === 'L') ? regData.position : "L";
+
+    if (regData.upline_username) {
+      const uSearch = String(regData.upline_username).toLowerCase().trim();
+      const uplineUser = users.find(u => u.username && u.username.toLowerCase().trim() === uSearch);
+      if (uplineUser) uplineId = Number(uplineUser.id);
+    }
+
+    const taken = users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
+    if (taken) {
+      uplineId = Number(taken.upline_id || 1);
+      finalPos = finalPos === 'L' ? 'R' : 'L';
+    }
+
+    const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
+    const newUser = {
+      id: newUserId,
+      username: normalizedUsername,
+      fullname: regData.fullname,
+      email: regData.email || "",
+      phone: regData.phone || "",
+      password: regData.password || "password123",
+      is_active: false,
+      upline_id: uplineId,
+      position: finalPos,
+      sponsor_id: sponsorId,
+      balance: 0,
+      sponsor_bonus: 0,
+      pairing_bonus: 0,
+      level_bonus: 0,
+      ro_bonus: 0,
+      left_count: 0,
+      right_count: 0,
+      left_sales: 0,
+      right_sales: 0,
+      created_at: new Date().toISOString(),
+      role: "user",
+      firebase_uid: regData.firebase_uid || "",
+      ktp: regData.ktp || "",
+      whatsapp: regData.whatsapp || regData.phone || "",
+      bank_name: regData.bank_name || "",
+      bank_account: regData.bank_account || "",
+      bank_holder: regData.bank_holder || regData.fullname || "",
+      address: regData.address || "",
+      city: regData.city || ""
+    };
+
+    const jsonStr = JSON.stringify(newUser);
+    const d1Result = await queryD1(
+      `INSERT INTO users (id, username, fullname, email, phone, password, role, is_active, balance, sponsor_bonus, pairing_bonus, level_bonus, ro_bonus, left_count, right_count, left_sales, right_sales, upline_id, sponsor_id, position, data_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+       username=excluded.username, fullname=excluded.fullname, email=excluded.email, phone=excluded.phone,
+       password=excluded.password, role=excluded.role, is_active=excluded.is_active, balance=excluded.balance,
+       sponsor_bonus=excluded.sponsor_bonus, pairing_bonus=excluded.pairing_bonus, level_bonus=excluded.level_bonus,
+       ro_bonus=excluded.ro_bonus, left_count=excluded.left_count, right_count=excluded.right_count,
+       left_sales=excluded.left_sales, right_sales=excluded.right_sales, upline_id=excluded.upline_id,
+       sponsor_id=excluded.sponsor_id, position=excluded.position, data_json=excluded.data_json;`,
+      [
+        newUser.id, newUser.username, newUser.fullname, newUser.email, newUser.phone, newUser.password, newUser.role,
+        0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, newUser.upline_id, newUser.sponsor_id, newUser.position,
+        jsonStr, newUser.created_at
+      ]
+    );
+
+    if (!d1Result?.success) {
+      console.error("D1 Insert Error:", d1Result);
+      return res.status(500).json({ message: "Gagal menyimpan data member ke Cloudflare D1 SQL Database" });
+    }
+
+    return res.status(201).json({ message: "Registrasi member berhasil!", user: newUser });
+  } catch (err: any) {
+    return res.status(500).json({ message: "Gagal mendaftar: " + (err?.message || err) });
+  }
+}
