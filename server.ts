@@ -2179,6 +2179,15 @@ app.post("/api/user/deposit/confirm-proof", async (req, res) => {
     dep.proof_image = proofImage;
     dep.proof_notes = proofNotes || '';
     dep.proof_submitted_at = new Date().toISOString();
+
+    // Also sync to matching user order
+    const ord = orders.find(o => Number(o.user_id) === Number(dep.user_id));
+    if (ord) {
+      ord.proof_image = proofImage;
+      ord.proof_notes = proofNotes || '';
+      ord.proof_submitted_at = new Date().toISOString();
+      await syncOrderToFirestore(ord);
+    }
     
     if (firestoreDb) {
       try {
@@ -2187,7 +2196,7 @@ app.post("/api/user/deposit/confirm-proof", async (req, res) => {
         console.warn("Update deposit proof firestore warn:", e);
       }
     }
-    res.json({ message: "Bukti transfer berhasil dikirim! Menunggu konfirmasi Admin.", deposit: dep });
+    res.json({ message: "Bukti transfer berhasil dikirim! Menunggu konfirmasi Admin.", deposit: dep, order: ord });
   } catch (err: any) {
     res.status(500).json({ message: "Gagal mengirim bukti transfer: " + err.message });
   }
@@ -2207,6 +2216,17 @@ app.post("/api/user/orders/confirm-proof", async (req, res) => {
     ord.proof_image = proofImage;
     ord.proof_notes = proofNotes || '';
     ord.proof_submitted_at = new Date().toISOString();
+
+    // Also sync to matching user deposit
+    const dep = deposits.find(d => Number(d.user_id) === Number(ord.user_id));
+    if (dep) {
+      dep.proof_image = proofImage;
+      dep.proof_notes = proofNotes || '';
+      dep.proof_submitted_at = new Date().toISOString();
+      if (firestoreDb) {
+        await setDoc(doc(firestoreDb, "deposits", String(dep.id)), dep, { merge: true }).catch(() => {});
+      }
+    }
 
     await syncOrderToFirestore(ord);
 

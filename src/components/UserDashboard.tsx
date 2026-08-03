@@ -978,55 +978,51 @@ export default function UserDashboard({
               const hasUploadedProof = Boolean(actDepItem?.proof_image);
 
               return (
-                <div className="bg-amber-950/70 border border-amber-500/50 text-amber-200 rounded-2xl p-4 flex flex-col gap-3 shadow-lg text-left">
-                  <div className="flex items-start gap-2.5">
-                    <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                    <div className="text-xs leading-normal font-medium flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-black text-amber-400 text-sm tracking-wide">AKUN BELUM AKTIF</span>
-                        <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
-                          FREE MEMBER
+                <div className="bg-gradient-to-br from-amber-950/80 via-slate-900 to-slate-950 border border-amber-500/40 rounded-2xl p-4 sm:p-5 shadow-xl text-left space-y-3.5 relative overflow-hidden">
+                  {/* Top Header: Badge & Member ID */}
+                  <div className="flex items-center justify-between gap-2 border-b border-amber-500/20 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span className="font-extrabold text-amber-400 text-xs sm:text-sm tracking-wide">AKUN BELUM AKTIF</span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-mono font-bold text-[10px] border border-amber-500/30">
+                      ID: {idPrefix}{String(user.id).padStart(6, '0')}
+                    </span>
+                  </div>
+
+                  {/* Concise Tagihan Info Box */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-extrabold tracking-wider block">Tagihan Aktivasi & Paket Perdana:</span>
+                      <div className="flex items-baseline gap-2 mt-0.5">
+                        <span className="text-lg sm:text-xl font-black font-mono text-emerald-400">
+                          Rp {totalActVal.toLocaleString('id-ID')}
+                        </span>
+                        <span className="text-[10px] text-amber-300 font-mono font-bold">
+                          (+Rp {actCodeVal} kode unik)
                         </span>
                       </div>
-                      <span className="inline-block my-1 px-2 py-0.5 rounded bg-amber-900/80 text-amber-300 font-mono font-bold text-[10px] border border-amber-700/50">
-                        ID MEMBER: {idPrefix}{String(user.id).padStart(6, '0')}
+                      <span className="text-[10px] text-slate-400 block mt-0.5 font-medium">
+                        🎁 Produk: Hedtro Raw Denim 15oz
+                      </span>
+                    </div>
+
+                    <div className="sm:text-right shrink-0">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-wide uppercase ${hasUploadedProof ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'}`}>
+                        {hasUploadedProof ? '⏳ Bukti Terkirim (Pending Admin)' : '🔴 Menunggu Bukti Transfer'}
                       </span>
                     </div>
                   </div>
 
-                  {/* Box Data Pembelian Tagihan Aktivasi */}
-                  <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-3 space-y-2 text-xs">
-                    <div className="flex items-center justify-between text-amber-300 border-b border-slate-800 pb-1.5 font-bold">
-                      <span className="text-[11px]">📦 Tagihan Aktivasi Member:</span>
-                      <span className="font-mono text-emerald-400 font-black text-xs">Rp {totalActVal.toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="space-y-1 text-[11px] font-mono text-slate-300">
-                      <div className="flex justify-between">
-                        <span className="text-slate-400 font-sans text-[10px]">Produk Perdana:</span>
-                        <span className="font-bold text-white text-[10px]">Hedtro Raw Denim 15oz</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400 font-sans text-[10px]">Kode Unik:</span>
-                        <span className="font-bold text-amber-300 text-[10px]">+Rp {actCodeVal}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-1.5 border-t border-slate-800">
-                        <span className="text-slate-400 font-sans text-[10px]">Status Bukti Transfer:</span>
-                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${hasUploadedProof ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'}`}>
-                          {hasUploadedProof ? '⏳ Bukti Terkirim (Pending Admin)' : '🔴 Belum Transfer / Kirim Bukti'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <button
-                      id="btn-activate-account"
-                      onClick={() => setIsActivationModalOpen(true)}
-                      className="w-full text-xs font-extrabold py-2.5 rounded-xl transition text-center shadow-md bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      ⚡ {hasUploadedProof ? 'Lihat / Ganti Bukti Transfer (Rp 550k)' : 'Aktifkan Akun / Upload Bukti TF (Rp 550k)'}
-                    </button>
-                  </div>
+                  {/* Clean Action Button */}
+                  <button
+                    id="btn-activate-account"
+                    onClick={() => setIsActivationModalOpen(true)}
+                    className="w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    {hasUploadedProof ? 'Lihat / Upload Ulang Bukti Transfer' : 'Upload Bukti Transfer / Aktifkan Akun (Rp 550k)'}
+                  </button>
                 </div>
               );
             })()}

@@ -1587,14 +1587,15 @@ export default function App() {
         const referrals = fsUsers.filter(u => Number(u.sponsor_id) === Number(freshUser.id));
         const userWDs = fsWithdrawals.filter(w => Number(w.user_id) === Number(freshUser.id));
         let userDeps = fsDeposits.filter(d => Number(d.user_id) === Number(freshUser.id));
-        const userTxs = fsTransactions.filter(t => Number(t.user_id) === Number(freshUser.id));
-        const userOrds = fsOrders.filter(o => Number(o.user_id) === Number(freshUser.id));
+        let userTxs = fsTransactions.filter(t => Number(t.user_id) === Number(freshUser.id));
+        let userOrds = fsOrders.filter(o => Number(o.user_id) === Number(freshUser.id));
 
-        // Auto-ensure unactivated member has an activation deposit request item
+        // Auto-ensure unactivated member has an activation deposit, order, & transaction item
         if (!freshUser.is_active) {
+          const actCode = 100 + (Number(freshUser.id) * 37) % 899;
+
           let hasActDep = userDeps.some(d => Number(d.amount) === 550000);
           if (!hasActDep) {
-            const actCode = 100 + (Number(freshUser.id) * 37) % 899;
             const newActDep: DepositRequest = {
               id: Date.now(),
               user_id: Number(freshUser.id),
@@ -1608,6 +1609,46 @@ export default function App() {
             };
             userDeps = [newActDep, ...userDeps];
             createFirestoreDeposit(newActDep).catch(() => {});
+          }
+
+          let hasActOrd = userOrds.some(o => Number(o.amount) === 550000);
+          if (!hasActOrd) {
+            const newActOrd: Order = {
+              id: Date.now() + 1,
+              invoice_no: `INV-ACT-${freshUser.id}-${Date.now().toString().slice(-4)}`,
+              user_id: Number(freshUser.id),
+              username: freshUser.username,
+              fullname: freshUser.fullname,
+              phone: freshUser.phone || "-",
+              address: freshUser.address || "Alamat Pembeli",
+              product_name: "Paket Perdana Member Premium - Hedtro Raw Denim 15oz",
+              amount: 550000,
+              unique_code: actCode,
+              payment_method: "Transfer Bank",
+              status: "DIPROSES",
+              courier: "JNE REGULER",
+              tracking_number: `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
+              notes: "Pesanan Pendaftaran & Aktivasi Member Premium",
+              created_at: new Date().toISOString()
+            };
+            userOrds = [newActOrd, ...userOrds];
+            saveFirestoreOrder(newActOrd).catch(() => {});
+          }
+
+          let hasActTx = userTxs.some(t => t.type === 'activation' || (Number(t.amount) === 550000 && t.type === 'deposit'));
+          if (!hasActTx) {
+            const newActTx: Transaction = {
+              id: Date.now() + 2,
+              user_id: Number(freshUser.id),
+              username: freshUser.username,
+              type: "activation",
+              amount: 550000,
+              description: "Tagihan Aktivasi Member Premium & Paket Perdana Hedtro Jeans",
+              status: "pending",
+              created_at: new Date().toISOString()
+            };
+            userTxs = [newActTx, ...userTxs];
+            createFirestoreTransaction(newActTx).catch(() => {});
           }
         }
 
@@ -3037,7 +3078,6 @@ export default function App() {
   };
 
   const handleConfirmDepositProof = async (depositId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
-
     try {
       await fetch("/api/user/deposit/confirm-proof", {
         method: "POST",
@@ -3052,6 +3092,21 @@ export default function App() {
             proof_notes: proofNotes || '',
             proof_submitted_at: new Date().toISOString()
           }, { merge: true });
+
+          // Also sync to matching user order in Firestore
+          const ords = await fetchFirestoreOrders();
+          const targetDep = userDashboardData?.deposits.find(d => Number(d.id) === Number(depositId));
+          const targetUserId = targetDep ? targetDep.user_id : currentUserRef.current?.id;
+          if (targetUserId) {
+            const matchOrd = ords.find(o => Number(o.user_id) === Number(targetUserId));
+            if (matchOrd) {
+              await setDoc(doc(db, "orders", String(matchOrd.id)), {
+                proof_image: proofImage,
+                proof_notes: proofNotes || '',
+                proof_submitted_at: new Date().toISOString()
+              }, { merge: true }).catch(() => {});
+            }
+          }
         } catch (fErr) {
           console.warn("Firestore deposit proof setDoc warn:", fErr);
         }
@@ -3066,12 +3121,22 @@ export default function App() {
             proof_image: proofImage,
             proof_notes: proofNotes || '',
             proof_submitted_at: new Date().toISOString()
-          } : d)
+          } : d),
+          orders: prev.orders ? prev.orders.map(o => {
+            return {
+              ...o,
+              proof_image: proofImage,
+              proof_notes: proofNotes || '',
+              proof_submitted_at: new Date().toISOString()
+            };
+          }) : []
         };
       });
 
       setAdminDashboardData(prev => {
         if (!prev) return null;
+        const targetDep = prev.deposits.find(d => Number(d.id) === Number(depositId));
+        const uId = targetDep?.user_id;
         return {
           ...prev,
           deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
@@ -3079,7 +3144,13 @@ export default function App() {
             proof_image: proofImage,
             proof_notes: proofNotes || '',
             proof_submitted_at: new Date().toISOString()
-          } : d)
+          } : d),
+          orders: prev.orders.map(o => uId && Number(o.user_id) === Number(uId) ? {
+            ...o,
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          } : o)
         };
       });
 
@@ -3106,6 +3177,21 @@ export default function App() {
             proof_notes: proofNotes || '',
             proof_submitted_at: new Date().toISOString()
           }, { merge: true });
+
+          // Also sync to matching user deposit in Firestore
+          const deps = await fetchFirestoreDeposits();
+          const targetOrd = userDashboardData?.orders.find(o => Number(o.id) === Number(orderId));
+          const targetUserId = targetOrd ? targetOrd.user_id : currentUserRef.current?.id;
+          if (targetUserId) {
+            const matchDep = deps.find(d => Number(d.user_id) === Number(targetUserId));
+            if (matchDep) {
+              await setDoc(doc(db, "deposits", String(matchDep.id)), {
+                proof_image: proofImage,
+                proof_notes: proofNotes || '',
+                proof_submitted_at: new Date().toISOString()
+              }, { merge: true }).catch(() => {});
+            }
+          }
         } catch (fErr) {
           console.warn("Firestore order proof setDoc warn:", fErr);
         }
