@@ -1027,6 +1027,9 @@ export default function App() {
   const [regSponsor, setRegSponsor] = useState('');
   const [regUpline, setRegUpline] = useState('');
   const [regPosition, setRegPosition] = useState<'L' | 'R'>('L');
+  const [regProductSeries, setRegProductSeries] = useState('HTR-RAW-01 (Hedtro Raw Denim Premium 15oz)');
+  const [regProductColor, setRegProductColor] = useState('Indigo Blue Classic');
+  const [regProductSize, setRegProductSize] = useState('32');
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
 
@@ -1772,7 +1775,10 @@ export default function App() {
             bank_account: regBankAccount,
             bank_holder: regBankHolder || regFullname,
             address: regAddress,
-            city: regCity
+            city: regCity,
+            product_series: regProductSeries,
+            product_color: regProductColor,
+            product_size: regProductSize
           })
         });
         if (res.ok) {
@@ -1824,18 +1830,18 @@ export default function App() {
         fullname: regFullname,
         phone: regPhone,
         address: `${regAddress}${regCity ? ', ' + regCity : ''}`,
-        product_name: "Paket Perdana Member - Hedtro Jeans Raw Denim Premium",
+        product_name: `Paket Perdana Member - Hedtro Jeans (${regProductSeries})`,
         amount: 550000,
         payment_method: "Transfer Bank / QRIS",
         status: "DIPROSES",
         courier: "JNE REGULER",
         tracking_number: newResi,
-        notes: "Pesanan pendaftaran member baru. Celana Jeans Perdana sedang diproses di gudang.",
+        notes: `Pesanan Pendaftaran Member. Varian Dipilih: Seri ${regProductSeries} | Warna: ${regProductColor} | Ukuran Size: ${regProductSize}. Celana Jeans Perdana sedang diproses di gudang.`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         steps: [
           { title: "Registrasi Akun & Invoice Dibuat", time: new Date().toLocaleString("id-ID"), done: true, description: "Pendaftaran member berhasil" },
-          { title: "Gudang Memproses & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: "Menyiapkan celana jeans perdana" },
+          { title: "Gudang Memproses & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: `Menyiapkan Celana Jeans Seri ${regProductSeries} (Warna: ${regProductColor}, Size: ${regProductSize})` },
           { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "Sedang Diproses", done: false, description: `Nomor Resi: ${newResi}` },
           { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
           { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
@@ -3742,11 +3748,65 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Section 5: Structure Placement */}
+                {/* Section 5: Pilihan Varian Produk Perdana */}
+                <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-amber-200/80 pb-2">
+                    <ShoppingBag className="w-4 h-4 text-amber-700" />
+                    <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider">5. Pilihan Varian Produk Perdana (Gratis Celana Jeans)</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-amber-900 block">Kode Seri Produk *</label>
+                      <select
+                        value={regProductSeries}
+                        onChange={(e) => setRegProductSeries(e.target.value)}
+                        className="w-full border border-amber-300 rounded-xl px-2 py-2 text-xs font-semibold focus:outline-none bg-white text-slate-800"
+                      >
+                        <option value="HTR-RAW-01 (Hedtro Raw Denim Premium 15oz)">HTR-RAW-01 (Raw Denim 15oz)</option>
+                        <option value="HTR-SELVEDGE-02 (Hedtro Japanese Selvedge Denim 16oz)">HTR-SELVEDGE-02 (Selvedge 16oz)</option>
+                        <option value="HTR-SLIM-03 (Hedtro Slim Fit Stretch Denim)">HTR-SLIM-03 (Slim Fit Stretch)</option>
+                        <option value="HTR-BLACK-04 (Hedtro Deep Black Matte Denim)">HTR-BLACK-04 (Deep Black Matte)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-amber-900 block">Warna Denim *</label>
+                      <select
+                        value={regProductColor}
+                        onChange={(e) => setRegProductColor(e.target.value)}
+                        className="w-full border border-amber-300 rounded-xl px-2 py-2 text-xs font-semibold focus:outline-none bg-white text-slate-800"
+                      >
+                        <option value="Indigo Blue Classic">Indigo Blue Classic</option>
+                        <option value="Raw Navy Deep">Raw Navy Deep</option>
+                        <option value="Black Matte Denim">Black Matte Denim</option>
+                        <option value="Biowash Medium Blue">Biowash Medium Blue</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-amber-900 block">Ukuran Size *</label>
+                      <select
+                        value={regProductSize}
+                        onChange={(e) => setRegProductSize(e.target.value)}
+                        className="w-full border border-amber-300 rounded-xl px-2 py-2 text-xs font-semibold focus:outline-none bg-white text-slate-800 font-mono font-bold"
+                      >
+                        {["28", "29", "30", "31", "32", "33", "34", "36", "38"].map(s => (
+                          <option key={s} value={s}>Size {s}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-amber-800 italic">
+                    * Celana Jeans Perdana sesuai pilihan varian Seri, Warna & Size di atas akan langsung disiapkan dan dikirimkan oleh tim gudang ke alamat Anda.
+                  </p>
+                </div>
+
+                {/* Section 6: Structure Placement */}
                 <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 space-y-3">
                   <div className="flex items-center gap-2 border-b border-blue-200/60 pb-2">
                     <Users className="w-4 h-4 text-blue-600" />
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">5. Penempatan Tim Afiliasi (Placement)</h4>
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">6. Penempatan Tim Afiliasi (Placement)</h4>
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

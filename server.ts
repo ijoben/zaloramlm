@@ -1094,6 +1094,10 @@ app.post("/api/auth/register", async (req, res) => {
   await syncNotificationToFirestore(notif);
 
   // Create initial Paket Perdana order record for new member
+  const pSeries = req.body.product_series || "HTR-RAW-01 (Hedtro Raw Denim Premium 15oz)";
+  const pColor = req.body.product_color || "Indigo Blue Classic";
+  const pSize = req.body.product_size || "32";
+
   const newOrdId = Math.max(...orders.map(o => Number(o.id) || 0), 0) + 1;
   const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
   const regOrder: Order = {
@@ -1104,18 +1108,18 @@ app.post("/api/auth/register", async (req, res) => {
     fullname: fullname,
     phone: phone,
     address: req.body.address ? `${req.body.address}${req.body.city ? ', ' + req.body.city : ''}` : "-",
-    product_name: "Paket Perdana Member - Hedtro Jeans Raw Denim Premium",
+    product_name: `Paket Perdana Member - Hedtro Jeans (${pSeries})`,
     amount: 550000,
     payment_method: "Transfer Bank / QRIS",
     status: "DIPROSES",
     courier: "JNE REGULER",
     tracking_number: newResi,
-    notes: "Pesanan pendaftaran member baru. Celana Jeans Perdana sedang diproses di gudang.",
+    notes: `Pesanan Pendaftaran Member. Varian Dipilih: Seri ${pSeries} | Warna: ${pColor} | Size: ${pSize}. Celana Jeans Perdana sedang diproses di gudang.`,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     steps: [
       { title: "Registrasi Akun & Invoice Dibuat", time: new Date().toLocaleString("id-ID"), done: true, description: "Pendaftaran member berhasil" },
-      { title: "Gudang Memproses & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: "Menyiapkan celana jeans perdana" },
+      { title: "Gudang Memproses & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: `Menyiapkan Celana Jeans Seri ${pSeries} (Warna: ${pColor}, Size: ${pSize})` },
       { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "Sedang Diproses", done: false, description: `Nomor Resi: ${newResi}` },
       { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
       { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
