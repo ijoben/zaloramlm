@@ -3142,164 +3142,124 @@ export default function App() {
   };
 
   const handleConfirmDepositProof = async (depositId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
-    try {
-      await fetch("/api/user/deposit/confirm-proof", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ depositId, deposit_id: depositId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
-      }).catch(err => console.warn("API deposit proof warning:", err));
+    const nowIso = new Date().toISOString();
 
-      if (db) {
-        try {
-          await setDoc(doc(db, "deposits", String(depositId)), {
-            proof_image: proofImage,
-            proof_notes: proofNotes || '',
-            proof_submitted_at: new Date().toISOString()
-          }, { merge: true });
+    // 1. Immediately update user and admin dashboard states for instant feedback
+    setUserDashboardData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
+          ...d,
+          proof_image: proofImage,
+          proof_notes: proofNotes || '',
+          proof_submitted_at: nowIso
+        } : d),
+        orders: prev.orders ? prev.orders.map(o => ({
+          ...o,
+          proof_image: proofImage,
+          proof_notes: proofNotes || '',
+          proof_submitted_at: nowIso
+        })) : []
+      };
+    });
 
-          // Also sync to matching user order in Firestore
-          const ords = await fetchFirestoreOrders();
-          const targetDep = userDashboardData?.deposits.find(d => Number(d.id) === Number(depositId));
-          const targetUserId = targetDep ? targetDep.user_id : currentUserRef.current?.id;
-          if (targetUserId) {
-            const matchOrd = ords.find(o => Number(o.user_id) === Number(targetUserId));
-            if (matchOrd) {
-              await setDoc(doc(db, "orders", String(matchOrd.id)), {
-                proof_image: proofImage,
-                proof_notes: proofNotes || '',
-                proof_submitted_at: new Date().toISOString()
-              }, { merge: true }).catch(() => {});
-            }
-          }
-        } catch (fErr) {
-          console.warn("Firestore deposit proof setDoc warn:", fErr);
-        }
-      }
+    setAdminDashboardData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
+          ...d,
+          proof_image: proofImage,
+          proof_notes: proofNotes || '',
+          proof_submitted_at: nowIso
+        } : d),
+        orders: prev.orders.map(o => ({
+          ...o,
+          proof_image: proofImage,
+          proof_notes: proofNotes || '',
+          proof_submitted_at: nowIso
+        }))
+      };
+    });
 
-      setUserDashboardData(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
-            ...d,
-            proof_image: proofImage,
-            proof_notes: proofNotes || '',
-            proof_submitted_at: new Date().toISOString()
-          } : d),
-          orders: prev.orders ? prev.orders.map(o => {
-            return {
-              ...o,
+    // 2. Perform API call non-blocking
+    fetch("/api/user/deposit/confirm-proof", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ depositId, deposit_id: depositId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
+    }).catch(err => console.warn("API deposit proof warning:", err));
+
+    // 3. Perform Firestore updates non-blocking
+    if (db) {
+      setDoc(doc(db, "deposits", String(depositId)), {
+        proof_image: proofImage,
+        proof_notes: proofNotes || '',
+        proof_submitted_at: nowIso
+      }, { merge: true }).catch(err => console.warn("Firestore deposit proof setDoc warn:", err));
+
+      const uId = currentUserRef.current?.id;
+      if (uId) {
+        fetchFirestoreOrders().then(ords => {
+          const matchOrd = ords.find(o => Number(o.user_id) === Number(uId));
+          if (matchOrd) {
+            setDoc(doc(db, "orders", String(matchOrd.id)), {
               proof_image: proofImage,
               proof_notes: proofNotes || '',
-              proof_submitted_at: new Date().toISOString()
-            };
-          }) : []
-        };
-      });
-
-      setAdminDashboardData(prev => {
-        if (!prev) return null;
-        const targetDep = prev.deposits.find(d => Number(d.id) === Number(depositId));
-        const uId = targetDep?.user_id;
-        return {
-          ...prev,
-          deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
-            ...d,
-            proof_image: proofImage,
-            proof_notes: proofNotes || '',
-            proof_submitted_at: new Date().toISOString()
-          } : d),
-          orders: prev.orders.map(o => uId && Number(o.user_id) === Number(uId) ? {
-            ...o,
-            proof_image: proofImage,
-            proof_notes: proofNotes || '',
-            proof_submitted_at: new Date().toISOString()
-          } : o)
-        };
-      });
-
-      await fetchDashboardData();
-      return true;
-    } catch (err) {
-      console.error("Error submitting deposit proof:", err);
-      return false;
+              proof_submitted_at: nowIso
+            }, { merge: true }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
     }
+
+    return true;
   };
 
   const handleConfirmOrderProof = async (orderId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
-    try {
-      await fetch("/api/user/orders/confirm-proof", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, order_id: orderId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
-      }).catch(err => console.warn("API order proof warning:", err));
+    const nowIso = new Date().toISOString();
 
-      if (db) {
-        try {
-          await setDoc(doc(db, "orders", String(orderId)), {
-            proof_image: proofImage,
-            proof_notes: proofNotes || '',
-            proof_submitted_at: new Date().toISOString()
-          }, { merge: true });
+    setUserDashboardData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        orders: prev.orders ? prev.orders.map(o => Number(o.id) === Number(orderId) ? {
+          ...o,
+          proof_image: proofImage,
+          proof_notes: proofNotes || '',
+          proof_submitted_at: nowIso
+        } : o) : []
+      };
+    });
 
-          // Also sync to matching user deposit in Firestore
-          const deps = await fetchFirestoreDeposits();
-          const targetOrd = userDashboardData?.orders.find(o => Number(o.id) === Number(orderId));
-          const targetUserId = targetOrd ? targetOrd.user_id : currentUserRef.current?.id;
-          if (targetUserId) {
-            const matchDep = deps.find(d => Number(d.user_id) === Number(targetUserId));
-            if (matchDep) {
-              await setDoc(doc(db, "deposits", String(matchDep.id)), {
-                proof_image: proofImage,
-                proof_notes: proofNotes || '',
-                proof_submitted_at: new Date().toISOString()
-              }, { merge: true }).catch(() => {});
-            }
-          }
-        } catch (fErr) {
-          console.warn("Firestore order proof setDoc warn:", fErr);
-        }
-      }
+    setAdminDashboardData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        orders: prev.orders.map(o => Number(o.id) === Number(orderId) ? {
+          ...o,
+          proof_image: proofImage,
+          proof_notes: proofNotes || '',
+          proof_submitted_at: nowIso
+        } : o)
+      };
+    });
 
-      setUserDashboardData(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          orders: prev.orders ? prev.orders.map(o => Number(o.id) === Number(orderId) ? {
-            ...o,
-            proof_image: proofImage,
-            proof_notes: proofNotes || '',
-            proof_submitted_at: new Date().toISOString()
-          } : o) : []
-        };
-      });
+    fetch("/api/user/orders/confirm-proof", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, order_id: orderId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
+    }).catch(err => console.warn("API order proof warning:", err));
 
-      setAdminDashboardData(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          orders: prev.orders ? prev.orders.map(o => Number(o.id) === Number(orderId) ? {
-            ...o,
-            proof_image: proofImage,
-            proof_notes: proofNotes || '',
-            proof_submitted_at: new Date().toISOString()
-          } : o) : []
-        };
-      });
-
-      setOrders(prev => prev.map(o => Number(o.id) === Number(orderId) ? {
-        ...o,
+    if (db) {
+      setDoc(doc(db, "orders", String(orderId)), {
         proof_image: proofImage,
         proof_notes: proofNotes || '',
-        proof_submitted_at: new Date().toISOString()
-      } : o));
-
-      await fetchDashboardData();
-      return true;
-    } catch (err) {
-      console.error("Error submitting order proof:", err);
-      return false;
+        proof_submitted_at: nowIso
+      }, { merge: true }).catch(err => console.warn("Firestore order proof setDoc warn:", err));
     }
+
+    return true;
   };
 
   const handleLogout = () => {
