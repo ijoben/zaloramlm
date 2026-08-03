@@ -994,6 +994,120 @@ app.post(["/api/admin/withdraw/process", "/admin/withdraw/process"], async (req,
   }
 });
 
+// Get All Users (Admin / Client sync)
+app.get(["/api/users", "/users"], async (req, res) => {
+  await initFirestoreDataOnce();
+  res.json(users);
+});
+
+// Authentication: Register Member
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    const regData = req.body;
+    if (!regData || !regData.username || !regData.fullname) {
+      return res.status(400).json({ message: "Username dan nama lengkap harus diisi" });
+    }
+
+    const normalizedUsername = String(regData.username).toLowerCase().replace(/\s+/g, "").trim();
+    if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
+      return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
+    }
+
+    let sponsorId: number = 1;
+    if (regData.sponsor_username) {
+      const sSearch = String(regData.sponsor_username).toLowerCase().trim();
+      const sponsor = users.find(u => u.username && u.username.toLowerCase().trim() === sSearch);
+      if (sponsor) sponsorId = Number(sponsor.id);
+    }
+
+    let uplineId: number = sponsorId || 1;
+    let finalPos: 'L' | 'R' = (regData.position === 'R' || regData.position === 'L') ? regData.position : "L";
+
+    if (regData.upline_username) {
+      const uSearch = String(regData.upline_username).toLowerCase().trim();
+      const uplineUser = users.find(u => u.username && u.username.toLowerCase().trim() === uSearch);
+      if (uplineUser) uplineId = Number(uplineUser.id);
+    }
+
+    const taken = users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
+    if (taken) {
+      const vacancy = findVacantSpot(uplineId, finalPos);
+      uplineId = vacancy.upline_id;
+      finalPos = vacancy.position;
+    }
+
+    const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
+    const newUser: MLMUser = {
+      id: newUserId,
+      username: normalizedUsername,
+      fullname: regData.fullname,
+      email: regData.email || "",
+      phone: regData.phone || "",
+      password: regData.password || "password123",
+      is_active: false,
+      upline_id: uplineId,
+      position: finalPos,
+      sponsor_id: sponsorId,
+      balance: 0,
+      sponsor_bonus: 0,
+      pairing_bonus: 0,
+      level_bonus: 0,
+      ro_bonus: 0,
+      left_count: 0,
+      right_count: 0,
+      left_sales: 0,
+      right_sales: 0,
+      created_at: new Date().toISOString(),
+      role: "user",
+      firebase_uid: regData.firebase_uid || "",
+      ktp: regData.ktp || "",
+      whatsapp: regData.whatsapp || regData.phone || "",
+      bank_name: regData.bank_name || "",
+      bank_account: regData.bank_account || "",
+      bank_holder: regData.bank_holder || regData.fullname || "",
+      address: regData.address || "",
+      city: regData.city || ""
+    };
+
+    users.push(newUser);
+    await syncUserToFirestore(newUser);
+    await updateAncestorCounts(uplineId, finalPos);
+
+    res.status(201).json({ message: "Registrasi member berhasil!", user: newUser });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal mendaftar: " + (err?.message || err) });
+  }
+});
+
+// Authentication: Login
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    const { username, password } = req.body;
+    if (!username) return res.status(400).json({ message: "Username/Email harus diisi" });
+
+    const normalized = String(username).toLowerCase().trim();
+    const user = users.find(u => 
+      u.username?.toLowerCase().trim() === normalized || 
+      u.email?.toLowerCase().trim() === normalized
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "Username atau email tidak ditemukan" });
+    }
+
+    const expectedPass = user.password || (user.role === 'admin' || user.id === 1 ? "admin123" : "user123");
+    if (password && password !== expectedPass) {
+      return res.status(401).json({ message: "Password salah!" });
+    }
+
+    res.json({ message: "Login berhasil", user });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal login: " + (err?.message || err) });
+  }
+});
+
 // Get All Deposits
 app.get(["/api/deposits", "/deposits"], async (req, res) => {
   await initFirestoreDataOnce();
