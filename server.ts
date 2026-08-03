@@ -122,6 +122,15 @@ const resolvedServerFirebaseConfig = {
   firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || "ai-studio-zaloradenimmlmbi-5abf2514-6c97-4eab-bc10-6219841824f9",
 };
 
+let firestoreDb: any = null;
+try {
+  const firebaseApp = getApps().length === 0 ? initializeApp(resolvedServerFirebaseConfig) : getApp();
+  firestoreDb = getFirestore(firebaseApp, resolvedServerFirebaseConfig.firestoreDatabaseId);
+} catch (e) {}
+
+const withTimeout = async (p: any) => await p;
+const processRegistrationBonusAndTree = (...args: any[]) => {};
+
 const app = express();
 const PORT = 3000;
 
@@ -3167,9 +3176,7 @@ app.post(["/api/admin/orders/delete", "/admin/orders/delete"], async (req, res) 
   const { id } = req.body || {};
   const numId = Number(id);
   orders = orders.filter(o => Number(o.id) !== numId && String(o.id) !== String(id));
-  if (firestoreDb) {
-    await deleteDoc(doc(firestoreDb, "orders", String(id))).catch(() => {});
-  }
+  await queryD1("DELETE FROM orders WHERE id = ?;", [numId]).catch(() => {});
   res.json({ message: `Order ${id} berhasil dihapus`, orders });
 });
 
@@ -3177,9 +3184,7 @@ app.post(["/api/admin/products/delete", "/admin/products/delete"], async (req, r
   const { id } = req.body || {};
   const numId = Number(id);
   products = products.filter(p => Number(p.id) !== numId && String(p.id) !== String(id));
-  if (firestoreDb) {
-    await deleteDoc(doc(firestoreDb, "products", String(id))).catch(() => {});
-  }
+  await queryD1("DELETE FROM products WHERE id = ?;", [numId]).catch(() => {});
   res.json({ message: `Produk ${id} berhasil dihapus`, products });
 });
 
