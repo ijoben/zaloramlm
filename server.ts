@@ -853,12 +853,37 @@ app.post("/api/auth/login", async (req, res) => {
     if (!username) return res.status(400).json({ message: "Username/Email harus diisi" });
 
     const searchVal = String(username).toLowerCase().trim();
-    const user = users.find(u => 
+    let user = users.find(u => 
       (u.username && u.username.toLowerCase().trim() === searchVal) || 
       (u.email && u.email.toLowerCase().trim() === searchVal)
     );
+
+    // Dynamic fallback: If user not found in server memory, check Firestore directly!
+    if (!user && firestoreDb) {
+      try {
+        const snap = await getDocs(collection(firestoreDb, "users"));
+        if (snap && !snap.empty) {
+          snap.forEach((docSnap: any) => {
+            const data = docSnap.data();
+            const uUsername = (data.username || "").toLowerCase().trim();
+            const uEmail = (data.email || "").toLowerCase().trim();
+            if (uUsername === searchVal || uEmail === searchVal) {
+              const uId = Number(data.id ?? docSnap.id);
+              user = { ...data, id: uId };
+              // Cache in memory
+              if (!users.some(existing => Number(existing.id) === uId)) {
+                users.push(user);
+              }
+            }
+          });
+        }
+      } catch (fsErr) {
+        console.warn("Firestore lookup failed during login:", fsErr);
+      }
+    }
+
     if (!user) {
-      return res.status(404).json({ message: "Username atau email tidak ditemukan atau akun telah dihapus!" });
+      return res.status(404).json({ message: "Username atau email tidak terdaftar atau akun telah dihapus." });
     }
 
     if (!password) {
@@ -1039,9 +1064,41 @@ app.post("/api/auth/register", async (req, res) => {
   notifications.push(notif);
   await syncNotificationToFirestore(notif);
 
+  // Create initial Paket Perdana order record for new member
+  const newOrdId = Math.max(...orders.map(o => Number(o.id) || 0), 0) + 1;
+  const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
+  const regOrder: Order = {
+    id: newOrdId,
+    invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
+    user_id: newUserId,
+    username: normalizedUsername,
+    fullname: fullname,
+    phone: phone,
+    address: req.body.address ? `${req.body.address}${req.body.city ? ', ' + req.body.city : ''}` : "-",
+    product_name: "Paket Perdana Member - Hedtro Jeans Raw Denim Premium",
+    amount: 550000,
+    payment_method: "Transfer Bank / QRIS",
+    status: "DIPROSES",
+    courier: "JNE REGULER",
+    tracking_number: newResi,
+    notes: "Pesanan pendaftaran member baru. Celana Jeans Perdana sedang diproses di gudang.",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    steps: [
+      { title: "Registrasi Akun & Invoice Dibuat", time: new Date().toLocaleString("id-ID"), done: true, description: "Pendaftaran member berhasil" },
+      { title: "Gudang Memproses & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: "Menyiapkan celana jeans perdana" },
+      { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "Sedang Diproses", done: false, description: `Nomor Resi: ${newResi}` },
+      { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
+      { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
+    ]
+  };
+  orders.push(regOrder);
+  await syncOrderToFirestore(regOrder);
+
   res.status(201).json({
     message: "Pendaftaran berhasil! Akun Anda berstatus TIDAK AKTIF. Lakukan pembayaran aktifasi Rp 550,000 untuk menikmati seluruh fitur dan berbelanja produk Hedtro Jeans.",
-    user: newUser
+    user: newUser,
+    order: regOrder
   });
   } catch (err: any) {
     console.error("Register route error:", err);
@@ -3539,9 +3596,7 @@ async function initFirestoreData() {
             const uId = Number(rawId);
             if (isNaN(uId)) return;
 
-            // If members were reset, only load admin user
-            if (serverMembersReset && u.role !== 'admin' && uId !== 1 && u.username !== 'admin') return;
-
+            // Load user document into memory
             loadedUsers.push({
               ...u,
               id: uId,

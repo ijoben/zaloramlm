@@ -140,9 +140,6 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
       if (db) {
         setDoc(doc(db, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
       }
-    } else if (isReset) {
-      // Filter out non-admin users only if after reset there are no newly registered members
-      finalUsers = finalUsers.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
     }
     finalUsers.sort((a, b) => Number(a.id) - Number(b.id));
     return finalUsers;
@@ -1603,8 +1600,8 @@ export default function App() {
           setIsSubmittingLogin(false);
           setActiveView('dashboard');
           return;
-        } else if (res.status !== 500) {
-          // Explicit credential error from backend
+        } else if (res.status === 401) {
+          // Explicit wrong password error from backend
           const data = await res.json().catch(() => ({}));
           if (data.message) {
             setLoginError(data.message);
@@ -1705,6 +1702,7 @@ export default function App() {
 
       // 2. Try API register endpoint first
       let apiSuccess = false;
+      let registeredUser: MLMUser | null = null;
       try {
         const res = await fetch("/api/auth/register", {
           method: "POST",
@@ -1729,6 +1727,8 @@ export default function App() {
           })
         });
         if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.user) registeredUser = data.user;
           apiSuccess = true;
         } else {
           const data = await res.json().catch(() => ({}));
@@ -1743,7 +1743,7 @@ export default function App() {
 
       // 3. Direct Firestore write if API backend unavailable (e.g., Vercel static hosting)
       if (!apiSuccess) {
-        await registerUserToFirestoreDirect({
+        registeredUser = await registerUserToFirestoreDirect({
           username: createdUsername,
           fullname: regFullname,
           email: regEmail,
@@ -1764,12 +1764,13 @@ export default function App() {
       }
 
       // 4. Create initial order record for new member
+      const assignedUserId = registeredUser ? Number(registeredUser.id) : 0;
       const newOrdId = Date.now();
       const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
       const regOrder: Order = {
         id: newOrdId,
         invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
-        user_id: 0,
+        user_id: assignedUserId,
         username: createdUsername,
         fullname: regFullname,
         phone: regPhone,
