@@ -2385,43 +2385,100 @@ export default function App() {
     await fetchDashboardData();
   };
 
-  const handleProcessWithdrawal = async (wdId: number, action: 'approve' | 'reject') => {
+  const handleProcessWithdrawal = async (wdId: number | string, action: 'approve' | 'reject') => {
+    const numId = Number(wdId);
     try {
       const res = await fetch("/api/admin/withdraw/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wdId, action })
+        body: JSON.stringify({ wdId: numId, action })
       });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("json")) {
-        fetchDashboardData();
+        await fetchDashboardData();
         return;
       }
     } catch (err) {
       console.warn("WD process API unreachable, updating directly in Firestore", err);
     }
 
-    await updateFirestoreWithdrawalStatus(wdId, action === 'approve' ? 'approved' : 'rejected');
+    if (db) {
+      try {
+        const newStatus = action === 'approve' ? 'approved' : 'rejected';
+        await setDoc(doc(db, "withdrawals", String(wdId)), { status: newStatus }, { merge: true });
+
+        if (action === 'reject') {
+          const currentWDs = adminDashboardData?.withdrawals || [];
+          const wdItem = currentWDs.find(w => Number(w.id) === numId || String(w.id) === String(wdId));
+          if (wdItem) {
+            const allUsers = await fetchFirestoreUsers();
+            const targetUser = allUsers.find(u => Number(u.id) === Number(wdItem.user_id));
+            if (targetUser) {
+              const refundedBal = (targetUser.balance || 0) + Number(wdItem.amount);
+              await setDoc(doc(db, "users", String(targetUser.id)), { balance: refundedBal }, { merge: true });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Firestore withdrawal update error:", e);
+      }
+    }
+
     await fetchDashboardData();
   };
 
-  const handleProcessDeposit = async (depositId: number, action: 'approve' | 'reject') => {
+  const handleProcessDeposit = async (depositId: number | string, action: 'approve' | 'reject') => {
+    const numId = Number(depositId);
     try {
       const res = await fetch("/api/admin/deposit/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ depositId, action })
+        body: JSON.stringify({ depositId: numId, action })
       });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("json")) {
-        fetchDashboardData();
+        await fetchDashboardData();
         return;
       }
     } catch (err) {
       console.warn("Process deposit API unreachable, updating directly in Firestore", err);
     }
 
-    await updateFirestoreDepositStatus(depositId, action === 'approve' ? 'success' : 'failed');
+    if (db) {
+      try {
+        const newStatus = action === 'approve' ? 'success' : 'failed';
+        await setDoc(doc(db, "deposits", String(depositId)), { status: newStatus }, { merge: true });
+
+        if (action === 'approve') {
+          const currentDeps = adminDashboardData?.deposits || [];
+          const depItem = currentDeps.find(d => Number(d.id) === numId || String(d.id) === String(depositId));
+          if (depItem) {
+            const targetUserId = Number(depItem.user_id);
+            await setDoc(doc(db, "users", String(targetUserId)), { is_active: true }, { merge: true });
+
+            const currentOrds = await fetchFirestoreOrders();
+            const matchOrd = currentOrds.find(o => Number(o.user_id) === targetUserId);
+            if (matchOrd) {
+              await setDoc(doc(db, "orders", String(matchOrd.id)), { status: "DIPROSES" }, { merge: true });
+            }
+
+            const allUsers = await fetchFirestoreUsers();
+            const targetUser = allUsers.find(u => Number(u.id) === targetUserId);
+            if (targetUser && targetUser.sponsor_id) {
+              const sponsor = allUsers.find(u => Number(u.id) === Number(targetUser.sponsor_id));
+              if (sponsor) {
+                const newBal = (sponsor.balance || 0) + 100000;
+                const newSpBonus = (sponsor.sponsor_bonus || 0) + 100000;
+                await setDoc(doc(db, "users", String(sponsor.id)), { balance: newBal, sponsor_bonus: newSpBonus }, { merge: true });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Firestore deposit update error:", e);
+      }
+    }
+
     await fetchDashboardData();
   };
 
