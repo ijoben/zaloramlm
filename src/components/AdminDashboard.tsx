@@ -2979,7 +2979,7 @@ export default function AdminDashboard({
                         <tbody className="divide-y divide-slate-200 text-xs">
                           {filteredDeposits.length === 0 ? (
                             <tr>
-                              <td colSpan={7} className="text-center py-8 text-slate-400 font-medium">Tidak ada riwayat deposit ditemukan</td>
+                          <td colSpan={7} className="text-center py-8 text-slate-400 font-medium">Tidak ada riwayat deposit ditemukan</td>
                             </tr>
                           ) : (
                             filteredDeposits
@@ -2987,6 +2987,10 @@ export default function AdminDashboard({
                               .map((dep) => {
                                 const code = dep.unique_code || (100 + dep.id % 899);
                                 const totalTrf = dep.amount + code;
+                                const matchingOrder = orders?.find(o => Number(o.user_id) === Number(dep.user_id));
+                                const proofImg = dep.proof_image || matchingOrder?.proof_image;
+                                const proofNotesStr = dep.proof_notes || matchingOrder?.proof_notes;
+
                                 return (
                                   <tr key={dep.id} className="hover:bg-slate-50/50">
                                     <td className="px-4 py-3.5">
@@ -3001,21 +3005,19 @@ export default function AdminDashboard({
                                       <span className="bg-slate-100 text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
                                         {dep.method.toUpperCase()}
                                       </span>
-                                      {dep.proof_image ? (
-                                        <div className="mt-1">
+                                      {proofImg ? (
+                                        <div className="mt-1.5 bg-emerald-50 border border-emerald-300 rounded-lg p-1.5">
                                           <button
                                             type="button"
-                                            onClick={() => setViewAdminProofImage(dep.proof_image || null)}
-                                            className="bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 hover:bg-emerald-200 transition cursor-pointer"
+                                            onClick={() => setViewAdminProofImage(proofImg || null)}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold px-2 py-1 rounded flex items-center gap-1 transition cursor-pointer shadow-2xs"
                                           >
-                                            <Eye className="w-3 h-3 text-emerald-700" /> Lihat Bukti Transfer
+                                            <Eye className="w-3.5 h-3.5" /> 📸 Lihat Bukti Transfer
                                           </button>
-                                          {dep.proof_notes && <p className="text-[9px] text-slate-500 italic mt-0.5">{dep.proof_notes}</p>}
+                                          {proofNotesStr && <p className="text-[9px] text-emerald-900 italic mt-1 font-mono">"{proofNotesStr}"</p>}
                                         </div>
                                       ) : (
-                                        dep.method.startsWith('manual') && (
-                                          <p className="text-[10px] text-amber-600 font-semibold mt-1 font-sans">Belum kirim bukti</p>
-                                        )
+                                        <p className="text-[10px] text-amber-600 font-extrabold mt-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block">Belum upload bukti</p>
                                       )}
                                     </td>
                                     <td className="px-4 py-3.5 font-mono">
@@ -3042,52 +3044,52 @@ export default function AdminDashboard({
                                       </span>
                                     </td>
                                     <td className="px-4 py-3.5 text-center">
-                                      {dep.status === 'pending' ? (
-                                        <div className="flex gap-2 justify-center">
-                                          <button
-                                            id={`btn-approve-dep-${dep.id}`}
-                                            disabled={loading}
-                                            onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'approve') : null}
-                                            className="bg-green-600 hover:bg-green-700 text-white font-bold px-2 py-1 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
-                                            title="Setujui (Acc & Aktifkan Member)"
-                                          >
-                                            <Check className="w-3.5 h-3.5" /> Setujui (Acc)
-                                          </button>
-                                          <button
-                                            id={`btn-reject-dep-${dep.id}`}
-                                            disabled={loading}
-                                            onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'reject') : null}
-                                            className="bg-red-600 hover:bg-red-700 text-white font-bold px-2 py-1 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
-                                            title="Tolak Request"
-                                          >
-                                            <X className="w-3.5 h-3.5" /> Tolak
-                                          </button>
-                                          {onDeleteDeposit && (
-                                            <button
-                                              type="button"
-                                              disabled={loading}
-                                              onClick={() => onDeleteDeposit(dep.id)}
-                                              className="bg-red-50 hover:bg-red-100 text-red-600 font-bold p-1 rounded-lg border border-red-200 transition text-[10px] cursor-pointer"
-                                              title="Hapus Data Deposit"
-                                            >
-                                              <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center justify-center gap-1.5">
-                                          <span className="text-slate-400 font-semibold text-[10px] uppercase">Terproses</span>
+                                      <div className="flex flex-col gap-1.5 items-center justify-center">
+                                        {proofImg && (
                                           <button
                                             type="button"
-                                            disabled={loading}
-                                            onClick={() => handleDeleteDeposit(dep.id)}
-                                            className="p-1 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-lg border border-red-200 transition text-[10px] cursor-pointer"
-                                            title="Hapus Data Deposit"
+                                            onClick={() => setViewAdminProofImage(proofImg || null)}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-[10px] transition shadow-xs flex items-center gap-1 cursor-pointer w-full justify-center"
                                           >
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <Eye className="w-3.5 h-3.5" /> 📸 Lihat Bukti
                                           </button>
-                                        </div>
-                                      )}
+                                        )}
+                                        {dep.status === 'pending' ? (
+                                          <div className="flex gap-1.5 justify-center w-full">
+                                            <button
+                                              id={`btn-approve-dep-${dep.id}`}
+                                              disabled={loading}
+                                              onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'approve') : null}
+                                              className="bg-green-600 hover:bg-green-700 text-white font-bold px-2 py-1 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer flex-1 justify-center"
+                                              title="Setujui (Acc & Aktifkan Member)"
+                                            >
+                                              <Check className="w-3.5 h-3.5" /> Setujui (Acc)
+                                            </button>
+                                            <button
+                                              id={`btn-reject-dep-${dep.id}`}
+                                              disabled={loading}
+                                              onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'reject') : null}
+                                              className="bg-red-600 hover:bg-red-700 text-white font-bold px-2 py-1 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer flex-1 justify-center"
+                                              title="Tolak Request"
+                                            >
+                                              <X className="w-3.5 h-3.5" /> Tolak
+                                            </button>
+                                            {onDeleteDeposit && (
+                                              <button
+                                                type="button"
+                                                disabled={loading}
+                                                onClick={() => onDeleteDeposit(dep.id)}
+                                                className="bg-red-50 hover:bg-red-100 text-red-600 font-bold p-1 rounded-lg border border-red-200 transition text-[10px] cursor-pointer"
+                                                title="Hapus Data Deposit"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span className="text-slate-400 font-semibold text-[10px] uppercase">Terproses</span>
+                                        )}
+                                      </div>
                                     </td>
                                   </tr>
                                 );

@@ -1010,18 +1010,19 @@ export default function UserDashboard({
                           payment_code: `ACT-${user.id}`,
                           created_at: new Date().toISOString()
                         };
-                        if (onDeposit) {
-                          onDeposit(550000, "transfer_bank", actCodeVal).catch(() => {});
-                        }
                       }
                       setSelectedProofDeposit(actDep);
                       setProofImageInput(actDep.proof_image || '');
                       setProofNotesInput(actDep.proof_notes || '');
                     }}
-                    className="w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-extrabold py-3 rounded-lg text-xs sm:text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
+                    className={`w-full font-extrabold py-3 rounded-lg text-xs sm:text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider ${
+                      hasUploadedProof
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white'
+                    }`}
                   >
                     <Camera className="w-4 h-4" />
-                    Aktifkan
+                    {hasUploadedProof ? '📸 Bukti TF Terkirim (Lihat / Ubah)' : 'Aktifkan (Kirim Bukti TF)'}
                   </button>
                 </div>
               );
