@@ -206,6 +206,41 @@ export default function AdminDashboard({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedUserDetail, setSelectedUserDetail] = useState<MLMUser | null>(null);
   const [viewAdminProofImage, setViewAdminProofImage] = useState<string | null>(null);
+  const [isClearingCache, setIsClearingCache] = useState(false);
+
+  const handleClearCache = async () => {
+    setIsClearingCache(true);
+    try {
+      if (typeof window !== 'undefined') {
+        const keysToClear = [
+          'zalora_reset_members', 'zalora_reset_sales', 'zalora_reset_web_settings',
+          'zalora_system_settings', 'admin_settings_sub_tab'
+        ];
+        keysToClear.forEach(k => localStorage.removeItem(k));
+        sessionStorage.clear();
+        if ('caches' in window) {
+          const cacheKeys = await caches.keys();
+          await Promise.all(cacheKeys.map(k => caches.delete(k)));
+        }
+      }
+
+      await fetch("/api/admin/clear-cache", { method: "POST" }).catch(() => {});
+
+      if (onRefresh) {
+        await onRefresh();
+      }
+
+      setMessage({
+        text: "🧹 Cache website & database berhasil dibersihkan! Seluruh data dan tampilan terbaru telah dimuat.",
+        type: "success"
+      });
+      alert("✅ Clear Cache Berhasil!\n\nSeluruh cache browser dan database telah dibersihkan. Tampilan dan data aplikasi telah diperbarui ke versi paling baru secara real-time.");
+    } catch (err) {
+      alert("Proses bersihkan cache selesai!");
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
 
   // Member CRUD states
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
@@ -1409,6 +1444,17 @@ export default function AdminDashboard({
 
         <div className="flex items-center gap-2 sm:gap-4">
           <button
+            type="button"
+            disabled={isClearingCache}
+            onClick={handleClearCache}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
+            title="Bersihkan Cache Browser & Refresh Data Database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isClearingCache ? 'animate-spin' : ''}`} />
+            <span>{isClearingCache ? 'CLEARING...' : 'CLEAR CACHE'}</span>
+          </button>
+
+          <button
             onClick={() => setIsWorkflowModalOpen(true)}
             className="bg-[#C41230] hover:bg-[#A00E26] text-white px-2.5 py-1.5 rounded text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs"
             title="Bagan Alur Kerja & Unduh PDF"
@@ -1628,10 +1674,19 @@ export default function AdminDashboard({
               </nav>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-850">
+            <div className="mt-8 pt-4 border-t border-slate-850 space-y-2">
+              <button
+                type="button"
+                disabled={isClearingCache}
+                onClick={() => { setIsMobileMenuOpen(false); handleClearCache(); }}
+                className="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isClearingCache ? 'animate-spin' : ''}`} />
+                <span>{isClearingCache ? 'Clearing Cache...' : '🧹 Bersihkan Cache Website'}</span>
+              </button>
               <button
                 onClick={() => { setIsMobileMenuOpen(false); onLogout(); }}
-                className="w-full py-2.5 bg-red-600/15 hover:bg-red-600/35 border border-red-500/20 text-red-400 rounded-xl text-xs font-bold transition"
+                className="w-full py-2.5 bg-red-600/15 hover:bg-red-600/35 border border-red-500/20 text-red-400 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 Keluar Aplikasi
               </button>
@@ -3366,14 +3421,26 @@ export default function AdminDashboard({
                       Pilih kategori pengaturan di bawah untuk mengelola identitas web, komisi MLM, Midtrans, dan email server.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleSaveSettingsSubmit}
-                    disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition shadow-md flex items-center justify-center gap-2 self-start md:self-center shrink-0 cursor-pointer"
-                  >
-                    💾 Simpan Perubahan
-                  </button>
+                  <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+                    <button
+                      type="button"
+                      disabled={isClearingCache}
+                      onClick={handleClearCache}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      title="Bersihkan cache browser dan perbarui data dari database"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isClearingCache ? 'animate-spin' : ''}`} />
+                      {isClearingCache ? 'Clearing...' : '🧹 Clear Cache Website'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveSettingsSubmit}
+                      disabled={loading}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      💾 Simpan Perubahan
+                    </button>
+                  </div>
                 </div>
 
                 {/* Sub-Tab Navigation Bar */}

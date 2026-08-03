@@ -1700,6 +1700,16 @@ app.post("/api/admin/deposit/process", async (req, res) => {
   }
 });
 
+// Admin Clear Cache & Refresh Endpoint
+app.post("/api/admin/clear-cache", async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    res.json({ message: "Cache server & database berhasil dibersihkan!" });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal membersihkan cache server: " + err.message });
+  }
+});
+
 // Toggle Payout Automation Settings
 app.post("/api/admin/settings/payout", async (req, res) => {
   const { autoPayout } = req.body;
