@@ -360,6 +360,27 @@ async function registerUserToFirestoreDirect(regData: {
         created_at: new Date().toISOString()
       };
       await setDoc(doc(db, "deposits", String(initialDep.id)), initialDep);
+
+      // Auto-create initial Paket Perdana order record for new member
+      const initialOrd: Order = {
+        id: Date.now() + 1,
+        invoice_no: `INV-ACT-${newUserId}-${Date.now().toString().slice(-4)}`,
+        user_id: newUserId,
+        username: normalizedUsername,
+        fullname: regData.fullname,
+        phone: regData.phone || "-",
+        address: regData.address ? `${regData.address}${regData.city ? ', ' + regData.city : ''}` : "-",
+        product_name: "Paket Perdana Member Premium - Hedtro Raw Denim 15oz",
+        amount: 550000,
+        unique_code: actCode,
+        payment_method: "Transfer Bank",
+        status: "DIPROSES",
+        courier: "JNE REGULER",
+        tracking_number: `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
+        notes: "Pesanan Pendaftaran & Aktivasi Member Premium Hedtro Jeans",
+        created_at: new Date().toISOString()
+      };
+      await setDoc(doc(db, "orders", String(initialOrd.id)), initialOrd);
     } catch (e) {
       console.warn("Firestore setDoc failed for user registration:", e);
     }
@@ -1549,7 +1570,50 @@ export default function App() {
         ordersCount: fsOrders.length
       });
 
-      if (!currentUserRef.current) return;
+      // Auto-ensure all unactivated members have activation orders & deposits for Admin visibility
+      const unactiveMembers = fsUsers.filter(u => !u.is_active && u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
+      unactiveMembers.forEach(u => {
+        const actCode = 100 + (Number(u.id) * 37) % 899;
+
+        if (!fsDeposits.some(d => Number(d.user_id) === Number(u.id))) {
+          const newActDep: DepositRequest = {
+            id: Date.now() + Number(u.id),
+            user_id: Number(u.id),
+            username: u.username,
+            amount: 550000,
+            unique_code: actCode,
+            method: "transfer_bank",
+            status: "pending",
+            payment_code: `ACT-${u.id}`,
+            created_at: u.created_at || new Date().toISOString()
+          };
+          fsDeposits.unshift(newActDep);
+          createFirestoreDeposit(newActDep).catch(() => {});
+        }
+
+        if (!fsOrders.some(o => Number(o.user_id) === Number(u.id))) {
+          const newActOrd: Order = {
+            id: Date.now() + Number(u.id) + 1,
+            invoice_no: `INV-ACT-${u.id}-${Date.now().toString().slice(-4)}`,
+            user_id: Number(u.id),
+            username: u.username,
+            fullname: u.fullname,
+            phone: u.phone || "-",
+            address: u.address || "Alamat Pembeli",
+            product_name: "Paket Perdana Member Premium - Hedtro Raw Denim 15oz",
+            amount: 550000,
+            unique_code: actCode,
+            payment_method: "Transfer Bank",
+            status: "DIPROSES",
+            courier: "JNE REGULER",
+            tracking_number: `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
+            notes: "Pesanan Pendaftaran & Aktivasi Member Premium Hedtro Jeans",
+            created_at: u.created_at || new Date().toISOString()
+          };
+          fsOrders.unshift(newActOrd);
+          saveFirestoreOrder(newActOrd).catch(() => {});
+        }
+      });
 
       if (targetUser.role === 'admin') {
         const memberUsers = fsUsers.filter(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
