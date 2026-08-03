@@ -1577,52 +1577,9 @@ export default function App() {
         }
       }
 
-      // 2. Try API register endpoint first
-      let apiSuccess = false;
+      // 2. Call Cloudflare D1 Registration API via registerUserToFirestoreDirect
       let registeredUser: MLMUser | null = null;
       try {
-        const res = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username: createdUsername,
-            fullname: regFullname,
-            email: regEmail,
-            phone: regPhone,
-            password: regPassword,
-            sponsor_username: regSponsor,
-            upline_username: regUpline,
-            position: regPosition,
-            firebase_uid: firebaseUid,
-            ktp: regKtp,
-            whatsapp: regWhatsapp || regPhone,
-            bank_name: regBankName,
-            bank_account: regBankAccount,
-            bank_holder: regBankHolder || regFullname,
-            address: regAddress,
-            city: regCity,
-            product_series: regProductSeries,
-            product_color: regProductColor,
-            product_size: regProductSize
-          })
-        });
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          if (data.user) registeredUser = data.user;
-          apiSuccess = true;
-        } else {
-          const data = await res.json().catch(() => ({}));
-          if (data.message) {
-            alert(data.message);
-            return;
-          }
-        }
-      } catch (apiErr) {
-        console.warn("Backend API unavailable, saving directly to Firestore database...", apiErr);
-      }
-
-      // 3. Direct Firestore write if API backend unavailable (e.g., Vercel static hosting)
-      if (!apiSuccess) {
         registeredUser = await registerUserToFirestoreDirect({
           username: createdUsername,
           fullname: regFullname,
@@ -1641,6 +1598,9 @@ export default function App() {
           address: regAddress,
           city: regCity
         });
+      } catch (err: any) {
+        alert(err.message || "Gagal melakukan pendaftaran akun baru");
+        return;
       }
 
       // 4. Create initial order record for new member

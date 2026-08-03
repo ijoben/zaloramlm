@@ -102,11 +102,12 @@ export default async function handler(req: any, res: any) {
 
     if (!d1Result?.success) {
       console.error("D1 Insert Error:", d1Result);
-      return res.status(500).json({ message: "Gagal menyimpan data member ke Cloudflare D1 SQL Database" });
+      const errMsg = d1Result?.errors?.[0]?.message || (typeof d1Result === 'object' ? JSON.stringify(d1Result) : "D1 Query Failed");
+      return res.status(500).json({ message: "Gagal menyimpan data member ke Cloudflare D1: " + errMsg });
     }
 
     return res.status(201).json({ message: "Registrasi member berhasil!", user: newUser });
   } catch (err: any) {
-    return res.status(500).json({ message: "Gagal mendaftar: " + (err?.message || err) });
+    return res.status(500).json({ message: "Gagal mendaftar: " + (err?.message || String(err)) });
   }
 }
