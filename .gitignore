@@ -9,3 +9,4 @@ coverage/
 firebase-service-account.json
 firebase-applet-config.json
 
+.vercel

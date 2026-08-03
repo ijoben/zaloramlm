@@ -150,6 +150,14 @@ async function fetchFirestoreUsers(): Promise<MLMUser[]> {
       }
     });
 
+    // Always ensure default admin user exists in usersMap
+    if (!usersMap.has(1)) {
+      const defaultAdmin = DEFAULT_USERS.find(u => u.id === 1 || u.username === "admin") || DEFAULT_USERS[0];
+      if (defaultAdmin) {
+        usersMap.set(1, defaultAdmin);
+      }
+    }
+
     // If users collection and local cache are empty:
     if (usersMap.size === 0) {
       if (isReset) {
@@ -1685,8 +1693,8 @@ export default function App() {
         setLoginPassword('');
         setActiveView('dashboard');
       } else {
-        if (uSearch === 'admin') {
-          const fallbackAdmin = getFallbackUser('admin');
+        if (uSearchClean === 'admin' || uSearchRaw === 'admin' || uSearchClean === 'admin@hedtrojeans.com') {
+          const fallbackAdmin = DEFAULT_USERS.find(u => u.username === 'admin') || DEFAULT_USERS[0];
           if (fallbackAdmin) {
             setCurrentUser(fallbackAdmin);
             setShowLoginModal(false);
