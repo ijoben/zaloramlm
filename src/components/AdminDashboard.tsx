@@ -2937,6 +2937,10 @@ export default function AdminDashboard({
                           .map((dep) => {
                             const code = dep.unique_code || (100 + dep.id % 899);
                             const totalTrf = dep.amount + code;
+                            const matchingOrder = orders?.find(o => Number(o.user_id) === Number(dep.user_id));
+                            const proofImg = dep.proof_image || matchingOrder?.proof_image;
+                            const proofNotesStr = dep.proof_notes || matchingOrder?.proof_notes;
+                            
                             return (
                               <div key={dep.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
                                 <div>
@@ -2965,18 +2969,18 @@ export default function AdminDashboard({
                                 </div>
 
                                 <div>
-                                  {dep.proof_image ? (
+                                  {proofImg ? (
                                     <div className="my-2 bg-emerald-50 border border-emerald-300 rounded-lg p-2 flex flex-col gap-1.5">
                                       <button
                                         type="button"
-                                        onClick={() => setViewAdminProofImage(dep.proof_image || null)}
+                                        onClick={() => setViewAdminProofImage(proofImg || null)}
                                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-1.5 px-2.5 rounded-md flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
                                       >
                                         <Eye className="w-4 h-4" /> 📸 Lihat Bukti Transfer User
                                       </button>
-                                      {dep.proof_notes && (
+                                      {proofNotesStr && (
                                         <p className="text-[10px] text-emerald-900 font-mono italic">
-                                          Catatan User: "{dep.proof_notes}"
+                                          Catatan User: "{proofNotesStr}"
                                         </p>
                                       )}
                                     </div>
@@ -2991,7 +2995,7 @@ export default function AdminDashboard({
                                       <button
                                         id={`btn-approve-dep-mob-${dep.id}`}
                                         disabled={loading}
-                                        onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'approve') : null}
+                                        onClick={() => handleProcessDeposit(dep.id, 'approve')}
                                         className="flex-1 bg-green-600 hover:bg-green-700 text-white font-extrabold py-2 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                                       >
                                         <Check className="w-3.5 h-3.5" /> Setujui (Acc & Aktifkan)
@@ -2999,7 +3003,7 @@ export default function AdminDashboard({
                                       <button
                                         id={`btn-reject-dep-mob-${dep.id}`}
                                         disabled={loading}
-                                        onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'reject') : null}
+                                        onClick={() => handleProcessDeposit(dep.id, 'reject')}
                                         className="flex-1 bg-red-600 hover:bg-red-700 text-white font-extrabold py-2 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                                       >
                                         <X className="w-3.5 h-3.5" /> Tolak
@@ -3114,7 +3118,7 @@ export default function AdminDashboard({
                                             <button
                                               id={`btn-approve-dep-${dep.id}`}
                                               disabled={loading}
-                                              onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'approve') : null}
+                                              onClick={() => handleProcessDeposit(dep.id, 'approve')}
                                               className="bg-green-600 hover:bg-green-700 text-white font-bold px-2 py-1 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer flex-1 justify-center"
                                               title="Setujui (Acc & Aktifkan Member)"
                                             >
@@ -3123,7 +3127,7 @@ export default function AdminDashboard({
                                             <button
                                               id={`btn-reject-dep-${dep.id}`}
                                               disabled={loading}
-                                              onClick={() => onProcessDeposit ? onProcessDeposit(dep.id, 'reject') : null}
+                                              onClick={() => handleProcessDeposit(dep.id, 'reject')}
                                               className="bg-red-600 hover:bg-red-700 text-white font-bold px-2 py-1 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer flex-1 justify-center"
                                               title="Tolak Request"
                                             >

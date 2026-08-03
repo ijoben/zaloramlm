@@ -13,16 +13,26 @@ import { DEFAULT_USERS } from "./data/defaultUsers";
 import { DEFAULT_ORDERS } from "./data/defaultOrders";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send, User, CreditCard, ShoppingBag, Users } from "lucide-react";
 
-// Client-side timeout helper to prevent hanging on Firestore network stalls
-function withClientTimeout<T>(promise: Promise<T>, ms: number = 8000, label = "Operation"): Promise<T | null> {
+// Client-side quota exhaustion flag & timeout helper
+let isClientQuotaExhausted = false;
+
+function withClientTimeout<T>(promise: Promise<T>, ms: number = 2000, label = "Operation"): Promise<T | null> {
+  if (isClientQuotaExhausted) return Promise.resolve(null);
   return Promise.race([
-    promise.catch((err) => {
-      console.warn(`⚠️ [Client Firestore Error] ${label}:`, err);
+    promise.catch((err: any) => {
+      const msg = String(err?.message || err || "");
+      if (msg.includes("Quota limit exceeded") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
+        if (!isClientQuotaExhausted) {
+          isClientQuotaExhausted = true;
+          console.warn(`🛑 [Client Firestore Quota] Quota limit exceeded in ${label}. Bypassing client Firestore calls.`);
+        }
+      } else {
+        console.warn(`⚠️ [Client Firestore Error] ${label}:`, err);
+      }
       return null;
     }),
     new Promise<null>((resolve) => {
       setTimeout(() => {
-        console.warn(`⏱️ [Client Firestore Timeout] ${label} exceeded ${ms}ms limit`);
         resolve(null);
       }, ms);
     })
@@ -57,145 +67,20 @@ function saveLocalStoredUser(user: MLMUser): void {
   }
 }
 
-// Firebase Firestore Direct Data Helpers
+// Direct Data Helpers via Cloudflare D1 Backend API
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
-  console.log("🔍 [fetchFirestoreUsers] Checking Firestore `db` status...", {
-    dbConnected: !!db,
-    projectId: resolvedFirebaseConfig.projectId || "MISSING",
-    apiKeyConfigured: !!resolvedFirebaseConfig.apiKey,
-    isVercel: typeof window !== "undefined" && window.location.hostname.includes("vercel.app")
-  });
-
-  // Check localStorage reset flag (set during active session)
-  const localResetFlag = typeof window !== 'undefined' && localStorage.getItem('zalora_reset_members') === 'true';
-
-  if (!db) {
-    console.warn("⚠️ [fetchFirestoreUsers] Firestore `db` instance is NULL! Using local cache & default users.");
-    const cachedUsers = getLocalStoredUsers();
-    const combinedMap = new Map<number, MLMUser>();
-    if (!localResetFlag) {
-      DEFAULT_USERS.forEach(u => combinedMap.set(Number(u.id), u));
-    } else {
-      DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1).forEach(u => combinedMap.set(Number(u.id), u));
-    }
-    cachedUsers.forEach(u => combinedMap.set(Number(u.id), u));
-    return Array.from(combinedMap.values()).sort((a, b) => Number(a.id) - Number(b.id));
-  }
-
   try {
-    // Check Firestore-persisted reset flag so even fresh server instances know
-    let firestoreResetFlag = false;
-    try {
-      const ctrlDoc: any = await withClientTimeout(getDoc(doc(db, "settings", "adminControl")), 3000, "getDoc adminControl");
-      if (ctrlDoc && ctrlDoc.exists && typeof ctrlDoc.exists === 'function' && ctrlDoc.exists()) {
-        firestoreResetFlag = ctrlDoc.data()?.membersReset === true;
-      }
-    } catch (e) { /* ignore */ }
-
-    const isReset = localResetFlag || firestoreResetFlag;
-
-    console.log("📡 [fetchFirestoreUsers] Reading 'users' collection from Firestore...", { isReset });
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "users")), 8000, "getDocs users");
-    const usersMap = new Map<number, MLMUser>();
-
-    if (querySnapshot) {
-      console.log(`✅ [fetchFirestoreUsers] Firestore read successful! Received ${querySnapshot.size} user documents.`);
-      querySnapshot.forEach((docSnap: any) => {
-        const data = docSnap.data();
-        const parsedId = Number(data.id ?? docSnap.id);
-        if (!isNaN(parsedId)) {
-          usersMap.set(parsedId, {
-            id: parsedId,
-            username: data.username || "",
-            fullname: data.fullname || "",
-            email: data.email || "",
-            phone: data.phone || "",
-            password: data.password || (parsedId === 1 || data.role === "admin" || data.username === "admin" ? "admin123" : "user123"),
-            is_active: data.is_active !== undefined ? Boolean(data.is_active) : (parsedId === 1 || data.role === "admin" || data.username === "admin"),
-            upline_id: data.upline_id !== null && data.upline_id !== undefined ? Number(data.upline_id) : null,
-            position: data.position || "L",
-            sponsor_id: data.sponsor_id !== null && data.sponsor_id !== undefined ? Number(data.sponsor_id) : null,
-            balance: Number(data.balance) || 0,
-            sponsor_bonus: Number(data.sponsor_bonus) || 0,
-            pairing_bonus: Number(data.pairing_bonus) || 0,
-            level_bonus: Number(data.level_bonus) || 0,
-            ro_bonus: Number(data.ro_bonus) || 0,
-            left_count: Number(data.left_count) || 0,
-            right_count: Number(data.right_count) || 0,
-            left_sales: Number(data.left_sales) || 0,
-            right_sales: Number(data.right_sales) || 0,
-            created_at: data.created_at || new Date().toISOString(),
-            role: data.role || (parsedId === 1 ? "admin" : "user"),
-            firebase_uid: data.firebase_uid || "",
-            ktp: data.ktp || "",
-            whatsapp: data.whatsapp || "",
-            bank_name: data.bank_name || "",
-            bank_account: data.bank_account || "",
-            bank_holder: data.bank_holder || "",
-            address: data.address || "",
-            city: data.city || "",
-            profile_photo: data.profile_photo || ""
-          });
-        }
-      });
-    } else {
-      console.warn("⚠️ [fetchFirestoreUsers] Firestore read timed out or failed.");
-    }
-
-    // Merge locally cached registered users
-    const cachedUsers = getLocalStoredUsers();
-    cachedUsers.forEach(lu => {
-      if (lu && lu.id && !usersMap.has(Number(lu.id))) {
-        usersMap.set(Number(lu.id), lu);
-      }
-    });
-
-    // Always ensure default admin user exists in usersMap
-    if (!usersMap.has(1)) {
-      const defaultAdmin = DEFAULT_USERS.find(u => u.id === 1 || u.username === "admin") || DEFAULT_USERS[0];
-      if (defaultAdmin) {
-        usersMap.set(1, defaultAdmin);
+    const res = await fetch("/api/users");
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
       }
     }
-
-    // If users collection and local cache are empty:
-    if (usersMap.size === 0) {
-      if (isReset) {
-        const adminOnly = DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1);
-        console.log("ℹ️ [fetchFirestoreUsers] Reset active. Returning admin only, skipping seed.");
-        return adminOnly;
-      } else {
-        console.log("ℹ️ [fetchFirestoreUsers] Collection 'users' is empty (fresh install). Seeding default users...");
-        for (const defU of DEFAULT_USERS) {
-          usersMap.set(defU.id, defU);
-          try {
-            withClientTimeout(setDoc(doc(db, "users", String(defU.id)), defU), 1000, `seedUser ${defU.username}`);
-          } catch (e) {
-            console.warn(`Failed seeding user ${defU.username} to Firestore:`, e);
-          }
-        }
-      }
-    }
-
-    let finalUsers = Array.from(usersMap.values());
-    const hasNonAdminUsers = finalUsers.some(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
-    if (hasNonAdminUsers && isReset) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('zalora_reset_members');
-      }
-      if (db) {
-        setDoc(doc(db, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
-      }
-    }
-    finalUsers.sort((a, b) => Number(a.id) - Number(b.id));
-    return finalUsers;
-  } catch (err: any) {
-    console.error("❌ [fetchFirestoreUsers] Error reading 'users' from Firestore:", err);
-    if (localResetFlag) {
-      return DEFAULT_USERS.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
-    }
-    return DEFAULT_USERS;
+  } catch (err) {
+    console.warn("⚠️ API /api/users fetch warn:", err);
   }
+  return DEFAULT_USERS;
 }
 
 function findVacantSpotClient(users: MLMUser[], rootId: number, preferredPosition?: 'L' | 'R'): { upline_id: number, position: 'L' | 'R' } {
@@ -263,127 +148,57 @@ async function registerUserToFirestoreDirect(regData: {
   address?: string;
   city?: string;
 }): Promise<MLMUser> {
-  // Clear membersReset flag when a new member registers so user is visible everywhere
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('zalora_reset_members');
-  }
-  if (db) {
-    try {
-      await setDoc(doc(db, "settings", "adminControl"), {
-        membersReset: false
-      }, { merge: true }).catch(() => {});
-    } catch (e) { /* ignore */ }
-  }
+  const res = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(regData)
+  });
 
-  const users = await fetchFirestoreUsers();
-
-  const normalizedUsername = regData.username.toLowerCase().replace(/\s+/g, "").trim();
-  if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
-    throw new Error("Username sudah digunakan oleh member lain");
+  if (!res.ok) {
+    const errObj = await res.json().catch(() => ({}));
+    throw new Error(errObj.message || "Gagal melakukan pendaftaran akun baru");
   }
 
-  let sponsorId: number = 1;
-  if (regData.sponsor_username) {
-    const sSearch = regData.sponsor_username.toLowerCase().trim();
-    const sponsor = users.find(u => u.username && u.username.toLowerCase().trim() === sSearch);
-    if (sponsor) sponsorId = Number(sponsor.id);
-  }
+  const result = await res.json();
+  const newUser: MLMUser = result.user;
 
-  let uplineId: number = sponsorId || 1;
-  let finalPos: 'L' | 'R' = (regData.position === 'R' || regData.position === 'L') ? regData.position : "L";
+  // Auto-create initial deposit & order for new member activation via D1 API
+  try {
+    const actCode = 100 + (newUser.id * 37) % 899;
+    const initialDep: DepositRequest = {
+      id: Date.now(),
+      user_id: newUser.id,
+      username: newUser.username,
+      amount: 550000,
+      unique_code: actCode,
+      method: "transfer_bank",
+      status: "pending",
+      payment_code: `ACT-${newUser.id}`,
+      created_at: new Date().toISOString()
+    };
+    await createFirestoreDeposit(initialDep);
 
-  if (regData.upline_username) {
-    const uSearch = regData.upline_username.toLowerCase().trim();
-    const uplineUser = users.find(u => u.username && u.username.toLowerCase().trim() === uSearch);
-    if (uplineUser) uplineId = Number(uplineUser.id);
-  }
-
-  const taken = users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
-  if (taken) {
-    const vacancy = findVacantSpotClient(users, uplineId, finalPos);
-    uplineId = vacancy.upline_id;
-    finalPos = vacancy.position;
-  }
-
-  const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
-  const newUser: MLMUser = {
-    id: newUserId,
-    username: normalizedUsername,
-    fullname: regData.fullname,
-    email: regData.email,
-    phone: regData.phone,
-    password: regData.password || "password123",
-    is_active: false, // Default Free Member (Harus bayar registrasi Rp 550.000 untuk status Verified)
-    upline_id: uplineId,
-    position: finalPos,
-    sponsor_id: sponsorId,
-    balance: 0,
-    sponsor_bonus: 0,
-    pairing_bonus: 0,
-    level_bonus: 0,
-    ro_bonus: 0,
-    left_count: 0,
-    right_count: 0,
-    left_sales: 0,
-    right_sales: 0,
-    created_at: new Date().toISOString(),
-    role: "user",
-    firebase_uid: regData.firebase_uid || "",
-    ktp: regData.ktp || "",
-    whatsapp: regData.whatsapp || regData.phone || "",
-    bank_name: regData.bank_name || "",
-    bank_account: regData.bank_account || "",
-    bank_holder: regData.bank_holder || regData.fullname || "",
-    address: regData.address || "",
-    city: regData.city || ""
-  };
-
-  const updatedUsers = [...users, newUser];
-  saveLocalStoredUser(newUser);
-
-  if (db) {
-    try {
-      await setDoc(doc(db, "users", String(newUserId)), newUser);
-      await updateAncestorCountsClient(updatedUsers, uplineId, finalPos);
-
-      // Auto-create initial pending deposit request for Rp 550.000 for member activation
-      const actCode = 100 + (newUserId * 37) % 899;
-      const initialDep: DepositRequest = {
-        id: Date.now(),
-        user_id: newUserId,
-        username: normalizedUsername,
-        amount: 550000,
-        unique_code: actCode,
-        method: "transfer_bank",
-        status: "pending",
-        payment_code: `ACT-${newUserId}`,
-        created_at: new Date().toISOString()
-      };
-      await setDoc(doc(db, "deposits", String(initialDep.id)), initialDep);
-
-      // Auto-create initial Paket Perdana order record for new member
-      const initialOrd: Order = {
-        id: Date.now() + 1,
-        invoice_no: `INV-ACT-${newUserId}-${Date.now().toString().slice(-4)}`,
-        user_id: newUserId,
-        username: normalizedUsername,
-        fullname: regData.fullname,
-        phone: regData.phone || "-",
-        address: regData.address ? `${regData.address}${regData.city ? ', ' + regData.city : ''}` : "-",
-        product_name: "Paket Perdana Member Premium - Hedtro Raw Denim 15oz",
-        amount: 550000,
-        unique_code: actCode,
-        payment_method: "Transfer Bank",
-        status: "DIPROSES",
-        courier: "JNE REGULER",
-        tracking_number: `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
-        notes: "Pesanan Pendaftaran & Aktivasi Member Premium Hedtro Jeans",
-        created_at: new Date().toISOString()
-      };
-      await setDoc(doc(db, "orders", String(initialOrd.id)), initialOrd);
-    } catch (e) {
-      console.warn("Firestore setDoc failed for user registration:", e);
-    }
+    const initialOrd: Order = {
+      id: Date.now() + 1,
+      invoice_no: `INV-ACT-${newUser.id}-${Date.now().toString().slice(-4)}`,
+      user_id: newUser.id,
+      username: newUser.username,
+      fullname: regData.fullname,
+      phone: regData.phone || "-",
+      address: regData.address ? `${regData.address}${regData.city ? ', ' + regData.city : ''}` : "-",
+      product_name: "Paket Perdana Member Premium - Hedtro Raw Denim 15oz",
+      amount: 550000,
+      unique_code: actCode,
+      payment_method: "Transfer Bank",
+      status: "DIPROSES",
+      courier: "JNE REGULER",
+      tracking_number: `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
+      notes: "Pesanan Pendaftaran & Aktivasi Member Premium Hedtro Jeans",
+      created_at: new Date().toISOString()
+    };
+    await saveFirestoreOrder(initialOrd);
+  } catch (e) {
+    console.warn("Auto deposit/order error on register:", e);
   }
 
   return newUser;
@@ -495,248 +310,138 @@ async function fetchFirestoreProducts(): Promise<Product[]> {
 }
 
 async function fetchFirestoreSettings(): Promise<any> {
-  if (!db) return null;
-
   try {
-    const docRef = doc(db, "settings", "system");
-    const docSnap: any = await withClientTimeout(getDoc(docRef), 5000, "getDoc system settings");
-    if (docSnap && docSnap.exists && typeof docSnap.exists === 'function' && docSnap.exists()) {
-      return docSnap.data();
-    }
+    const res = await fetch("/api/settings");
+    if (res.ok) return await res.json();
   } catch (err: any) {
-    console.warn("⚠️ [fetchFirestoreSettings] Error reading settings from Firestore:", err);
+    console.warn("⚠️ [fetchFirestoreSettings] Error reading settings via D1 API:", err);
   }
   return null;
 }
 
 async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
-  if (db) {
-    try {
-      await withClientTimeout(setDoc(doc(db, "settings", "system"), newSettings, { merge: true }), 5000, "saveSettings");
-      return true;
-    } catch (err: any) {
-      console.warn("⚠️ [saveFirestoreSettings] Error saving settings to Firestore:", err);
-    }
+  try {
+    const res = await fetch("/api/admin/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newSettings)
+    });
+    return res.ok;
+  } catch (err: any) {
+    console.warn("⚠️ [saveFirestoreSettings] Error saving settings via D1 API:", err);
+    return false;
   }
-  return true;
 }
 
 async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
-  if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_sales') === 'true') {
-    return [];
-  }
-  if (!db) return [];
-
   try {
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "withdrawals")), 8000, "getDocs withdrawals");
-    if (!querySnapshot) return [];
-    const wds: WDRequest[] = [];
-    querySnapshot.forEach((docSnap: any) => {
-      const data = docSnap.data();
-      wds.push({
-        id: Number(data.id),
-        user_id: Number(data.user_id),
-        username: data.username || "",
-        amount: Number(data.amount) || 0,
-        bank_name: data.bank_name || "",
-        account_number: data.account_number || "",
-        account_holder: data.account_holder || "",
-        status: data.status || "pending",
-        created_at: data.created_at || new Date().toISOString()
-      });
-    });
-
-    wds.sort((a, b) => b.id - a.id);
-    return wds;
+    const res = await fetch("/api/withdrawals");
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
   } catch (err: any) {
-    console.error("❌ [fetchFirestoreWithdrawals] Error reading 'withdrawals' from Firestore:", err);
-    return [];
+    console.error("❌ [fetchFirestoreWithdrawals] Error reading 'withdrawals' via D1 API:", err);
   }
+  return [];
 }
 
 async function createFirestoreWithdrawal(wd: WDRequest): Promise<void> {
-  if (db) {
-    try {
-      withClientTimeout(setDoc(doc(db, "withdrawals", String(wd.id)), wd), 8000, `createWD #${wd.id}`);
-    } catch (err) {
-      console.warn("Error creating withdrawal in Firestore:", err);
-    }
+  try {
+    await fetch("/api/withdrawals/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(wd)
+    });
+  } catch (err) {
+    console.warn("Error creating withdrawal via D1 API:", err);
   }
 }
 
 async function updateFirestoreWithdrawalStatus(wdId: number, status: 'approved' | 'rejected' | 'pending'): Promise<void> {
-  const wds = await fetchFirestoreWithdrawals();
-  const oldWd = wds.find(w => Number(w.id) === Number(wdId));
-
-  if (oldWd && status === 'approved' && oldWd.status === 'pending') {
-    await createFirestoreTransaction({
-      id: Date.now(),
-      user_id: oldWd.user_id,
-      username: oldWd.username,
-      type: "withdrawal",
-      amount: 0,
-      description: `Penarikan Dana (#WD-${wdId}) Disetujui Admin - Transfer ke Bank ${oldWd.bank_name}`,
-      created_at: new Date().toISOString()
+  try {
+    await fetch("/api/admin/withdraw/process", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wdId, action: status === 'approved' ? 'approve' : 'reject' })
     });
-  }
-
-  if (db) {
-    try {
-      withClientTimeout(setDoc(doc(db, "withdrawals", String(wdId)), { status }, { merge: true }), 8000, `updateWD #${wdId}`);
-    } catch (err) {
-      console.warn("Error updating withdrawal in Firestore:", err);
-    }
+  } catch (err) {
+    console.warn("Error updating withdrawal status via D1 API:", err);
   }
 }
 
 async function fetchFirestoreTransactions(): Promise<Transaction[]> {
-  if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_sales') === 'true') {
-    return [];
-  }
-  if (!db) return [];
-
   try {
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "transactions")), 8000, "getDocs transactions");
-    if (!querySnapshot) return [];
-    const txs: Transaction[] = [];
-    querySnapshot.forEach((docSnap: any) => {
-      const data = docSnap.data();
-      txs.push({
-        id: Number(data.id),
-        user_id: Number(data.user_id),
-        username: data.username || "",
-        type: data.type || "transaction",
-        amount: Number(data.amount) || 0,
-        description: data.description || "",
-        created_at: data.created_at || new Date().toISOString()
-      });
-    });
-
-    txs.sort((a, b) => b.id - a.id);
-    return txs;
+    const res = await fetch("/api/transactions");
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
   } catch (err: any) {
-    console.error("❌ [fetchFirestoreTransactions] Error reading 'transactions' from Firestore:", err);
-    return [];
+    console.error("❌ [fetchFirestoreTransactions] Error reading 'transactions' via D1 API:", err);
   }
+  return [];
 }
 
 async function createFirestoreTransaction(tx: Transaction): Promise<void> {
-  if (db) {
-    try {
-      withClientTimeout(setDoc(doc(db, "transactions", String(tx.id)), tx), 8000, `createTx #${tx.id}`);
-    } catch (err) {
-      console.warn("Error creating transaction in Firestore:", err);
-    }
+  try {
+    await fetch("/api/transactions/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(tx)
+    });
+  } catch (err) {
+    console.warn("Error creating transaction via D1 API:", err);
   }
 }
 
 async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
-  if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_sales') === 'true') {
-    return [];
-  }
-  if (!db) return [];
-
   try {
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "deposits")), 8000, "getDocs deposits");
-    if (!querySnapshot) return [];
-    const deps: DepositRequest[] = [];
-    querySnapshot.forEach((docSnap: any) => {
-      const data = docSnap.data();
-      deps.push({
-        id: Number(data.id),
-        user_id: Number(data.user_id),
-        username: data.username || "",
-        amount: Number(data.amount) || 0,
-        unique_code: data.unique_code !== undefined ? Number(data.unique_code) : (100 + (Number(data.id) || 1) % 899),
-        method: data.method || "qris",
-        status: data.status || "pending",
-        payment_code: data.payment_code || "",
-        created_at: data.created_at || new Date().toISOString()
-      });
-    });
-
-    deps.sort((a, b) => b.id - a.id);
-    return deps;
+    const res = await fetch("/api/deposits");
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
   } catch (err: any) {
-    console.error("❌ [fetchFirestoreDeposits] Error reading 'deposits' from Firestore:", err);
-    return [];
+    console.error("❌ [fetchFirestoreDeposits] Error reading 'deposits' via D1 API:", err);
   }
+  return [];
 }
 
 async function createFirestoreDeposit(dep: DepositRequest): Promise<void> {
-  if (db) {
-    try {
-      withClientTimeout(setDoc(doc(db, "deposits", String(dep.id)), dep), 8000, `createDeposit #${dep.id}`);
-    } catch (err) {
-      console.warn("Error creating deposit in Firestore:", err);
-    }
+  try {
+    await fetch("/api/deposits/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dep)
+    });
+  } catch (err) {
+    console.warn("Error creating deposit via D1 API:", err);
   }
 }
 
 async function fetchFirestoreOrders(): Promise<Order[]> {
-  if (typeof window !== 'undefined' && localStorage.getItem('zalora_reset_sales') === 'true') {
-    return [];
-  }
-  if (!db) return [];
-
   try {
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "orders")), 8000, "getDocs orders");
-    if (!querySnapshot || querySnapshot.empty) {
-      // After reset or if db_initialized flag is set, never re-seed orders
-      if (typeof window !== 'undefined' && (localStorage.getItem('zalora_reset_sales') === 'true' || localStorage.getItem('zalora_db_initialized') === 'true')) {
-        return [];
-      }
-      // Only seed on fresh install (no flag set)
-      if (typeof window !== 'undefined' && !localStorage.getItem('zalora_db_initialized')) {
-        for (const ord of DEFAULT_ORDERS) {
-          withClientTimeout(setDoc(doc(db, "orders", String(ord.id)), ord), 8000, `seedOrder #${ord.id}`);
-        }
-        localStorage.setItem('zalora_db_initialized', 'true');
-        return DEFAULT_ORDERS;
-      }
-      return [];
+    const res = await fetch("/api/orders");
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
     }
-
-    const ords: Order[] = [];
-    querySnapshot.forEach((docSnap: any) => {
-      const data = docSnap.data();
-      ords.push({
-        id: Number(data.id),
-        invoice_no: data.invoice_no || `INV-${data.id}`,
-        user_id: Number(data.user_id) || 0,
-        username: data.username || "",
-        fullname: data.fullname || "",
-        phone: data.phone || "",
-        address: data.address || "",
-        product_name: data.product_name || "Produk Denim",
-        amount: Number(data.amount) || 0,
-        unique_code: data.unique_code !== undefined ? Number(data.unique_code) : (100 + (Number(data.id) || 1) % 899),
-        payment_method: data.payment_method || "Transfer Bank",
-        status: data.status || "DIPROSES",
-        courier: data.courier || "JNE REGULER",
-        tracking_number: data.tracking_number || "",
-        notes: data.notes || "",
-        created_at: data.created_at || new Date().toISOString(),
-        updated_at: data.updated_at || new Date().toISOString(),
-        steps: Array.isArray(data.steps) ? data.steps : []
-      });
-    });
-
-    ords.sort((a, b) => b.id - a.id);
-    return ords;
   } catch (err: any) {
-    console.error("❌ [fetchFirestoreOrders] Error reading 'orders' from Firestore:", err);
-    return DEFAULT_ORDERS;
+    console.error("❌ [fetchFirestoreOrders] Error reading 'orders' via D1 API:", err);
   }
+  return [];
 }
 
 async function saveFirestoreOrder(ord: Order): Promise<void> {
-  if (db) {
-    try {
-      await withClientTimeout(setDoc(doc(db, "orders", String(ord.id)), ord, { merge: true }), 8000, `saveOrder #${ord.id}`);
-    } catch (err) {
-      console.warn("Error saving order in Firestore:", err);
-    }
+  try {
+    await fetch("/api/orders/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ord)
+    });
+  } catch (err) {
+    console.warn("Error saving order via D1 API:", err);
   }
 }
 
@@ -2429,6 +2134,31 @@ export default function App() {
 
   const handleProcessDeposit = async (depositId: number | string, action: 'approve' | 'reject') => {
     const numId = Number(depositId);
+    const newStatus = action === 'approve' ? 'success' : 'failed';
+
+    // Optimistic UI updates for instant feedback
+    setAdminDashboardData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        deposits: prev.deposits.map(d => (Number(d.id) === numId || String(d.id) === String(depositId)) ? {
+          ...d,
+          status: newStatus
+        } : d)
+      };
+    });
+
+    setUserDashboardData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        deposits: prev.deposits.map(d => (Number(d.id) === numId || String(d.id) === String(depositId)) ? {
+          ...d,
+          status: newStatus
+        } : d)
+      };
+    });
+
     try {
       const res = await fetch("/api/admin/deposit/process", {
         method: "POST",
@@ -2446,7 +2176,6 @@ export default function App() {
 
     if (db) {
       try {
-        const newStatus = action === 'approve' ? 'success' : 'failed';
         await setDoc(doc(db, "deposits", String(depositId)), { status: newStatus }, { merge: true });
 
         if (action === 'approve') {
@@ -2454,7 +2183,13 @@ export default function App() {
           const depItem = currentDeps.find(d => Number(d.id) === numId || String(d.id) === String(depositId));
           if (depItem) {
             const targetUserId = Number(depItem.user_id);
-            await setDoc(doc(db, "users", String(targetUserId)), { is_active: true }, { merge: true });
+            const allUsers = await fetchFirestoreUsers();
+            const targetUser = allUsers.find(u => Number(u.id) === targetUserId);
+            
+            const currentBal = Number(targetUser?.balance) || 0;
+            const newBal = currentBal + Number(depItem.amount);
+            
+            await setDoc(doc(db, "users", String(targetUserId)), { is_active: true, balance: newBal }, { merge: true });
 
             const currentOrds = await fetchFirestoreOrders();
             const matchOrd = currentOrds.find(o => Number(o.user_id) === targetUserId);
@@ -2462,14 +2197,12 @@ export default function App() {
               await setDoc(doc(db, "orders", String(matchOrd.id)), { status: "DIPROSES" }, { merge: true });
             }
 
-            const allUsers = await fetchFirestoreUsers();
-            const targetUser = allUsers.find(u => Number(u.id) === targetUserId);
             if (targetUser && targetUser.sponsor_id) {
               const sponsor = allUsers.find(u => Number(u.id) === Number(targetUser.sponsor_id));
               if (sponsor) {
-                const newBal = (sponsor.balance || 0) + 100000;
+                const newBalSp = (sponsor.balance || 0) + 100000;
                 const newSpBonus = (sponsor.sponsor_bonus || 0) + 100000;
-                await setDoc(doc(db, "users", String(sponsor.id)), { balance: newBal, sponsor_bonus: newSpBonus }, { merge: true });
+                await setDoc(doc(db, "users", String(sponsor.id)), { balance: newBalSp, sponsor_bonus: newSpBonus }, { merge: true });
               }
             }
           }

@@ -133,138 +133,280 @@ app.get(["/api", "/api/"], (req, res) => {
 });
 
 // ==========================================
-// FIRESTORE DATABASE INTEGRATION
+// CLOUDFLARE D1 DATABASE & LOCAL FILE PERSISTENCE
 // ==========================================
-let firestoreDb: any = null;
-if (resolvedServerFirebaseConfig.apiKey) {
+const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || "2445b1694607d877f7688ef992b8bda3";
+const CF_D1_DATABASE_ID = process.env.CLOUDFLARE_D1_DATABASE_ID || "e5abc3dd-4b07-40dd-9b2d-e81a11100c37";
+const CF_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || "";
+
+export async function queryD1(sql: string, params: any[] = []): Promise<any> {
+  if (!CF_ACCOUNT_ID || !CF_D1_DATABASE_ID || !CF_API_TOKEN) return null;
+  const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_D1_DATABASE_ID}/query`;
   try {
-    const firebaseApp = getApps().length > 0 ? getApp() : initializeApp(resolvedServerFirebaseConfig as any);
-    const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId || "ai-studio-zaloradenimmlmbi-5abf2514-6c97-4eab-bc10-6219841824f9";
-    const isCustomDb = dbId && dbId.trim() !== '' && dbId !== "(default)" && dbId !== "default";
-
-    try {
-      firestoreDb = isCustomDb
-        ? initializeFirestore(firebaseApp, { experimentalAutoDetectLongPolling: true }, dbId)
-        : initializeFirestore(firebaseApp, { experimentalAutoDetectLongPolling: true });
-    } catch {
-      firestoreDb = isCustomDb
-        ? getFirestore(firebaseApp, dbId)
-        : getFirestore(firebaseApp);
-    }
-    console.log("🔥 Firebase Firestore connected! Project ID:", resolvedServerFirebaseConfig.projectId, "Database ID:", dbId);
-  } catch (e) {
-    console.warn("⚠️ Firebase Firestore initialization warning:", e);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${CF_API_TOKEN}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ sql, params })
+    });
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.warn("⚠️ [Cloudflare D1 Query Error]:", err);
+    return null;
   }
-} else {
-  console.warn("⚠️ [Server] Firebase API key missing from configuration or environment variables.");
 }
 
-function cleanForFirestore(obj: any) {
-  if (!obj) return obj;
-  return JSON.parse(JSON.stringify(obj, (key, value) => (value === undefined ? null : value)));
+// Local File Store persistence (data_store.json)
+const DATA_STORE_FILE = path.join(process.cwd(), "data_store.json");
+
+export function saveLocalStore() {
+  try {
+    const state = {
+      users,
+      products,
+      transactions,
+      deposits,
+      withdrawals,
+      orders,
+      notifications,
+      systemSettings,
+      updated_at: new Date().toISOString()
+    };
+    fs.writeFileSync(DATA_STORE_FILE, JSON.stringify(state, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("⚠️ Error saving local data store:", err);
+  }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number = 8000, label = "Operation"): Promise<T | null> {
-  return Promise.race([
-    promise.catch((err) => {
-      console.warn(`⚠️ [Firestore Error] ${label}:`, err);
-      return null;
-    }),
-    new Promise<null>((resolve) => {
-      setTimeout(() => {
-        console.warn(`⏱️ [Firestore Timeout] ${label} exceeded ${ms}ms limit`);
-        resolve(null);
-      }, ms);
-    })
-  ]);
+export function loadLocalStore(): boolean {
+  try {
+    if (fs.existsSync(DATA_STORE_FILE)) {
+      const raw = fs.readFileSync(DATA_STORE_FILE, "utf-8");
+      const state = JSON.parse(raw);
+      if (state.users && Array.isArray(state.users) && state.users.length > 0) users = state.users;
+      if (state.products && Array.isArray(state.products) && state.products.length > 0) products = state.products;
+      if (state.transactions && Array.isArray(state.transactions)) transactions = state.transactions;
+      if (state.deposits && Array.isArray(state.deposits)) deposits = state.deposits;
+      if (state.withdrawals && Array.isArray(state.withdrawals)) withdrawals = state.withdrawals;
+      if (state.orders && Array.isArray(state.orders)) orders = state.orders;
+      if (state.notifications && Array.isArray(state.notifications)) notifications = state.notifications;
+      if (state.systemSettings && typeof state.systemSettings === 'object') systemSettings = { ...systemSettings, ...state.systemSettings };
+      console.log(`💾 [Local Store] Loaded persisted state from data_store.json (Users: ${users.length}, Products: ${products.length}, Deposits: ${deposits.length}, WD: ${withdrawals.length})`);
+      return true;
+    }
+  } catch (err) {
+    console.warn("⚠️ Error loading local data store:", err);
+  }
+  return false;
 }
+
+// Cloudflare D1 Individual Sync Functions
+export async function syncUserToD1(u: MLMUser) {
+  try {
+    const jsonStr = JSON.stringify(u);
+    await queryD1(
+      `INSERT INTO users (id, username, fullname, email, phone, password, role, is_active, balance, sponsor_bonus, pairing_bonus, level_bonus, ro_bonus, left_count, right_count, left_sales, right_sales, upline_id, sponsor_id, position, data_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+       username=excluded.username, fullname=excluded.fullname, email=excluded.email, phone=excluded.phone,
+       password=excluded.password, role=excluded.role, is_active=excluded.is_active, balance=excluded.balance,
+       sponsor_bonus=excluded.sponsor_bonus, pairing_bonus=excluded.pairing_bonus, level_bonus=excluded.level_bonus,
+       ro_bonus=excluded.ro_bonus, left_count=excluded.left_count, right_count=excluded.right_count,
+       left_sales=excluded.left_sales, right_sales=excluded.right_sales, upline_id=excluded.upline_id,
+       sponsor_id=excluded.sponsor_id, position=excluded.position, data_json=excluded.data_json;`,
+      [
+        u.id, u.username, u.fullname, u.email, u.phone, (u as any).password || '', u.role || 'user',
+        u.is_active ? 1 : 0, u.balance || 0, u.sponsor_bonus || 0, u.pairing_bonus || 0, u.level_bonus || 0, u.ro_bonus || 0,
+        u.left_count || 0, u.right_count || 0, u.left_sales || 0, u.right_sales || 0, u.upline_id, u.sponsor_id, u.position,
+        jsonStr, u.created_at || new Date().toISOString()
+      ]
+    );
+  } catch (e) {
+    console.warn("⚠️ D1 Sync User Error:", e);
+  }
+}
+
+export async function syncDepositToD1(d: DepositRequest) {
+  try {
+    const jsonStr = JSON.stringify(d);
+    await queryD1(
+      `INSERT INTO deposits (id, user_id, username, amount, method, status, payment_code, data_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+       user_id=excluded.user_id, username=excluded.username, amount=excluded.amount, method=excluded.method,
+       status=excluded.status, payment_code=excluded.payment_code, data_json=excluded.data_json;`,
+      [d.id, d.user_id, d.username, d.amount, d.method, d.status, d.payment_code || '', jsonStr, d.created_at || new Date().toISOString()]
+    );
+  } catch (e) {
+    console.warn("⚠️ D1 Sync Deposit Error:", e);
+  }
+}
+
+export async function syncWithdrawalToD1(w: WDRequest) {
+  try {
+    const jsonStr = JSON.stringify(w);
+    await queryD1(
+      `INSERT INTO withdrawals (id, user_id, username, amount, bank_name, account_number, account_holder, status, data_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+       user_id=excluded.user_id, username=excluded.username, amount=excluded.amount, bank_name=excluded.bank_name,
+       account_number=excluded.account_number, account_holder=excluded.account_holder, status=excluded.status, data_json=excluded.data_json;`,
+      [w.id, w.user_id, w.username, w.amount, w.bank_name, w.account_number, w.account_holder, w.status, jsonStr, w.created_at || new Date().toISOString()]
+    );
+  } catch (e) {
+    console.warn("⚠️ D1 Sync Withdrawal Error:", e);
+  }
+}
+
+export async function syncTransactionToD1(t: Transaction) {
+  try {
+    await queryD1(
+      `INSERT INTO transactions (id, user_id, username, type, amount, description, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+       user_id=excluded.user_id, username=excluded.username, type=excluded.type, amount=excluded.amount, description=excluded.description;`,
+      [t.id, t.user_id, t.username, t.type, t.amount, t.description, t.created_at || new Date().toISOString()]
+    );
+  } catch (e) {
+    console.warn("⚠️ D1 Sync Transaction Error:", e);
+  }
+}
+
+export async function syncProductToD1(p: Product) {
+  try {
+    const jsonStr = JSON.stringify(p);
+    await queryD1(
+      `INSERT INTO products (id, name, description, price, member_price, stock, image, data_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+       name=excluded.name, description=excluded.description, price=excluded.price, member_price=excluded.member_price, stock=excluded.stock, image=excluded.image, data_json=excluded.data_json;`,
+      [p.id, p.name, p.description, p.price, p.member_price, p.stock, p.image, jsonStr]
+    );
+  } catch (e) {
+    console.warn("⚠️ D1 Sync Product Error:", e);
+  }
+}
+
+export async function syncOrderToD1(o: Order) {
+  try {
+    const jsonStr = JSON.stringify(o);
+    await queryD1(
+      `INSERT INTO orders (id, invoice_no, user_id, username, product_name, amount, status, data_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+       invoice_no=excluded.invoice_no, user_id=excluded.user_id, username=excluded.username, product_name=excluded.product_name, amount=excluded.amount, status=excluded.status, data_json=excluded.data_json;`,
+      [o.id, o.invoice_no, o.user_id, o.username, o.product_name, o.amount, o.status, jsonStr, o.created_at || new Date().toISOString()]
+    );
+  } catch (e) {
+    console.warn("⚠️ D1 Sync Order Error:", e);
+  }
+}
+
+export async function syncSettingsToD1(s: any) {
+  try {
+    const jsonStr = JSON.stringify(s);
+    await queryD1(
+      `INSERT INTO store_data (key, value, updated_at) VALUES ('systemSettings', ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;`,
+      [jsonStr, new Date().toISOString()]
+    );
+  } catch (e) {
+    console.warn("⚠️ D1 Sync Settings Error:", e);
+  }
+}
+
+// Load data from Cloudflare D1 SQL database
+export async function loadFromCloudflareD1() {
+  try {
+    console.log("⚡ [Cloudflare D1] Fetching initial state from D1 Database...");
+    const resUsers = await queryD1("SELECT data_json FROM users;");
+    if (resUsers?.success && resUsers.result?.[0]?.results?.length > 0) {
+      const loadedU: MLMUser[] = resUsers.result[0].results.map((r: any) => JSON.parse(r.data_json));
+      if (loadedU.length > 0) users = loadedU;
+    }
+
+    const resProds = await queryD1("SELECT data_json FROM products;");
+    if (resProds?.success && resProds.result?.[0]?.results?.length > 0) {
+      const loadedP: Product[] = resProds.result[0].results.map((r: any) => JSON.parse(r.data_json));
+      if (loadedP.length > 0) products = loadedP;
+    }
+
+    const resDeps = await queryD1("SELECT data_json FROM deposits;");
+    if (resDeps?.success && resDeps.result?.[0]?.results?.length > 0) {
+      deposits = resDeps.result[0].results.map((r: any) => JSON.parse(r.data_json));
+    }
+
+    const resWds = await queryD1("SELECT data_json FROM withdrawals;");
+    if (resWds?.success && resWds.result?.[0]?.results?.length > 0) {
+      withdrawals = resWds.result[0].results.map((r: any) => JSON.parse(r.data_json));
+    }
+
+    const resTxs = await queryD1("SELECT id, user_id, username, type, amount, description, created_at FROM transactions;");
+    if (resTxs?.success && resTxs.result?.[0]?.results?.length > 0) {
+      transactions = resTxs.result[0].results;
+    }
+
+    const resOrders = await queryD1("SELECT data_json FROM orders;");
+    if (resOrders?.success && resOrders.result?.[0]?.results?.length > 0) {
+      orders = resOrders.result[0].results.map((r: any) => JSON.parse(r.data_json));
+    }
+
+    const resSet = await queryD1("SELECT value FROM store_data WHERE key='systemSettings';");
+    if (resSet?.success && resSet.result?.[0]?.results?.length > 0) {
+      systemSettings = { ...systemSettings, ...JSON.parse(resSet.result[0].results[0].value) };
+    }
+
+    console.log(`✅ [Cloudflare D1] Successfully loaded state from D1 Database! (Users: ${users.length}, Products: ${products.length}, Deposits: ${deposits.length}, WD: ${withdrawals.length})`);
+    saveLocalStore();
+  } catch (err) {
+    console.warn("⚠️ Error loading from Cloudflare D1:", err);
+  }
+}
+
+// ==========================================
+// UNIFIED CLOUDFLARE D1 SYNC FUNCTIONS
+// ==========================================
 
 export async function syncUserToFirestore(user: MLMUser) {
-  if (!firestoreDb) return;
-  try {
-    const cleaned = cleanForFirestore(user);
-    await withTimeout(setDoc(doc(firestoreDb, "users", String(user.id)), cleaned, { merge: true }), 8000, `syncUser @${user.username}`);
-    console.log(`🔥 [FIRESTORE] User @${user.username} (ID: ${user.id}) successfully synced to Firestore`);
-  } catch (err) {
-    console.error("Firestore sync user error:", err);
-  }
+  saveLocalStore();
+  await syncUserToD1(user).catch(() => {});
 }
 
 export async function syncDepositToFirestore(deposit: DepositRequest) {
-  if (!firestoreDb) return;
-  try {
-    const cleaned = cleanForFirestore(deposit);
-    await withTimeout(setDoc(doc(firestoreDb, "deposits", String(deposit.id)), cleaned, { merge: true }), 8000, `syncDeposit #${deposit.id}`);
-    console.log(`🔥 [FIRESTORE] Deposit #${deposit.id} synced to Firestore`);
-  } catch (err) {
-    console.error("Firestore sync deposit error:", err);
-  }
+  saveLocalStore();
+  await syncDepositToD1(deposit).catch(() => {});
 }
 
 export async function syncWithdrawalToFirestore(wd: WDRequest) {
-  if (!firestoreDb) return;
-  try {
-    const cleaned = cleanForFirestore(wd);
-    await withTimeout(setDoc(doc(firestoreDb, "withdrawals", String(wd.id)), cleaned, { merge: true }), 8000, `syncWithdrawal #${wd.id}`);
-    console.log(`🔥 [FIRESTORE] Withdrawal #${wd.id} synced to Firestore`);
-  } catch (err) {
-    console.error("Firestore sync withdrawal error:", err);
-  }
+  saveLocalStore();
+  await syncWithdrawalToD1(wd).catch(() => {});
 }
 
 export async function syncTransactionToFirestore(tx: Transaction) {
-  if (!firestoreDb) return;
-  try {
-    const cleaned = cleanForFirestore(tx);
-    await withTimeout(setDoc(doc(firestoreDb, "transactions", String(tx.id)), cleaned, { merge: true }), 8000, `syncTransaction #${tx.id}`);
-    console.log(`🔥 [FIRESTORE] Transaction #${tx.id} synced to Firestore`);
-  } catch (err) {
-    console.error("Firestore sync transaction error:", err);
-  }
+  saveLocalStore();
+  await syncTransactionToD1(tx).catch(() => {});
 }
 
 export async function syncProductToFirestore(p: Product) {
-  if (!firestoreDb) return;
-  try {
-    const cleaned = cleanForFirestore(p);
-    await withTimeout(setDoc(doc(firestoreDb, "products", String(p.id)), cleaned, { merge: true }), 8000, `syncProduct ${p.name}`);
-    console.log(`🔥 [FIRESTORE] Product "${p.name}" (ID: ${p.id}) successfully synced to Firestore`);
-  } catch (err) {
-    console.error("Firestore sync product error:", err);
-  }
+  saveLocalStore();
+  await syncProductToD1(p).catch(() => {});
 }
 
 export async function syncOrderToFirestore(order: Order) {
-  if (!firestoreDb) return;
-  try {
-    const cleaned = cleanForFirestore(order);
-    await withTimeout(setDoc(doc(firestoreDb, "orders", String(order.id)), cleaned, { merge: true }), 8000, `syncOrder #${order.id}`);
-    console.log(`🔥 [FIRESTORE] Order #${order.id} (${order.invoice_no}) synced to Firestore`);
-  } catch (err) {
-    console.error("Firestore sync order error:", err);
-  }
+  saveLocalStore();
+  await syncOrderToD1(order).catch(() => {});
 }
 
 export async function syncSettingsToFirestore(s: any) {
-  if (!firestoreDb) return;
-  try {
-    const cleaned = cleanForFirestore(s);
-    await withTimeout(setDoc(doc(firestoreDb, "settings", "system"), cleaned, { merge: true }), 8000, `syncSettings`);
-    console.log(`🔥 [FIRESTORE] System settings synced to Firestore`);
-  } catch (err) {
-    console.error("Firestore sync settings error:", err);
-  }
+  saveLocalStore();
+  await syncSettingsToD1(s).catch(() => {});
 }
 
 export async function syncNotificationToFirestore(n: MLMNotification) {
-  if (!firestoreDb) return;
-  try {
-    const cleaned = cleanForFirestore(n);
-    await withTimeout(setDoc(doc(firestoreDb, "notifications", String(n.id)), cleaned, { merge: true }), 8000, `syncNotification #${n.id}`);
-    console.log(`🔥 [FIRESTORE] Notification #${n.id} synced to Firestore`);
-  } catch (err) {
-    console.error("Firestore sync notification error:", err);
-  }
+  saveLocalStore();
 }
 
 // ==========================================
@@ -768,6 +910,227 @@ app.post(["/api/admin/settings", "/admin/settings"], async (req, res) => {
   res.json({ message: "Pengaturan sistem & bonus komisi berhasil disimpan ke Firestore", settings: systemSettings });
 });
 
+// Process Deposit (Approve / Reject) by Admin
+app.post(["/api/admin/deposit/process", "/admin/deposit/process"], async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    const { depositId, action } = req.body;
+    const depId = Number(depositId);
+    const dep = deposits.find(d => Number(d.id) === depId);
+    if (!dep) return res.status(404).json({ message: "Deposit tidak ditemukan" });
+
+    if (action === "approve" || action === "success") {
+      dep.status = "success";
+      const targetUser = users.find(u => Number(u.id) === Number(dep.user_id));
+      if (targetUser) {
+        const isActivating = !targetUser.is_active && dep.amount >= 550000;
+        if (isActivating) {
+          targetUser.is_active = true;
+          await processRegistrationBonusAndTree(targetUser);
+        } else {
+          targetUser.balance = (Number(targetUser.balance) || 0) + dep.amount;
+        }
+        await syncUserToFirestore(targetUser);
+      }
+
+      const tx: Transaction = {
+        id: Date.now(),
+        user_id: dep.user_id,
+        username: dep.username,
+        type: "deposit",
+        amount: dep.amount,
+        description: `Deposit Saldo Berhasil via ${(dep.method || 'QRIS').toUpperCase()} (+Rp ${dep.amount.toLocaleString("id-ID")})`,
+        created_at: new Date().toISOString()
+      };
+      transactions.unshift(tx);
+      await syncTransactionToFirestore(tx);
+    } else if (action === "reject" || action === "failed") {
+      dep.status = "failed";
+    }
+
+    await syncDepositToFirestore(dep);
+    res.json({ message: `Deposit berhasil di-${action === 'approve' ? 'setujui' : 'tolak'}`, deposit: dep });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal memproses deposit: " + (err?.message || err) });
+  }
+});
+
+// Process Withdrawal (Approve / Reject) by Admin
+app.post(["/api/admin/withdraw/process", "/admin/withdraw/process"], async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    const { wdId, action } = req.body;
+    const id = Number(wdId);
+    const wd = withdrawals.find(w => Number(w.id) === id);
+    if (!wd) return res.status(404).json({ message: "Penarikan tidak ditemukan" });
+
+    if (action === "approve" || action === "success") {
+      wd.status = "approved";
+      const tx: Transaction = {
+        id: Date.now(),
+        user_id: wd.user_id,
+        username: wd.username,
+        type: "withdrawal",
+        amount: wd.amount,
+        description: `Penarikan Dana (#WD-${id}) Disetujui Admin - Transfer ke Bank ${wd.bank_name}`,
+        created_at: new Date().toISOString()
+      };
+      transactions.unshift(tx);
+      await syncTransactionToFirestore(tx);
+    } else if (action === "reject" || action === "failed") {
+      wd.status = "rejected";
+      // Refund user balance
+      const targetUser = users.find(u => Number(u.id) === Number(wd.user_id));
+      if (targetUser) {
+        targetUser.balance = (Number(targetUser.balance) || 0) + wd.amount;
+        await syncUserToFirestore(targetUser);
+      }
+    }
+
+    await syncWithdrawalToFirestore(wd);
+    res.json({ message: `Penarikan berhasil di-${action === 'approve' ? 'setujui' : 'tolak'}`, withdrawal: wd });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal memproses penarikan: " + (err?.message || err) });
+  }
+});
+
+// Get All Deposits
+app.get(["/api/deposits", "/deposits"], async (req, res) => {
+  await initFirestoreDataOnce();
+  res.json(deposits);
+});
+
+// Create Deposit (With Proof Image Support)
+app.post("/api/deposits/create", async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    const depData = req.body;
+    if (!depData || !depData.user_id || !depData.amount) {
+      return res.status(400).json({ message: "Data deposit tidak valid" });
+    }
+    const newDep: DepositRequest = {
+      id: Number(depData.id) || Date.now(),
+      user_id: Number(depData.user_id),
+      username: depData.username || "",
+      amount: Number(depData.amount),
+      unique_code: depData.unique_code !== undefined ? Number(depData.unique_code) : (100 + (Number(depData.id || Date.now()) % 899)),
+      method: depData.method || "qris",
+      status: depData.status || "pending",
+      payment_code: depData.payment_code || `DEP-${Date.now()}`,
+      created_at: depData.created_at || new Date().toISOString(),
+      proof_image: depData.proof_image || undefined,
+      proof_notes: depData.proof_notes || undefined,
+      proof_submitted_at: depData.proof_submitted_at || undefined
+    };
+
+    // Replace existing or push new
+    const idx = deposits.findIndex(d => Number(d.id) === Number(newDep.id));
+    if (idx >= 0) {
+      deposits[idx] = newDep;
+    } else {
+      deposits.unshift(newDep);
+    }
+
+    await syncDepositToFirestore(newDep);
+    res.status(201).json({ message: "Pengajuan deposit berhasil!", deposit: newDep });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal membuat deposit: " + (err?.message || err) });
+  }
+});
+
+// Get All Withdrawals
+app.get(["/api/withdrawals", "/withdrawals"], async (req, res) => {
+  await initFirestoreDataOnce();
+  res.json(withdrawals);
+});
+
+// Create Withdrawal
+app.post("/api/withdrawals/create", async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    const wdData = req.body;
+    if (!wdData || !wdData.user_id || !wdData.amount) {
+      return res.status(400).json({ message: "Data penarikan tidak valid" });
+    }
+    const newWd: WDRequest = {
+      id: Number(wdData.id) || Date.now(),
+      user_id: Number(wdData.user_id),
+      username: wdData.username || "",
+      amount: Number(wdData.amount),
+      bank_name: wdData.bank_name || "",
+      account_number: wdData.account_number || "",
+      account_holder: wdData.account_holder || "",
+      status: wdData.status || "pending",
+      created_at: wdData.created_at || new Date().toISOString()
+    };
+
+    const idx = withdrawals.findIndex(w => Number(w.id) === Number(newWd.id));
+    if (idx >= 0) {
+      withdrawals[idx] = newWd;
+    } else {
+      withdrawals.unshift(newWd);
+    }
+
+    await syncWithdrawalToFirestore(newWd);
+    res.status(201).json({ message: "Pengajuan WD berhasil!", withdrawal: newWd });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal mengajukan WD: " + (err?.message || err) });
+  }
+});
+
+// Get All Transactions
+app.get(["/api/transactions", "/transactions"], async (req, res) => {
+  await initFirestoreDataOnce();
+  res.json(transactions);
+});
+
+// Get All Orders
+app.get(["/api/orders", "/orders"], async (req, res) => {
+  await initFirestoreDataOnce();
+  res.json(orders);
+});
+
+// Create Order
+app.post("/api/orders/create", async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    const ordData = req.body;
+    if (!ordData || !ordData.user_id || !ordData.amount) {
+      return res.status(400).json({ message: "Data pesanan tidak valid" });
+    }
+    const newOrd: Order = {
+      id: Number(ordData.id) || Date.now(),
+      invoice_no: ordData.invoice_no || `INV-${Date.now()}`,
+      user_id: Number(ordData.user_id),
+      username: ordData.username || "",
+      fullname: ordData.fullname || "",
+      phone: ordData.phone || "",
+      address: ordData.address || "",
+      product_name: ordData.product_name || "Produk Denim",
+      amount: Number(ordData.amount) || 0,
+      unique_code: Number(ordData.unique_code) || 0,
+      payment_method: ordData.payment_method || "Transfer Bank",
+      status: ordData.status || "DIPROSES",
+      courier: ordData.courier || "JNE REGULER",
+      tracking_number: ordData.tracking_number || "",
+      notes: ordData.notes || "",
+      created_at: ordData.created_at || new Date().toISOString()
+    };
+
+    const idx = orders.findIndex(o => Number(o.id) === Number(newOrd.id));
+    if (idx >= 0) {
+      orders[idx] = newOrd;
+    } else {
+      orders.unshift(newOrd);
+    }
+
+    await syncOrderToFirestore(newOrd);
+    res.status(201).json({ message: "Pesanan berhasil dibuat!", order: newOrd });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal membuat pesanan: " + (err?.message || err) });
+  }
+});
+
 // Get Firestore Info and Direct Console Link
 app.get("/api/firestore-info", (req, res) => {
   try {
@@ -843,6 +1206,92 @@ app.post("/api/admin/products/delete", async (req, res) => {
     }
   }
   res.json({ message: "Produk berhasil dihapus", products });
+});
+
+// Get All Users (Admin / Client sync)
+app.get(["/api/users", "/users"], async (req, res) => {
+  await initFirestoreDataOnce();
+  res.json(users);
+});
+
+// Authentication: Register Member
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    const regData = req.body;
+    if (!regData || !regData.username || !regData.fullname) {
+      return res.status(400).json({ message: "Username dan nama lengkap harus diisi" });
+    }
+
+    const normalizedUsername = String(regData.username).toLowerCase().replace(/\s+/g, "").trim();
+    if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
+      return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
+    }
+
+    let sponsorId: number = 1;
+    if (regData.sponsor_username) {
+      const sSearch = String(regData.sponsor_username).toLowerCase().trim();
+      const sponsor = users.find(u => u.username && u.username.toLowerCase().trim() === sSearch);
+      if (sponsor) sponsorId = Number(sponsor.id);
+    }
+
+    let uplineId: number = sponsorId || 1;
+    let finalPos: 'L' | 'R' = (regData.position === 'R' || regData.position === 'L') ? regData.position : "L";
+
+    if (regData.upline_username) {
+      const uSearch = String(regData.upline_username).toLowerCase().trim();
+      const uplineUser = users.find(u => u.username && u.username.toLowerCase().trim() === uSearch);
+      if (uplineUser) uplineId = Number(uplineUser.id);
+    }
+
+    const taken = users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
+    if (taken) {
+      const vacancy = findVacantSpot(uplineId, finalPos);
+      uplineId = vacancy.upline_id;
+      finalPos = vacancy.position;
+    }
+
+    const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
+    const newUser: MLMUser = {
+      id: newUserId,
+      username: normalizedUsername,
+      fullname: regData.fullname,
+      email: regData.email || "",
+      phone: regData.phone || "",
+      password: regData.password || "password123",
+      is_active: false,
+      upline_id: uplineId,
+      position: finalPos,
+      sponsor_id: sponsorId,
+      balance: 0,
+      sponsor_bonus: 0,
+      pairing_bonus: 0,
+      level_bonus: 0,
+      ro_bonus: 0,
+      left_count: 0,
+      right_count: 0,
+      left_sales: 0,
+      right_sales: 0,
+      created_at: new Date().toISOString(),
+      role: "user",
+      firebase_uid: regData.firebase_uid || "",
+      ktp: regData.ktp || "",
+      whatsapp: regData.whatsapp || regData.phone || "",
+      bank_name: regData.bank_name || "",
+      bank_account: regData.bank_account || "",
+      bank_holder: regData.bank_holder || regData.fullname || "",
+      address: regData.address || "",
+      city: regData.city || ""
+    };
+
+    users.push(newUser);
+    await syncUserToFirestore(newUser);
+    await updateAncestorCounts(uplineId, finalPos);
+
+    res.status(201).json({ message: "Registrasi member berhasil!", user: newUser });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal mendaftar: " + (err?.message || err) });
+  }
 });
 
 // Authentication: Login
@@ -1628,34 +2077,72 @@ app.post("/api/admin/deposit/process", async (req, res) => {
   try {
     const depositId = req.body.depositId || req.body.deposit_id;
     const action = req.body.action; // 'approve' | 'reject'
+    const numId = Number(depositId);
 
-    const dep = deposits.find(d => Number(d.id) === Number(depositId) || String(d.id) === String(depositId));
+    let dep = deposits.find(d => Number(d.id) === numId || String(d.id) === String(depositId));
+    
+    // Dynamic Firestore fallback lookup if deposit is not yet in server memory
+    if (!dep && firestoreDb) {
+      try {
+        const depDoc: any = await getDoc(doc(firestoreDb, "deposits", String(depositId)));
+        if (depDoc && depDoc.exists && typeof depDoc.exists === 'function' && depDoc.exists()) {
+          dep = { ...depDoc.data(), id: numId || Number(depDoc.id) } as DepositRequest;
+          deposits.push(dep);
+        }
+      } catch (e) {
+        console.warn("Firestore deposit lookup warn:", e);
+      }
+    }
+
     if (!dep) {
       return res.status(404).json({ message: "Data deposit tidak ditemukan" });
     }
 
+    const user = users.find(u => Number(u.id) === Number(dep.user_id));
+
     if (action === "approve") {
       dep.status = "success";
-      if (firestoreDb) {
-        setDoc(doc(firestoreDb, "deposits", String(dep.id)), dep, { merge: true }).catch(() => {});
-      }
+      await syncDepositToFirestore(dep);
 
-      const targetUser = users.find(u => Number(u.id) === Number(dep.user_id));
-      if (targetUser) {
-        const wasInactive = !targetUser.is_active;
-        targetUser.is_active = true;
-        await syncUserToFirestore(targetUser);
+      if (user) {
+        user.balance += dep.amount;
+        const wasInactive = !user.is_active;
+        user.is_active = true;
+        await syncUserToFirestore(user);
 
         // Update order status to DIPROSES
-        const ord = orders.find(o => Number(o.user_id) === Number(targetUser.id));
+        const ord = orders.find(o => Number(o.user_id) === Number(user.id));
         if (ord) {
           ord.status = "DIPROSES";
           await syncOrderToFirestore(ord);
         }
 
+        const newTx: Transaction = {
+          id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
+          user_id: user.id,
+          username: user.username,
+          type: "deposit",
+          amount: dep.amount,
+          description: `Deposit Manual via ${dep.method.toUpperCase()} Disetujui Admin`,
+          created_at: new Date().toISOString()
+        };
+        transactions.push(newTx);
+        await syncTransactionToFirestore(newTx);
+
+        const newNotif: MLMNotification = {
+          id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
+          user_id: user.id,
+          title: "Deposit Manual Disetujui!",
+          message: `Saldo Rp ${dep.amount.toLocaleString('id-ID')} telah ditambahkan ke akun Anda oleh admin.`,
+          type: "success",
+          created_at: new Date().toISOString()
+        };
+        notifications.push(newNotif);
+        await syncNotificationToFirestore(newNotif);
+
         // Payout Sponsor Bonus Rp 100.000 to Sponsor if user was activated
-        if (wasInactive && targetUser.sponsor_id) {
-          const sponsor = users.find(u => Number(u.id) === Number(targetUser.sponsor_id));
+        if (wasInactive && user.sponsor_id) {
+          const sponsor = users.find(u => Number(u.id) === Number(user.sponsor_id));
           if (sponsor && sponsor.is_active) {
             sponsor.balance += 100000;
             sponsor.sponsor_bonus += 100000;
@@ -1667,7 +2154,7 @@ app.post("/api/admin/deposit/process", async (req, res) => {
               username: sponsor.username,
               type: "sponsor_bonus",
               amount: 100000,
-              description: `Bonus Sponsor Aktivasi Member dari @${targetUser.username}`,
+              description: `Bonus Sponsor Aktivasi Member dari @${user.username}`,
               created_at: new Date().toISOString()
             };
             transactions.push(spTx);
@@ -1677,7 +2164,7 @@ app.post("/api/admin/deposit/process", async (req, res) => {
               id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
               user_id: sponsor.id,
               title: "Bonus Sponsor Rp 100.000!",
-              message: `Member @${targetUser.username} telah mengaktifkan akun! Bonus Sponsor Rp 100.000 telah masuk ke saldo Anda.`,
+              message: `Member @${user.username} telah mengaktifkan akun! Bonus Sponsor Rp 100.000 telah masuk ke saldo Anda.`,
               type: "success",
               created_at: new Date().toISOString()
             };
@@ -1690,9 +2177,21 @@ app.post("/api/admin/deposit/process", async (req, res) => {
       return res.json({ message: "Deposit & Aktivasi berhasil disetujui!", deposit: dep });
     } else {
       dep.status = "failed";
-      if (firestoreDb) {
-        setDoc(doc(firestoreDb, "deposits", String(dep.id)), dep, { merge: true }).catch(() => {});
+      await syncDepositToFirestore(dep);
+
+      if (user) {
+        const newNotif: MLMNotification = {
+          id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
+          user_id: user.id,
+          title: "Deposit Manual Ditolak",
+          message: `Transfer deposit Rp ${dep.amount.toLocaleString('id-ID')} ditolak oleh admin. Pastikan nominal sesuai atau hubungi admin.`,
+          type: "warning",
+          created_at: new Date().toISOString()
+        };
+        notifications.push(newNotif);
+        await syncNotificationToFirestore(newNotif);
       }
+
       return res.json({ message: "Deposit ditolak.", deposit: dep });
     }
   } catch (err: any) {
@@ -1763,72 +2262,6 @@ app.post("/api/user/:userId/reset-password", async (req, res) => {
   (user as any).password = String(newPassword);
   await syncUserToFirestore(user);
   res.json({ message: "Kata sandi berhasil direset!", user });
-});
-
-// Admin Deposit manual verification
-app.post("/api/admin/deposit/process", async (req, res) => {
-  const { depositId, action } = req.body; // action: 'approve' | 'reject'
-  const dep = deposits.find(d => d.id === Number(depositId));
-  if (!dep) return res.status(404).json({ message: "Data deposit tidak ditemukan" });
-  if (dep.status !== "pending") return res.status(400).json({ message: "Deposit sudah diproses sebelumnya" });
-
-  const user = users.find(u => u.id === dep.user_id);
-
-  if (action === "approve") {
-    dep.status = "success";
-    await syncDepositToFirestore(dep);
-    if (user) {
-      user.balance += dep.amount;
-      await syncUserToFirestore(user);
-
-      const newTx: Transaction = {
-        id: transactions.length + 1,
-        user_id: user.id,
-        username: user.username,
-        type: "deposit",
-        amount: dep.amount,
-        description: `Deposit Manual via ${dep.method.toUpperCase()} Disetujui Admin`,
-        created_at: new Date().toISOString()
-      };
-      transactions.push(newTx);
-      await syncTransactionToFirestore(newTx);
-
-      const newNotif: MLMNotification = {
-        id: notifications.length + 1,
-        user_id: user.id,
-        title: "Deposit Manual Disetujui!",
-        message: `Saldo Rp ${dep.amount.toLocaleString()} telah ditambahkan ke akun Anda oleh admin.`,
-        type: "success",
-        created_at: new Date().toISOString()
-      };
-      notifications.push(newNotif);
-      await syncNotificationToFirestore(newNotif);
-
-      // Auto-activate Free Member if deposit covers the Rp 550.000 registration fee
-      if (!user.is_active && dep.amount >= 550000) {
-        user.balance -= 550000;
-        await activateUserMLM(user.id);
-        console.log(`[Deposit Approval] Member @${user.username} successfully auto-activated to Member Premium!`);
-      }
-    }
-  } else {
-    dep.status = "failed";
-    await syncDepositToFirestore(dep);
-    if (user) {
-      const newNotif: MLMNotification = {
-        id: notifications.length + 1,
-        user_id: user.id,
-        title: "Deposit Manual Ditolak",
-        message: `Transfer deposit Rp ${dep.amount.toLocaleString()} ditolak oleh admin. Pastikan nominal sesuai atau hubungi admin.`,
-        type: "warning",
-        created_at: new Date().toISOString()
-      };
-      notifications.push(newNotif);
-      await syncNotificationToFirestore(newNotif);
-    }
-  }
-
-  res.json({ message: `Status deposit berhasil diubah menjadi: ${dep.status}`, deposit: dep, user });
 });
 
 // Add New Product
@@ -2306,42 +2739,7 @@ app.post("/api/admin/withdrawals/delete", async (req, res) => {
 
 
 
-// User Upload Proof of Payment / Transfer for Deposit
-app.post("/api/user/deposit/confirm-proof", async (req, res) => {
-  try {
-    const depositId = req.body.deposit_id || req.body.depositId;
-    const proofImage = req.body.proof_image || req.body.proofImage;
-    const proofNotes = req.body.proof_notes || req.body.proofNotes;
 
-    const dep = deposits.find(d => Number(d.id) === Number(depositId) || String(d.id) === String(depositId));
-    if (!dep) {
-      return res.status(404).json({ message: "Data deposit tidak ditemukan" });
-    }
-    dep.proof_image = proofImage;
-    dep.proof_notes = proofNotes || '';
-    dep.proof_submitted_at = new Date().toISOString();
-
-    // Also sync to matching user order
-    const ord = orders.find(o => Number(o.user_id) === Number(dep.user_id));
-    if (ord) {
-      ord.proof_image = proofImage;
-      ord.proof_notes = proofNotes || '';
-      ord.proof_submitted_at = new Date().toISOString();
-      await syncOrderToFirestore(ord);
-    }
-    
-    if (firestoreDb) {
-      try {
-        await setDoc(doc(firestoreDb, "deposits", String(dep.id)), dep, { merge: true });
-      } catch (e) {
-        console.warn("Update deposit proof firestore warn:", e);
-      }
-    }
-    res.json({ message: "Bukti transfer berhasil dikirim! Menunggu konfirmasi Admin.", deposit: dep, order: ord });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal mengirim bukti transfer: " + err.message });
-  }
-});
 
 // User Upload Proof of Payment / Transfer for Orders (RO & Member Orders)
 app.post("/api/user/orders/confirm-proof", async (req, res) => {
@@ -3770,250 +4168,14 @@ app.use("/api/*", (req, res) => {
 // MOUNT VITE MIDDLEWARE OR STATIC FILES
 // ==========================================
 
-let isFirestoreInitialized = false;
+let isD1Initialized = false;
 async function initFirestoreDataOnce() {
-  if (isFirestoreInitialized || !firestoreDb) return;
-  isFirestoreInitialized = true;
-  try {
-    await withTimeout(initFirestoreData(), 1200, "initFirestoreDataOverall");
-  } catch (err) {
-    console.warn("⚠️ Firestore init warning:", err);
-  }
+  if (isD1Initialized) return;
+  isD1Initialized = true;
+  loadLocalStore();
+  await loadFromCloudflareD1().catch(() => {});
 }
 
-async function initFirestoreData() {
-  if (!firestoreDb) return;
-  try {
-    // 1. Check adminControl for reset flags before loading users
-    let serverMembersReset = false;
-    try {
-      const ctrlDoc: any = await withTimeout(getDoc(doc(firestoreDb, "settings", "adminControl")), 3000, "getDoc adminControl");
-      if (ctrlDoc && ctrlDoc.exists && typeof ctrlDoc.exists === 'function' && ctrlDoc.exists()) {
-        serverMembersReset = ctrlDoc.data()?.membersReset === true;
-      }
-      console.log(`🔥 adminControl.membersReset = ${serverMembersReset}`);
-    } catch (e) {
-      console.warn("Firestore adminControl read warning:", e);
-    }
-
-    // 2. Users
-    try {
-      const usersSnap: any = await withTimeout(getDocs(collection(firestoreDb, "users")), 6000, "getDocs users");
-      if (usersSnap && !usersSnap.empty) {
-        const loadedUsers: MLMUser[] = [];
-        usersSnap.forEach((docSnap: any) => {
-          try {
-            const u = docSnap.data() as MLMUser;
-            const rawId = u && u.id !== undefined && u.id !== null ? u.id : docSnap.id;
-            const uId = Number(rawId);
-            if (isNaN(uId)) return;
-
-            // Load user document into memory
-            loadedUsers.push({
-              ...u,
-              id: uId,
-              username: u.username || docSnap.id || `user_${uId}`,
-              fullname: u.fullname || u.username || `User ${uId}`,
-              email: u.email || "",
-              phone: u.phone || "",
-              role: u.role || (uId === 1 ? "admin" : "user"),
-              upline_id: u.upline_id !== null && u.upline_id !== undefined ? Number(u.upline_id) : null,
-              sponsor_id: u.sponsor_id !== null && u.sponsor_id !== undefined ? Number(u.sponsor_id) : null,
-              left_count: Number(u.left_count) || 0,
-              right_count: Number(u.right_count) || 0,
-              left_sales: Number(u.left_sales) || 0,
-              right_sales: Number(u.right_sales) || 0,
-              balance: Number(u.balance) || 0,
-              sponsor_bonus: Number(u.sponsor_bonus) || 0,
-              pairing_bonus: Number(u.pairing_bonus) || 0,
-              level_bonus: Number(u.level_bonus) || 0,
-              ro_bonus: Number(u.ro_bonus) || 0,
-              position: u.position || "L"
-            });
-          } catch (e) {
-            console.warn("User parse error in Firestore sync:", e);
-          }
-        });
-        if (loadedUsers.length > 0) {
-          if (!loadedUsers.some(u => Number(u.id) === 1 || u.username === "admin")) {
-            loadedUsers.unshift({
-              id: 1,
-              username: "admin",
-              fullname: "Administrator Hedtro Jeans",
-              email: "admin@hedtrojeans.com",
-              phone: "081234567890",
-              password: "admin123",
-              is_active: true,
-              upline_id: null,
-              position: null,
-              sponsor_id: null,
-              balance: 0,
-              sponsor_bonus: 0,
-              pairing_bonus: 0,
-              level_bonus: 0,
-              ro_bonus: 0,
-              left_count: 0,
-              right_count: 0,
-              left_sales: 0,
-              right_sales: 0,
-              created_at: "2026-06-01T09:00:00Z",
-              role: "admin"
-            });
-          }
-          users = loadedUsers;
-          const hasNonAdminInLoaded = loadedUsers.some(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
-          if (hasNonAdminInLoaded && serverMembersReset) {
-            // Members exist in Firestore despite reset flag — clear the flag
-            serverMembersReset = false;
-            if (firestoreDb) {
-              setDoc(doc(firestoreDb, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
-            }
-          } else if (!hasNonAdminInLoaded && serverMembersReset) {
-            // No non-admin users and reset flag is true — clear the flag since reset already happened
-            serverMembersReset = false;
-            if (firestoreDb) {
-              setDoc(doc(firestoreDb, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
-              console.log("🧹 [Startup] Auto-cleared stale membersReset flag (Firestore has no member data)");
-            }
-          }
-          console.log(`🔥 Loaded ${loadedUsers.length} users from Firestore into memory (membersReset=${serverMembersReset})`);
-        }
-      }
-    } catch (e) {
-      console.warn("Firestore users sync error:", e);
-    }
-
-    // 2. Settings
-    try {
-      const settingsDoc: any = await withTimeout(getDoc(doc(firestoreDb, "settings", "system")), 5000, "getDoc system settings");
-      if (settingsDoc && settingsDoc.exists && typeof settingsDoc.exists === 'function' && settingsDoc.exists()) {
-        systemSettings = { ...systemSettings, ...settingsDoc.data() };
-        console.log("🔥 Loaded system settings from Firestore");
-      }
-    } catch (e) {
-      console.warn("Firestore settings load warning:", e);
-    }
-
-    // 3. Products
-    try {
-      const prodSnap: any = await withTimeout(getDocs(collection(firestoreDb, "products")), 5000, "getDocs products");
-      if (prodSnap && !prodSnap.empty) {
-        const loadedProds: Product[] = [];
-        prodSnap.forEach((docSnap: any) => {
-          const p = docSnap.data() as Product;
-          if (!p) return;
-          const rawId = p.id !== undefined && p.id !== null ? p.id : docSnap.id;
-          const pId = Number(rawId);
-          if (isNaN(pId)) return;
-          loadedProds.push({ ...p, id: pId });
-        });
-        if (loadedProds.length > 0) {
-          products = loadedProds;
-        }
-      }
-    } catch (e) {
-      console.warn("Firestore products sync error:", e);
-    }
-
-    // 4. Deposits
-    try {
-      const depSnap: any = await withTimeout(getDocs(collection(firestoreDb, "deposits")), 5000, "getDocs deposits");
-      if (depSnap && !depSnap.empty) {
-        const loadedDeps: DepositRequest[] = [];
-        depSnap.forEach((docSnap: any) => {
-          const d = docSnap.data() as DepositRequest;
-          if (!d) return;
-          const rawId = d.id !== undefined && d.id !== null ? d.id : docSnap.id;
-          const dId = Number(rawId);
-          if (isNaN(dId)) return;
-          loadedDeps.push({ ...d, id: dId });
-        });
-        deposits = loadedDeps;
-      }
-    } catch (e) {
-      console.warn("Firestore deposits sync error:", e);
-    }
-
-    // 5. Withdrawals
-    try {
-      const wdSnap: any = await withTimeout(getDocs(collection(firestoreDb, "withdrawals")), 5000, "getDocs withdrawals");
-      if (wdSnap && !wdSnap.empty) {
-        const loadedWds: WDRequest[] = [];
-        wdSnap.forEach((docSnap: any) => {
-          const w = docSnap.data() as WDRequest;
-          if (!w) return;
-          const rawId = w.id !== undefined && w.id !== null ? w.id : docSnap.id;
-          const wId = Number(rawId);
-          if (isNaN(wId)) return;
-          loadedWds.push({ ...w, id: wId });
-        });
-        withdrawals = loadedWds;
-      }
-    } catch (e) {
-      console.warn("Firestore withdrawals sync error:", e);
-    }
-
-    // 6. Transactions
-    try {
-      const txSnap: any = await withTimeout(getDocs(collection(firestoreDb, "transactions")), 5000, "getDocs transactions");
-      if (txSnap && !txSnap.empty) {
-        const loadedTxs: Transaction[] = [];
-        txSnap.forEach((docSnap: any) => {
-          const t = docSnap.data() as Transaction;
-          if (!t) return;
-          const rawId = t.id !== undefined && t.id !== null ? t.id : docSnap.id;
-          const tId = Number(rawId);
-          if (isNaN(tId)) return;
-          loadedTxs.push({ ...t, id: tId });
-        });
-        transactions = loadedTxs;
-      }
-    } catch (e) {
-      console.warn("Firestore transactions sync error:", e);
-    }
-
-    // 7. Notifications
-    try {
-      const notifSnap: any = await withTimeout(getDocs(collection(firestoreDb, "notifications")), 5000, "getDocs notifications");
-      if (notifSnap && !notifSnap.empty) {
-        const loadedNotifs: MLMNotification[] = [];
-        notifSnap.forEach((docSnap: any) => {
-          const n = docSnap.data() as MLMNotification;
-          if (!n) return;
-          const rawId = n.id !== undefined && n.id !== null ? n.id : docSnap.id;
-          const nId = Number(rawId);
-          if (isNaN(nId)) return;
-          loadedNotifs.push({ ...n, id: nId });
-        });
-        notifications = loadedNotifs;
-      }
-    } catch (e) {
-      console.warn("Firestore notifications sync error:", e);
-    }
-
-    // 8. Orders
-    try {
-      const orderSnap: any = await withTimeout(getDocs(collection(firestoreDb, "orders")), 5000, "getDocs orders");
-      if (orderSnap && !orderSnap.empty) {
-        const loadedOrders: Order[] = [];
-        orderSnap.forEach((docSnap: any) => {
-          const o = docSnap.data() as Order;
-          if (!o) return;
-          const rawId = o.id !== undefined && o.id !== null ? o.id : docSnap.id;
-          const oId = Number(rawId);
-          if (isNaN(oId)) return;
-          loadedOrders.push({ ...o, id: oId });
-        });
-        orders = loadedOrders;
-      }
-    } catch (e) {
-      console.warn("Firestore orders sync error:", e);
-    }
-
-  } catch (err) {
-    console.warn("Firestore initial data sync warning:", err);
-  }
-}
 
 async function startServer() {
   await initFirestoreDataOnce();
