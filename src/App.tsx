@@ -154,13 +154,17 @@ async function registerUserToFirestoreDirect(regData: {
     body: JSON.stringify(regData)
   });
 
+  const resText = await res.text();
+  let resJson: any = {};
+  try {
+    resJson = JSON.parse(resText);
+  } catch (e) {}
+
   if (!res.ok) {
-    const errObj = await res.json().catch(() => ({}));
-    throw new Error(errObj.message || "Gagal melakukan pendaftaran akun baru");
+    throw new Error(resJson.message || resText || `Gagal mendaftar (Status ${res.status})`);
   }
 
-  const result = await res.json();
-  const newUser: MLMUser = result.user;
+  const newUser: MLMUser = resJson.user;
 
   // Auto-create initial deposit & order for new member activation via D1 API
   try {
