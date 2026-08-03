@@ -978,34 +978,22 @@ export default function UserDashboard({
               const hasUploadedProof = Boolean(actDepItem?.proof_image);
 
               return (
-                <div className="bg-gradient-to-br from-amber-950/90 via-slate-900 to-slate-950 border border-amber-500/40 rounded-xl p-3 sm:p-4 shadow-lg text-left space-y-2.5 w-full max-w-full overflow-hidden">
-                  {/* Top Bar: Title & Member ID */}
-                  <div className="flex items-center justify-between gap-2 border-b border-amber-500/20 pb-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span className="font-extrabold text-amber-400 text-xs tracking-wide truncate">AKUN BELUM AKTIF</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-mono font-bold text-[9px] border border-amber-500/30 shrink-0">
-                      ID: {idPrefix}{String(user.id).padStart(6, '0')}
+                <div className="bg-gradient-to-br from-amber-950/90 via-slate-900 to-slate-950 border border-amber-500/40 rounded-xl p-4 shadow-lg text-center flex flex-col gap-3 w-full max-w-full overflow-hidden">
+                  {/* Line 1: Akun Belum Aktif */}
+                  <div className="flex items-center justify-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="font-extrabold text-amber-400 text-xs sm:text-sm tracking-wide">AKUN BELUM AKTIF</span>
+                  </div>
+
+                  {/* Line 2: Nominal Uang + Kode Unik */}
+                  <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-800 flex flex-col items-center justify-center">
+                    <span className="text-[10px] text-slate-400 uppercase font-extrabold mb-0.5">Total Tagihan Transfer:</span>
+                    <span className="font-mono text-emerald-400 font-black text-xl sm:text-2xl">
+                      Rp {totalActVal.toLocaleString('id-ID')}
                     </span>
                   </div>
 
-                  {/* Compact Info Row */}
-                  <div className="bg-slate-950/80 p-2.5 sm:p-3 rounded-lg border border-slate-800 space-y-1.5">
-                    <div className="flex items-center justify-between text-xs gap-2">
-                      <span className="text-[10px] text-slate-400 uppercase font-extrabold">Tagihan Aktivasi Perdana:</span>
-                      <span className="font-mono text-emerald-400 font-black text-xs sm:text-sm">
-                        Rp {totalActVal.toLocaleString('id-ID')}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1 border-t border-slate-900 gap-2">
-                      <span className="truncate">🎁 Paket: Hedtro Raw Denim 15oz</span>
-                      <span className="text-amber-300 font-bold shrink-0">+Rp {actCodeVal} Unik</span>
-                    </div>
-                  </div>
-
-                  {/* Simple Direct Modal Trigger */}
+                  {/* Line 3: Button Aktifkan */}
                   <button
                     id="btn-activate-account"
                     onClick={() => {
@@ -1030,10 +1018,10 @@ export default function UserDashboard({
                       setProofImageInput(actDep.proof_image || '');
                       setProofNotesInput(actDep.proof_notes || '');
                     }}
-                    className="w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-extrabold py-2.5 rounded-lg text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                    className="w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-extrabold py-3 rounded-lg text-xs sm:text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
                   >
                     <Camera className="w-4 h-4" />
-                    {hasUploadedProof ? 'Lihat / Upload Ulang Bukti TF' : 'Upload Bukti Transfer / Aktifkan Akun'}
+                    Aktifkan
                   </button>
                 </div>
               );
