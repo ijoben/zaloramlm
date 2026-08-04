@@ -2074,11 +2074,35 @@ export default function App() {
 
   const handleProcessWithdrawal = async (wdId: number | string, action: 'approve' | 'reject') => {
     const numId = Number(wdId);
+    const newStatus = action === 'approve' ? 'success' : 'rejected';
+
+    setAdminDashboardData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        withdrawals: prev.withdrawals.map(w => (Number(w.id) === numId || String(w.id) === String(wdId)) ? {
+          ...w,
+          status: newStatus
+        } : w)
+      };
+    });
+
+    setUserDashboardData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        withdrawals: prev.withdrawals.map(w => (Number(w.id) === numId || String(w.id) === String(wdId)) ? {
+          ...w,
+          status: newStatus
+        } : w)
+      };
+    });
+
     try {
       const res = await fetch("/api/admin/withdraw/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wdId: numId, action })
+        body: JSON.stringify({ wdId: numId || wdId, id: wdId, action })
       });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("json")) {
@@ -2091,7 +2115,6 @@ export default function App() {
 
     if (db) {
       try {
-        const newStatus = action === 'approve' ? 'approved' : 'rejected';
         await setDoc(doc(db, "withdrawals", String(wdId)), { status: newStatus }, { merge: true });
 
         if (action === 'reject') {
@@ -2121,12 +2144,16 @@ export default function App() {
     // Optimistic UI updates for instant feedback
     setAdminDashboardData(prev => {
       if (!prev) return null;
+      const matchDep = prev.deposits.find(d => Number(d.id) === numId || String(d.id) === String(depositId));
+      const targetUserId = matchDep ? Number(matchDep.user_id) : 0;
       return {
         ...prev,
         deposits: prev.deposits.map(d => (Number(d.id) === numId || String(d.id) === String(depositId)) ? {
           ...d,
           status: newStatus
-        } : d)
+        } : d),
+        users: (action === 'approve' && targetUserId > 0) ? prev.users.map(u => Number(u.id) === targetUserId ? { ...u, is_active: true } : u) : prev.users,
+        orders: (action === 'approve' && targetUserId > 0 && prev.orders) ? prev.orders.map(o => Number(o.user_id) === targetUserId ? { ...o, status: "DIPROSES" } : o) : (prev.orders || [])
       };
     });
 
@@ -2145,7 +2172,7 @@ export default function App() {
       const res = await fetch("/api/admin/deposit/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ depositId: numId, action })
+        body: JSON.stringify({ depositId: numId || depositId, id: depositId, action })
       });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("json")) {
