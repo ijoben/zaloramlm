@@ -5,27 +5,37 @@ function findVacantSpot(users: any[], rootId: number, preferredPosition?: 'L' | 
   if (!root) return { upline_id: Number(rootId) || 1, position: preferredPosition || 'L' };
 
   const pos = preferredPosition || "L";
-
   const directChild = users.find(u => Number(u.upline_id) === Number(rootId) && u.position === pos);
   if (!directChild) {
     return { upline_id: Number(rootId), position: pos };
   }
 
   let currentId = Number(directChild.id);
+  const visited = new Set<number>();
+  visited.add(Number(rootId));
+
   while (true) {
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+
     const nextChild = users.find(u => Number(u.upline_id) === Number(currentId) && u.position === pos);
     if (!nextChild) {
       return { upline_id: currentId, position: pos };
     }
     currentId = Number(nextChild.id);
   }
+  return { upline_id: Number(rootId) || 1, position: pos };
 }
 
 async function updateAncestorCountsD1(users: any[], uplineId: number, position: 'L' | 'R') {
   let currUplineId: number | null = uplineId;
   let childPos: 'L' | 'R' = position;
+  const visited = new Set<number>();
 
   while (currUplineId !== null && currUplineId !== undefined) {
+    if (visited.has(currUplineId)) break;
+    visited.add(currUplineId);
+
     const upline = users.find(u => Number(u.id) === Number(currUplineId));
     if (!upline) break;
 
@@ -42,7 +52,9 @@ async function updateAncestorCountsD1(users: any[], uplineId: number, position: 
     ).catch(() => {});
 
     childPos = upline.position === 'R' ? 'R' : 'L';
-    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+    const nextUpline = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+    if (nextUpline === currUplineId) break;
+    currUplineId = nextUpline;
   }
 }
 
@@ -52,7 +64,13 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ message: "Method Not Allowed" });
 
   try {
-    const regData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    let regData: any = {};
+    try {
+      regData = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    } catch (e) {
+      return res.status(400).json({ message: "Format data JSON pendaftaran tidak valid" });
+    }
+
     if (!regData || !regData.username || !regData.fullname) {
       return res.status(400).json({ message: "Username dan nama lengkap wajib diisi" });
     }
@@ -63,9 +81,9 @@ export default async function handler(req: any, res: any) {
     }
 
     // Fetch existing users from Cloudflare D1
-    const resUsers = await queryD1("SELECT data_json FROM users;");
+    const resUsers = await queryD1("SELECT data_json FROM users;").catch(() => null);
     const users: any[] = [];
-    if (resUsers?.success && resUsers.result?.[0]?.results) {
+    if (resUsers?.success && Array.isArray(resUsers.result?.[0]?.results)) {
       resUsers.result[0].results.forEach((row: any) => {
         try { if (row.data_json) users.push(JSON.parse(row.data_json)); } catch (e) {}
       });
@@ -98,7 +116,10 @@ export default async function handler(req: any, res: any) {
       finalPos = vacancy.position;
     }
 
-    const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
+    const validIds = users.map(u => Number(u.id)).filter(id => !isNaN(id) && isFinite(id));
+    const maxId = validIds.length > 0 ? Math.max(...validIds) : 0;
+    const newUserId = (maxId > 0 ? maxId : 0) + 1;
+
     const newUser = {
       id: newUserId,
       username: normalizedUsername,
@@ -148,19 +169,20 @@ export default async function handler(req: any, res: any) {
         0, 0, 0, 0, newUser.upline_id, newUser.sponsor_id, newUser.position,
         jsonStr, newUser.created_at
       ]
-    );
+    ).catch((err) => ({ success: false, errors: [{ message: String(err) }] }));
 
     if (!d1Result?.success) {
       console.error("D1 Insert Error:", d1Result);
-      const errMsg = d1Result?.errors?.[0]?.message || (typeof d1Result === 'object' ? JSON.stringify(d1Result) : "D1 Query Failed");
+      const errMsg = d1Result?.errors?.[0]?.message || "Gagal menyimpan data ke Cloudflare D1";
       return res.status(500).json({ message: "Gagal menyimpan data member ke Cloudflare D1: " + errMsg });
     }
 
     // Update ancestor counts in D1
-    await updateAncestorCountsD1(users, uplineId, finalPos);
+    await updateAncestorCountsD1(users, uplineId, finalPos).catch(() => {});
 
     return res.status(201).json({ message: "Registrasi member berhasil!", user: newUser });
   } catch (err: any) {
+    console.error("Unexpected register handler error:", err);
     return res.status(500).json({ message: "Gagal mendaftar: " + (err?.message || String(err)) });
   }
 }
