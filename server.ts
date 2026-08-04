@@ -2056,10 +2056,14 @@ app.post(["/api/admin/deposit/process", "/admin/deposit/process"], async (req, r
         const wasInactive = !user.is_active;
         user.is_active = true;
         
-        if (wasInactive) {
-          await processRegistrationBonusAndTree(user);
-        } else {
-          user.balance = (Number(user.balance) || 0) + dep.amount;
+        user.balance = (Number(user.balance) || 0) + dep.amount;
+        if (wasInactive && user.sponsor_id) {
+          const sponsor = users.find(u => Number(u.id) === Number(user.sponsor_id));
+          if (sponsor) {
+            sponsor.balance = (Number(sponsor.balance) || 0) + 100000;
+            sponsor.sponsor_bonus = (Number(sponsor.sponsor_bonus) || 0) + 100000;
+            await syncUserToFirestore(sponsor);
+          }
         }
         await syncUserToFirestore(user);
 
