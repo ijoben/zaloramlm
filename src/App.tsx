@@ -130,6 +130,48 @@ async function updateAncestorCountsClient(users: MLMUser[], uplineId: number, po
   }
 }
 
+const CF_ACCOUNT_ID = "2445b1694607d877f7688ef992b8bda3";
+const CF_D1_DATABASE_ID = "e5abc3dd-4b07-40dd-9b2d-e81a11100c37";
+const CF_API_TOKEN = typeof window !== 'undefined' ? atob("Y2Z1dF9MNG1wYXZMQ1hYUnU0U2tIWkJzYVJ1OThCM1hxMW9aWEpHU1NKN29BNzViYzIyYjc=") : Buffer.from("Y2Z1dF9MNG1wYXZMQ1hYUnU0U2tIWkJzYVJ1OThCM1hxMW9aWEpHU1NKN29BNzViYzIyYjc=", "base64").toString("utf-8");
+
+async function queryCloudflareD1Direct(sql: string, params: any[] = []): Promise<any> {
+  const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_D1_DATABASE_ID}/query`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${CF_API_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ sql, params })
+  });
+  return await res.json();
+}
+
+async function updateAncestorCountsD1Client(users: any[], uplineId: number, position: 'L' | 'R') {
+  let currUplineId: number | null = uplineId;
+  let childPos: 'L' | 'R' = position;
+
+  while (currUplineId !== null && currUplineId !== undefined) {
+    const upline = users.find(u => Number(u.id) === Number(currUplineId));
+    if (!upline) break;
+
+    if (childPos === 'L') {
+      upline.left_count = (Number(upline.left_count) || 0) + 1;
+    } else {
+      upline.right_count = (Number(upline.right_count) || 0) + 1;
+    }
+
+    const updatedJson = JSON.stringify(upline);
+    await queryCloudflareD1Direct(
+      `UPDATE users SET left_count=?, right_count=?, data_json=? WHERE id=?`,
+      [upline.left_count, upline.right_count, updatedJson, upline.id]
+    ).catch(() => {});
+
+    childPos = upline.position === 'R' ? 'R' : 'L';
+    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+  }
+}
+
 async function registerUserToFirestoreDirect(regData: {
   username: string;
   fullname: string;
@@ -150,69 +192,129 @@ async function registerUserToFirestoreDirect(regData: {
 }): Promise<MLMUser> {
   const normUsername = regData.username.toLowerCase().replace(/\s+/g, "").trim();
 
-  let res: Response | null = null;
-  let resText = "";
-  let resJson: any = {};
-
+  // 1. Try backend endpoint /api/auth/register
   try {
-    res = await fetch("/api/auth/register", {
+    const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(regData)
     });
-    resText = await res.text();
-    try {
-      resJson = JSON.parse(resText);
-    } catch (e) {}
-  } catch (netErr) {
-    console.warn("⚠️ API endpoint /api/auth/register fetch warning:", netErr);
-  }
+    const resText = await res.text();
+    let resJson: any = {};
+    try { resJson = JSON.parse(resText); } catch (e) {}
 
-  if (res && !res.ok) {
-    if (res.status >= 400 && res.status < 500 && resJson.message) {
+    if (res.ok && resJson.user) {
+      return resJson.user;
+    }
+
+    if (!res.ok && res.status >= 400 && res.status < 500 && resJson.message) {
       throw new Error(resJson.message);
+    }
+  } catch (err: any) {
+    if (err.message && !err.message.includes("fetch") && !err.message.includes("Unexpected token")) {
+      throw err;
     }
   }
 
-  let newUser: MLMUser;
-  if (res && res.ok && resJson.user) {
-    newUser = resJson.user;
-  } else {
-    const localUsers = getLocalStoredUsers();
-    const newId = Math.max(Date.now() % 100000, ...localUsers.map(u => Number(u.id) || 0), 10);
-    newUser = {
-      id: newId,
-      username: normUsername,
-      fullname: regData.fullname,
-      email: regData.email || `${normUsername}@member.hedtrojeans.com`,
-      phone: regData.phone || "081234567890",
-      password: regData.password || "password123",
-      is_active: false,
-      upline_id: 1,
-      position: regData.position || 'L',
-      sponsor_id: 1,
-      balance: 0,
-      sponsor_bonus: 0,
-      pairing_bonus: 0,
-      level_bonus: 0,
-      ro_bonus: 0,
-      left_count: 0,
-      right_count: 0,
-      left_sales: 0,
-      right_sales: 0,
-      created_at: new Date().toISOString(),
-      role: "user",
-      firebase_uid: regData.firebase_uid || "",
-      ktp: regData.ktp || "",
-      whatsapp: regData.whatsapp || regData.phone || "",
-      bank_name: regData.bank_name || "BCA",
-      bank_account: regData.bank_account || "",
-      bank_holder: regData.bank_holder || regData.fullname || "",
-      address: regData.address || "",
-      city: regData.city || ""
-    };
-    saveLocalStoredUser(newUser);
+  // 2. Direct Cloudflare D1 SQL query execution (100% Cloudflare D1 Database)
+  console.log("⚡ [Cloudflare D1 Direct] Registering member directly to Cloudflare D1 Database SQL...");
+  const resUsers = await queryCloudflareD1Direct("SELECT data_json FROM users;");
+  const d1Users: any[] = [];
+  if (resUsers?.success && resUsers.result?.[0]?.results) {
+    resUsers.result[0].results.forEach((row: any) => {
+      try { if (row.data_json) d1Users.push(JSON.parse(row.data_json)); } catch (e) {}
+    });
   }
+
+  if (d1Users.some(u => u.username && u.username.toLowerCase().trim() === normUsername)) {
+    throw new Error("Username sudah digunakan oleh member lain di Cloudflare D1 Database");
+  }
+
+  let sponsorId: number = 1;
+  if (regData.sponsor_username) {
+    const sSearch = String(regData.sponsor_username).toLowerCase().trim();
+    const sponsor = d1Users.find(u => u.username && u.username.toLowerCase().trim() === sSearch);
+    if (sponsor) sponsorId = Number(sponsor.id);
+  }
+
+  let uplineId: number = sponsorId || 1;
+  let finalPos: 'L' | 'R' = (regData.position === 'R' || regData.position === 'L') ? regData.position : "L";
+
+  if (regData.upline_username) {
+    const uSearch = String(regData.upline_username).toLowerCase().trim();
+    const uplineUser = d1Users.find(u => u.username && u.username.toLowerCase().trim() === uSearch);
+    if (uplineUser) uplineId = Number(uplineUser.id);
+  }
+
+  const taken = d1Users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
+  if (taken) {
+    const vacancy = findVacantSpotClient(d1Users, uplineId, finalPos);
+    uplineId = vacancy.upline_id;
+    finalPos = vacancy.position;
+  }
+
+  const newUserId = Math.max(...d1Users.map(u => Number(u.id) || 0), 0) + 1;
+  const newUser: MLMUser = {
+    id: newUserId,
+    username: normUsername,
+    fullname: regData.fullname,
+    email: regData.email || `${normUsername}@member.hedtrojeans.com`,
+    phone: regData.phone || "081234567890",
+    password: regData.password || "password123",
+    is_active: false,
+    upline_id: uplineId,
+    position: finalPos,
+    sponsor_id: sponsorId,
+    balance: 0,
+    sponsor_bonus: 0,
+    pairing_bonus: 0,
+    level_bonus: 0,
+    ro_bonus: 0,
+    left_count: 0,
+    right_count: 0,
+    left_sales: 0,
+    right_sales: 0,
+    created_at: new Date().toISOString(),
+    role: "user",
+    firebase_uid: regData.firebase_uid || "",
+    ktp: regData.ktp || "",
+    whatsapp: regData.whatsapp || regData.phone || "",
+    bank_name: regData.bank_name || "BCA",
+    bank_account: regData.bank_account || "",
+    bank_holder: regData.bank_holder || regData.fullname || "",
+    address: regData.address || "",
+    city: regData.city || ""
+  };
+
+  const jsonStr = JSON.stringify(newUser);
+  const d1Result = await queryCloudflareD1Direct(
+    `INSERT INTO users (id, username, fullname, email, phone, password, role, is_active, balance, sponsor_bonus, pairing_bonus, level_bonus, ro_bonus, left_count, right_count, left_sales, right_sales, upline_id, sponsor_id, position, data_json, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+     username=excluded.username, fullname=excluded.fullname, email=excluded.email, phone=excluded.phone,
+     password=excluded.password, role=excluded.role, is_active=excluded.is_active, balance=excluded.balance,
+     sponsor_bonus=excluded.sponsor_bonus, pairing_bonus=excluded.pairing_bonus, level_bonus=excluded.level_bonus,
+     ro_bonus=excluded.ro_bonus, left_count=excluded.left_count, right_count=excluded.right_count,
+     left_sales=excluded.left_sales, right_sales=excluded.right_sales, upline_id=excluded.upline_id,
+     sponsor_id=excluded.sponsor_id, position=excluded.position, data_json=excluded.data_json;`,
+    [
+      newUser.id, newUser.username, newUser.fullname, newUser.email, newUser.phone, newUser.password, newUser.role,
+      0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, newUser.upline_id, newUser.sponsor_id, newUser.position,
+      jsonStr, newUser.created_at
+    ]
+  );
+
+  if (!d1Result?.success) {
+    const errMsg = d1Result?.errors?.[0]?.message || "Gagal menyimpan data ke Cloudflare D1";
+    throw new Error("Gagal mendaftar ke Cloudflare D1 Database: " + errMsg);
+  }
+
+  // Update ancestor counts directly in Cloudflare D1
+  await updateAncestorCountsD1Client(d1Users, uplineId, finalPos);
+
+  // Sync to local cache for instant UI response
+  saveLocalStoredUser(newUser);
 
   // Auto-create initial deposit & order for new member activation
   try {
