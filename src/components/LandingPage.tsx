@@ -4,7 +4,7 @@ import { DEFAULT_PRODUCTS } from "../data/defaultProducts";
 import { 
   ShoppingBag, Heart, Search, Truck, ChevronLeft, ChevronRight, ChevronDown, HelpCircle,
   X, Check, Menu, Filter, ArrowRight, User, ShieldCheck, Sparkles,
-  Tag, Clock, MapPin, Eye, RefreshCw, Star, Package, LayoutGrid, List, FileText
+  Tag, Clock, MapPin, Eye, RefreshCw, Star, Package, LayoutGrid, List, FileText, Workflow
 } from "lucide-react";
 import WorkflowModal from "./WorkflowModal";
 
@@ -12,7 +12,6 @@ interface LandingPageProps {
   products: Product[];
   orders?: Order[];
   onLoginClick: () => void;
-  onAdminLoginClick?: () => void;
   onRegisterClick: (sponsorUsername?: string) => void;
   isLoggedIn: boolean;
   onDashboardClick: () => void;
@@ -31,7 +30,6 @@ export default function LandingPage({
   products,
   orders = [],
   onLoginClick,
-  onAdminLoginClick,
   onRegisterClick,
   isLoggedIn,
   onDashboardClick,
@@ -57,24 +55,7 @@ export default function LandingPage({
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all"); // 'all' | 'pria' | 'wanita' | 'aksesoris' | 'diskon'
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [wishlist, setWishlist] = useState<number[]>(() => {
-    try {
-      const saved = localStorage.getItem("hedtro_wishlist");
-      if (saved) return JSON.parse(saved);
-      return [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Persist Wishlist to LocalStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem("hedtro_wishlist", JSON.stringify(wishlist));
-    } catch (err) {
-      console.error(err);
-    }
-  }, [wishlist]);
+  const [wishlist, setWishlist] = useState<number[]>([]);
   
   // Ref for product carousel horizontal scrolling
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -1525,7 +1506,7 @@ export default function LandingPage({
 
           <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-neutral-500 font-mono gap-4">
             <p>© 2026 {webName}. Hak Cipta Dilindungi Undang-Undang.</p>
-            <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-center">
+            <div className="flex items-center gap-4">
               <span>BCA</span>
               <span>MANDIRI</span>
               <span>QRIS</span>

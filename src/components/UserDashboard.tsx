@@ -79,21 +79,11 @@ export default function UserDashboard({
       if (cleanHash && validTabs.includes(cleanHash)) {
         return cleanHash as any;
       }
-      const saved = localStorage.getItem('user_active_tab');
-      if (saved && validTabs.includes(saved)) {
-        return saved as any;
-      }
     } catch {}
     return 'overview';
   };
 
   const getInitialFinanceSubTab = (): 'deposit' | 'withdraw' | 'history' => {
-    try {
-      const saved = localStorage.getItem('user_finance_sub_tab');
-      if (saved && ['deposit', 'withdraw', 'history'].includes(saved)) {
-        return saved as any;
-      }
-    } catch {}
     return 'deposit';
   };
 
@@ -101,7 +91,6 @@ export default function UserDashboard({
 
   React.useEffect(() => {
     try {
-      localStorage.setItem('user_active_tab', activeTab);
       if (window.location.hash !== `#${activeTab}`) {
         window.location.hash = activeTab;
       }
@@ -135,12 +124,6 @@ export default function UserDashboard({
   const [shopGridView, setShopGridView] = useState<'1col' | '2col'>('2col');
   const [financeSubTab, setFinanceSubTab] = useState<'deposit' | 'withdraw' | 'history'>(getInitialFinanceSubTab);
 
-  React.useEffect(() => {
-    try {
-      localStorage.setItem('user_finance_sub_tab', financeSubTab);
-    } catch {}
-  }, [financeSubTab]);
-
   const scrollCardsLeft = () => {
     if (overviewCardsRef.current) {
       overviewCardsRef.current.scrollBy({ left: -300, behavior: 'smooth' });
@@ -165,9 +148,6 @@ export default function UserDashboard({
   const [selectedDetailProduct, setSelectedDetailProduct] = useState<Product | null>(null);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [isActivationModalOpen, setIsActivationModalOpen] = useState(false);
-  const [actProofImage, setActProofImage] = useState('');
-  const [actProofNotes, setActProofNotes] = useState('');
-  const [isUploadingActProof, setIsUploadingActProof] = useState(false);
   const [wdBank, setWdBank] = useState('BCA');
   const [wdAccount, setWdAccount] = useState('');
   const [wdHolder, setWdHolder] = useState(user.fullname);
@@ -291,7 +271,7 @@ export default function UserDashboard({
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 500;
+          const MAX_WIDTH = 900;
           let width = img.width;
           let height = img.height;
 
@@ -305,7 +285,7 @@ export default function UserDashboard({
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.55));
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
           } else {
             resolve((e.target?.result as string) || '');
           }
@@ -658,7 +638,7 @@ export default function UserDashboard({
             </div>
             <div className="text-right">
               <p className="text-xs font-bold text-neutral-100">{user.fullname}</p>
-              <p className="text-[10px] text-neutral-400 font-mono">ID: {idPrefix}{String(user.id).padStart(6, '0')} • {user.username.replace(/^@/, '')} • {user.is_active ? 'Member Premium (Verified)' : 'Free Member (Belum Aktif)'}</p>
+              <p className="text-[10px] text-neutral-400 font-mono">ID: {idPrefix}{String(user.id).padStart(6, '0')} • {user.username.replace(/^@/, '')} • {user.is_active ? 'Member Premium' : 'Inactive'}</p>
             </div>
           </div>
           <button 
@@ -733,16 +713,12 @@ export default function UserDashboard({
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                         : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                     }`}>
-                      {user.is_active ? 'MEMBER PREMIUM' : 'FREE MEMBER'}
+                      {user.is_active ? 'PREMIUM' : 'FREE'}
                     </span>
-                    {user.is_active ? (
-                      <span className="text-[9px] font-extrabold text-emerald-400 flex items-center gap-0.5">
+                    {user.is_active && (
+                      <span className="text-[9px] font-extrabold text-blue-400 flex items-center gap-0.5">
                         <span>Verified</span>
-                        <CheckCircle className="w-3 h-3 text-emerald-400 fill-emerald-500/30" />
-                      </span>
-                    ) : (
-                      <span className="text-[9px] font-extrabold text-amber-400 flex items-center gap-0.5">
-                        <span>Belum Bayar (Free)</span>
+                        <CheckCircle className="w-3 h-3 text-blue-400 fill-blue-500/30" />
                       </span>
                     )}
                   </div>
@@ -822,7 +798,7 @@ export default function UserDashboard({
                   }`}
                 >
                   <span className="flex items-center gap-2.5 text-left">
-                    <Truck className="w-4 h-4 shrink-0 text-blue-400" /> Data Pembelian Produk RO
+                    <Truck className="w-4 h-4 shrink-0 text-blue-400" /> Pengiriman & Resi Saya
                   </span>
                   {orders && orders.filter(o => o.username === user.username || o.phone === user.phone).length > 0 && (
                     <span className="text-[9px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-bold shrink-0">
@@ -971,62 +947,27 @@ export default function UserDashboard({
                   </span>
                 </div>
               </div>
-            ) : (() => {
-              const actDepItem = deposits.find(d => Number(d.amount) === 550000 && d.status === 'pending') || deposits.find(d => Number(d.amount) === 550000) || deposits[0];
-              const actCodeVal = actDepItem?.unique_code || activationUniqueCode || 123;
-              const totalActVal = 550000 + actCodeVal;
-              const hasUploadedProof = Boolean(actDepItem?.proof_image);
-
-              return (
-                <div className="bg-gradient-to-br from-amber-950/90 via-slate-900 to-slate-950 border border-amber-500/40 rounded-xl p-4 shadow-lg text-center flex flex-col gap-3 w-full max-w-full overflow-hidden">
-                  {/* Line 1: Akun Belum Aktif */}
-                  <div className="flex items-center justify-center gap-1.5">
-                    <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span className="font-extrabold text-amber-400 text-xs sm:text-sm tracking-wide">AKUN BELUM AKTIF</span>
-                  </div>
-
-                  {/* Line 2: Nominal Uang + Kode Unik */}
-                  <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-800 flex flex-col items-center justify-center">
-                    <span className="text-[10px] text-slate-400 uppercase font-extrabold mb-0.5">Total Tagihan Transfer:</span>
-                    <span className="font-mono text-emerald-400 font-black text-xl sm:text-2xl">
-                      Rp {totalActVal.toLocaleString('id-ID')}
+            ) : (
+              <div className="bg-amber-950/60 border border-amber-800/80 text-amber-200 rounded-xl p-3.5 flex flex-col gap-2.5">
+                <div className="flex items-start gap-2">
+                  <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs leading-normal font-medium">
+                    <span className="font-black text-amber-400 text-base tracking-wide">FREE</span>
+                    <span className="inline-block my-1 px-2 py-0.5 rounded bg-amber-900/80 text-amber-300 font-mono font-bold text-[10px] border border-amber-700/50">
+                      ID MEMBER: {idPrefix}{String(user.id).padStart(6, '0')}
                     </span>
+                    <p className="text-[11px] text-amber-300/90 mt-0.5">Wajib aktivasi Rp 550.000 untuk bonus komisi & belanja.</p>
                   </div>
-
-                  {/* Line 3: Button Aktifkan */}
-                  <button
-                    id="btn-activate-account"
-                    onClick={() => {
-                      let actDep = deposits.find(d => Number(d.amount) === 550000 && d.status === 'pending') || deposits.find(d => Number(d.amount) === 550000) || deposits[0];
-                      if (!actDep) {
-                        actDep = {
-                          id: Date.now(),
-                          user_id: Number(user.id),
-                          username: user.username,
-                          amount: 550000,
-                          unique_code: actCodeVal,
-                          method: "transfer_bank",
-                          status: "pending",
-                          payment_code: `ACT-${user.id}`,
-                          created_at: new Date().toISOString()
-                        };
-                      }
-                      setSelectedProofDeposit(actDep);
-                      setProofImageInput(actDep.proof_image || '');
-                      setProofNotesInput(actDep.proof_notes || '');
-                    }}
-                    className={`w-full font-extrabold py-3 rounded-lg text-xs sm:text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider ${
-                      hasUploadedProof
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                        : 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white'
-                    }`}
-                  >
-                    <Camera className="w-4 h-4" />
-                    {hasUploadedProof ? '📸 Bukti TF Terkirim (Lihat / Ubah)' : 'Aktifkan (Kirim Bukti TF)'}
-                  </button>
                 </div>
-              );
-            })()}
+                <button
+                  id="btn-activate-account"
+                  onClick={() => setIsActivationModalOpen(true)}
+                  className="w-full text-xs font-bold py-2.5 rounded-xl transition text-center shadow-sm bg-amber-600 hover:bg-amber-500 text-white cursor-pointer"
+                >
+                  ⚡ Aktifkan Akun / Transfer Bank (Rp 550.000)
+                </button>
+              </div>
+            )}
 
             {/* Referral Link */}
             <div className="space-y-1.5 pt-3 border-t border-slate-800">
@@ -1098,7 +1039,7 @@ export default function UserDashboard({
               }`}
             >
               <Truck className="w-4 h-4 shrink-0 text-blue-400" />
-              <span className="flex-1 text-left">Data Pembelian Produk RO</span>
+              <span className="flex-1 text-left">Pengiriman & Resi Saya</span>
               {orders && orders.filter(o => o.username === user.username || o.phone === user.phone).length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'orders' ? 'bg-blue-500/20 text-white' : 'bg-slate-800 text-slate-300'}`}>
                   {orders.filter(o => o.username === user.username || o.phone === user.phone).length}
@@ -1258,7 +1199,7 @@ export default function UserDashboard({
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
                             : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                         }`}>
-                          {user.is_active ? '● MEMBER PREMIUM (VERIFIED)' : '○ FREE MEMBER (BELUM BAYAR)'}
+                          {user.is_active ? '● PREMIUM' : '○ FREE'}
                         </span>
                       </div>
 
@@ -2203,15 +2144,15 @@ export default function UserDashboard({
             </div>
           )}
 
-          {/* TAB: DATA PEMBELIAN PRODUK RO & STATUS PENGIRIMAN */}
+          {/* TAB: STATUS PENGIRIMAN & RESI SAYA (FAQ ACCORDION STYLE) */}
           {activeTab === 'orders' && (
             <div className="space-y-6 text-left" id="user-orders-tab-content">
               <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
                 <div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 mb-1 flex items-center gap-2 text-left">
-                    <Truck className="text-blue-600 w-5 h-5 shrink-0" /> Data Pembelian & Status Pengiriman Produk RO
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-1 flex items-center gap-2 text-left">
+                    <Truck className="text-blue-600 w-5 h-5 shrink-0" /> Status Pengiriman & Nomor Resi Pesanan Saya
                   </h3>
-                  <p className="text-xs text-slate-500 text-left">Lacak seluruh riwayat invoice pembelian produk RO Anda, upload bukti transfer bank, ekspedisi pengiriman, hingga nomor resi paket Anda.</p>
+                  <p className="text-xs text-slate-500 text-left">Klik pada baris pesanan di bawah untuk membuka/menutup detail resi dan histori pengiriman paket.</p>
                 </div>
               </div>
 
@@ -2459,17 +2400,17 @@ export default function UserDashboard({
                                             </span>
                                             {ord.proof_notes && <p className="text-[10px] text-slate-600 font-mono mt-0.5">{ord.proof_notes}</p>}
                                             <span className="text-[9px] text-slate-400">
-                                              Waktu: {ord.proof_submitted_at ? new Date(ord.proof_submitted_at).toLocaleString('id-ID') : 'Menunggu Verifikasi'}
+                                              Waktu: {ord.proof_submitted_at ? new Date(ord.proof_submitted_at).toLocaleString('id-ID') : 'Menunggu Verifikasi Admin'}
                                             </span>
                                           </div>
                                         </div>
                                         <span className="text-[10px] bg-amber-100 text-amber-800 font-black px-2.5 py-1 rounded-full border border-amber-200 shrink-0">
-                                          Sedang Diverifikasi
+                                          Sedang Diverifikasi Admin
                                         </span>
                                       </div>
                                     ) : (
                                       <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                                        <span>Jika Anda memilih pembayaran Transfer Bank, silakan unggah foto / struk bukti transfer agar sistem memproses pengiriman paket Anda.</span>
+                                        <span>Jika Anda memilih pembayaran Transfer Bank, silakan unggah foto / struk bukti transfer agar Admin memproses pengiriman paket Anda.</span>
                                       </div>
                                     )}
                                   </div>
@@ -2658,11 +2599,11 @@ export default function UserDashboard({
                           id="dep-method-manual"
                           onClick={() => setDepMethod('transfer_bank')}
                           className={`py-3 px-2 border rounded-xl text-center text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
-                            depMethod === 'transfer_bank' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                            depMethod === 'transfer_bank' || depMethod === 'manual' ? 'border-blue-500 bg-blue-50/50 text-blue-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                           }`}
                         >
                           <span className="font-extrabold block text-slate-800">BANK DIRECT</span>
-                          <span className="text-[8px] text-amber-700 font-extrabold">Transfer Manual Bank Official</span>
+                          <span className="text-[8px] text-amber-700 font-extrabold">Transfer Manual Bank Admin</span>
                         </button>
                       </div>
                     </div>
@@ -2675,7 +2616,7 @@ export default function UserDashboard({
                         </div>
                         <div className="flex justify-between items-center text-amber-800">
                           <span className="font-bold flex items-center gap-1">
-                            🔑 Kode Unik Verifikasi:
+                            🔑 Kode Unik Verifikasi Admin:
                           </span>
                           <span className="font-mono font-black bg-amber-200/80 px-2 py-0.5 rounded text-amber-950 border border-amber-300">
                             +Rp {depUniqueCode} (3 Angka)
@@ -2688,7 +2629,7 @@ export default function UserDashboard({
                           </span>
                         </div>
                         <p className="text-[10px] text-amber-800 italic mt-0.5">
-                          📌 3 Digit Kode Unik ditambahkan otomatis di belakang nominal transfer agar transaksi Anda langsung terdeteksi & diverifikasi otomatis.
+                          📌 3 Digit Kode Unik ditambahkan otomatis di belakang nominal transfer agar transaksi Anda langsung terdeteksi & diverifikasi cepat oleh Admin.
                         </p>
                       </div>
                     )}
@@ -2772,7 +2713,7 @@ export default function UserDashboard({
                                         <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                                         <div>
                                           <p className="font-extrabold text-[11px]">Bukti Transfer Terkirim</p>
-                                          <p className="text-[10px] text-emerald-700">Menunggu Verifikasi & Persetujuan</p>
+                                          <p className="text-[10px] text-emerald-700">Menunggu Verifikasi & Approval Admin</p>
                                         </div>
                                       </div>
                                       <button
@@ -3091,9 +3032,9 @@ export default function UserDashboard({
                           <div className="flex items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-0 border-slate-200/60 shrink-0">
                             <span className="text-[10px] text-slate-400 font-bold sm:hidden">Status Member:</span>
                             <span className={`px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wide ${
-                              ref.is_active ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                              ref.is_active ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
                             }`}>
-                              {ref.is_active ? '● Premium (Verified)' : '○ Free Member (Belum Bayar)'}
+                              {ref.is_active ? '● Premium Aktif' : '○ Tidak Aktif'}
                             </span>
                           </div>
                         </div>
@@ -3217,7 +3158,7 @@ export default function UserDashboard({
                     <Award className="w-6 h-6 text-slate-400 shrink-0" />
                     <div>
                       <p className="font-extrabold text-slate-800">Skema Target Reward Jaringan (Non-Aktif)</p>
-                      <p className="text-[11px] text-slate-500">Sistem sedang memperbarui skema pencapaian target reward jaringan.</p>
+                      <p className="text-[11px] text-slate-500">Admin sedang menonaktifkan sementara skema pencapaian target reward jaringan.</p>
                     </div>
                   </div>
                   <span className="bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shrink-0">NON-AKTIF</span>
@@ -3488,7 +3429,7 @@ export default function UserDashboard({
                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
                           : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                       }`}>
-                        {user.is_active ? '● MEMBER PREMIUM (VERIFIED)' : '○ FREE MEMBER (BELUM BAYAR)'}
+                        {user.is_active ? '● PREMIUM' : '○ FREE'}
                       </span>
                       {user.is_active && (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/30 flex items-center gap-1">
@@ -4070,7 +4011,7 @@ export default function UserDashboard({
                       <div className="flex-1 min-w-0">
                         <span className="font-extrabold text-[11px] sm:text-xs text-slate-900 block">🏦 Transfer Bank / QRIS Direct</span>
                         <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
-                          BCA / Mandiri / BRI / QRIS. Pesanan otomatis terkonfirmasi.
+                          BCA / Mandiri / BRI / QRIS. Pesanan otomatis ke Admin Area.
                         </p>
                       </div>
                     </label>
@@ -4081,7 +4022,7 @@ export default function UserDashboard({
                 {purchasePaymentMethod === 'transfer' && (
                   <div className="bg-slate-900 text-white rounded-xl p-3 text-xs space-y-2">
                     <span className="text-[9px] font-extrabold uppercase text-amber-400 tracking-wider block">
-                      🏦 REKENING TUJUAN TRANSFER OFFICIAL & KODE UNIK
+                      🏦 REKENING TUJUAN TRANSFER ADMIN & KODE UNIK
                     </span>
                     
                     <div className="bg-slate-950 p-2.5 rounded-lg border border-amber-500/40 space-y-1 text-[11px]">
@@ -4108,18 +4049,18 @@ export default function UserDashboard({
                         <>
                           <div className="flex justify-between border-b border-slate-800 pb-1">
                             <span className="text-slate-400 font-sans">{settings.companyBankName}:</span>
-                            <span className="font-extrabold text-white">{settings.companyBankAccount} ({settings.companyBankHolder || 'OFFICIAL'})</span>
+                            <span className="font-extrabold text-white">{settings.companyBankAccount} ({settings.companyBankHolder || 'Admin'})</span>
                           </div>
                           {settings.companyBank2Name && (
                             <div className="flex justify-between border-b border-slate-800 pb-1">
                               <span className="text-slate-400 font-sans">{settings.companyBank2Name}:</span>
-                              <span className="font-extrabold text-white">{settings.companyBank2Account} ({settings.companyBank2Holder || 'OFFICIAL'})</span>
+                              <span className="font-extrabold text-white">{settings.companyBank2Account} ({settings.companyBank2Holder || 'Admin'})</span>
                             </div>
                           )}
                           {settings.companyBank3Name && (
                             <div className="flex justify-between border-b border-slate-800 pb-1">
                               <span className="text-slate-400 font-sans">{settings.companyBank3Name}:</span>
-                              <span className="font-extrabold text-white">{settings.companyBank3Account} ({settings.companyBank3Holder || 'OFFICIAL'})</span>
+                              <span className="font-extrabold text-white">{settings.companyBank3Account} ({settings.companyBank3Holder || 'Admin'})</span>
                             </div>
                           )}
                         </>
@@ -4399,77 +4340,7 @@ export default function UserDashboard({
                     </div>
                   </div>
 
-                  {/* Form Upload Bukti Transfer */}
-                  <div className="bg-slate-950 p-3.5 rounded-xl border border-amber-500/40 space-y-3 font-sans">
-                    <div className="text-xs font-extrabold text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
-                      <Camera className="w-4 h-4 text-amber-400" /> UPLOAD STRUK / BUKTI TRANSFER:
-                    </div>
-                    <p className="text-[10px] text-slate-400">
-                      Upload foto / screenshot bukti transfer bank Anda untuk langsung dikirim ke Admin untuk verifikasi & approval.
-                    </p>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          try {
-                            const compressed = await compressImageFile(file);
-                            setActProofImage(compressed);
-                          } catch (err) {
-                            console.warn("Compression error:", err);
-                          }
-                        }
-                      }}
-                      className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-amber-600 file:text-white hover:file:bg-amber-500 cursor-pointer"
-                    />
-                    {actProofImage && (
-                      <div className="mt-2 relative rounded-xl overflow-hidden border border-slate-800 max-h-40 bg-slate-900 flex items-center justify-center p-2">
-                        <img src={actProofImage} alt="Bukti Transfer Preview" className="max-h-36 object-contain rounded-lg" />
-                      </div>
-                    )}
-                    <input
-                      type="text"
-                      placeholder="Catatan Transfer (opsional, contoh: TF M-BCA a.n Budi)"
-                      value={actProofNotes}
-                      onChange={(e) => setActProofNotes(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                    />
-                    <button
-                      type="button"
-                      disabled={isUploadingActProof || !actProofImage}
-                      onClick={async () => {
-                        if (!actProofImage) {
-                          alert("Silakan pilih file foto / screenshot bukti transfer terlebih dahulu!");
-                          return;
-                        }
-                        setIsUploadingActProof(true);
-                        try {
-                          let actDepItem = deposits.find(d => Number(d.amount) === 550000 && d.status === 'pending');
-                          if (!actDepItem && onDeposit) {
-                            await onDeposit(550000, "transfer_bank", activationUniqueCode);
-                          }
-                          const depToUse = actDepItem || deposits.find(d => Number(d.amount) === 550000) || deposits[0];
-                          if (depToUse && onConfirmDepositProof) {
-                            await onConfirmDepositProof(depToUse.id, actProofImage, actProofNotes);
-                          }
-                          alert("Bukti transfer berhasil dikirim ke Admin! Mohon tunggu konfirmasi approval.");
-                          setIsActivationModalOpen(false);
-                          setActProofImage('');
-                          setActProofNotes('');
-                        } catch (err: any) {
-                          alert("Gagal mengirim bukti transfer: " + (err.message || err));
-                        } finally {
-                          setIsUploadingActProof(false);
-                        }
-                      }}
-                      className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      <Camera className="w-4 h-4" /> {isUploadingActProof ? 'Mengirim Bukti Transfer...' : 'Kirim Bukti Transfer ke Admin'}
-                    </button>
-                  </div>
-
-                  <div className="pt-1 flex flex-col gap-2">
+                  <div className="pt-2 flex flex-col gap-2">
                     <button
                       onClick={async () => {
                         setDepAmount("550000");
@@ -4482,9 +4353,9 @@ export default function UserDashboard({
                         const waMsg = encodeURIComponent(`Halo Admin Hedtro Jeans, saya member @${user.username} (Nama: ${user.fullname}) telah melakukan Transfer Bank sebesar Rp ${totalAct.toLocaleString('id-ID')} (Nominal Rp 550.000 + Kode Unik ${activationUniqueCode}) untuk Aktivasi Member Premium. Mohon validasi akun saya.`);
                         window.open(`https://wa.me/6281234567890?text=${waMsg}`, '_blank');
                       }}
-                      className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3 rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <Send className="w-3.5 h-3.5" /> Atau Konfirmasi via WhatsApp Admin
+                      <Send className="w-4 h-4" /> Kirim Tagihan & Konfirmasi WA Admin
                     </button>
                   </div>
                 </div>
@@ -4687,7 +4558,7 @@ export default function UserDashboard({
                     if (onConfirmOrderProof) {
                       await onConfirmOrderProof(selectedProofOrder.id, proofImageInput, proofNotesInput);
                     }
-                    alert("Bukti transfer pesanan RO berhasil dikirim! Tim Customer Service kami akan memverifikasi dan memproses pesanan Anda.");
+                    alert("Bukti transfer pesanan RO berhasil dikirim! Tim Admin akan memverifikasi dan memproses pesanan Anda.");
                     setSelectedProofOrder(null);
                     if (onRefresh) onRefresh();
                   } catch (err: any) {

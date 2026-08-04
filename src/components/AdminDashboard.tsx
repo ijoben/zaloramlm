@@ -61,7 +61,6 @@ interface AdminDashboardProps {
   onRefreshProducts?: () => void;
   onResetCategory?: (category: 'members' | 'web_settings' | 'mlm_network' | 'sales') => Promise<boolean>;
   onRestoreCategory?: (category: 'members' | 'web_settings' | 'mlm_network' | 'sales', data: any) => Promise<boolean>;
-  onClearMembersReset?: () => Promise<boolean>;
 }
 
 const PaginationControls = ({
@@ -141,7 +140,6 @@ export default function AdminDashboard({
   onUpdateSettings,
   onRefreshProducts,
   onResetCategory,
-  onClearMembersReset,
   onRestoreCategory
 }: AdminDashboardProps) {
   const getInitialAdminTab = (): 'financials' | 'withdrawals' | 'deposits' | 'members' | 'products' | 'orders' | 'settings' | 'landing-editor' | 'profil' => {
@@ -152,21 +150,11 @@ export default function AdminDashboard({
       if (cleanHash && validTabs.includes(cleanHash)) {
         return cleanHash as any;
       }
-      const saved = localStorage.getItem('admin_active_tab');
-      if (saved && validTabs.includes(saved)) {
-        return saved as any;
-      }
     } catch {}
     return 'financials';
   };
 
   const getInitialSettingsSubTab = (): 'web' | 'mlm' | 'midtrans' | 'email' | 'backup' => {
-    try {
-      const saved = localStorage.getItem('admin_settings_sub_tab');
-      if (saved && ['web', 'mlm', 'midtrans', 'email', 'backup'].includes(saved)) {
-        return saved as any;
-      }
-    } catch {}
     return 'web';
   };
 
@@ -175,18 +163,11 @@ export default function AdminDashboard({
 
   React.useEffect(() => {
     try {
-      localStorage.setItem('admin_active_tab', activeTab);
       if (window.location.hash !== `#${activeTab}`) {
         window.location.hash = activeTab;
       }
     } catch {}
   }, [activeTab]);
-
-  React.useEffect(() => {
-    try {
-      localStorage.setItem('admin_settings_sub_tab', settingsSubTab);
-    } catch {}
-  }, [settingsSubTab]);
 
   React.useEffect(() => {
     const handleHashChange = () => {
@@ -206,41 +187,6 @@ export default function AdminDashboard({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedUserDetail, setSelectedUserDetail] = useState<MLMUser | null>(null);
   const [viewAdminProofImage, setViewAdminProofImage] = useState<string | null>(null);
-  const [isClearingCache, setIsClearingCache] = useState(false);
-
-  const handleClearCache = async () => {
-    setIsClearingCache(true);
-    try {
-      if (typeof window !== 'undefined') {
-        const keysToClear = [
-          'zalora_reset_members', 'zalora_reset_sales', 'zalora_reset_web_settings',
-          'zalora_system_settings', 'admin_settings_sub_tab'
-        ];
-        keysToClear.forEach(k => localStorage.removeItem(k));
-        sessionStorage.clear();
-        if ('caches' in window) {
-          const cacheKeys = await caches.keys();
-          await Promise.all(cacheKeys.map(k => caches.delete(k)));
-        }
-      }
-
-      await fetch("/api/admin/clear-cache", { method: "POST" }).catch(() => {});
-
-      if (onRefresh) {
-        await onRefresh();
-      }
-
-      setMessage({
-        text: "🧹 Cache website & database berhasil dibersihkan! Seluruh data dan tampilan terbaru telah dimuat.",
-        type: "success"
-      });
-      alert("✅ Clear Cache Berhasil!\n\nSeluruh cache browser dan database telah dibersihkan. Tampilan dan data aplikasi telah diperbarui ke versi paling baru secara real-time.");
-    } catch (err) {
-      alert("Proses bersihkan cache selesai!");
-    } finally {
-      setIsClearingCache(false);
-    }
-  };
 
   // Member CRUD states
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
@@ -283,41 +229,35 @@ export default function AdminDashboard({
       alert("Username dan Nama Lengkap wajib diisi!");
       return;
     }
-    if (!onAddUser) {
-      alert("Fitur tambah member tidak tersedia. Hubungi developer.");
-      return;
-    }
     setIsSubmittingUser(true);
     try {
-      const ok = await onAddUser(newUserForm);
-      if (ok) {
-        setIsAddUserModalOpen(false);
-        setNewUserForm({
-          username: '',
-          fullname: '',
-          email: '',
-          phone: '',
-          whatsapp: '',
-          password: 'password123',
-          sponsor_username: '',
-          upline_username: '',
-          position: 'L',
-          ktp: '',
-          bank_name: 'BCA',
-          bank_account: '',
-          bank_holder: '',
-          address: '',
-          city: ''
-        });
+      if (onAddUser) {
+        const ok = await onAddUser(newUserForm);
+        if (ok) {
+          setIsAddUserModalOpen(false);
+          setNewUserForm({
+            username: '',
+            fullname: '',
+            email: '',
+            phone: '',
+            whatsapp: '',
+            password: 'password123',
+            sponsor_username: '',
+            upline_username: '',
+            position: 'L',
+            ktp: '',
+            bank_name: 'BCA',
+            bank_account: '',
+            bank_holder: '',
+            address: '',
+            city: ''
+          });
+        }
       }
-      // If ok === false, alert is already shown by handleAddUserAdmin in App.tsx
-    } catch (err: any) {
-      alert(`Gagal menambah member: ${err.message || "Terjadi kesalahan"}`);
     } finally {
       setIsSubmittingUser(false);
     }
   };
-
 
   const handleEditUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -380,15 +320,14 @@ export default function AdminDashboard({
   // Edit Order Form
   const [editOrderCourier, setEditOrderCourier] = useState('JNE REGULER');
   const [editOrderTracking, setEditOrderTracking] = useState('');
-  const [editOrderStatus, setEditOrderStatus] = useState<Order['status']>('DIPROSES');
+  const [editOrderStatus, setEditOrderStatus] = useState<'DIPROSES' | 'DIKIRIM' | 'TERIMA' | 'BATAL'>('DIPROSES');
   const [editOrderNotes, setEditOrderNotes] = useState('');
   const [editOrderSteps, setEditOrderSteps] = useState<OrderStep[]>([]);
   const [newStepTitle, setNewStepTitle] = useState('');
   const [newStepDesc, setNewStepDesc] = useState('');
 
-  // User search query & status filter
+  // User search query
   const [searchQuery, setSearchQuery] = useState('');
-  const [memberStatusFilter, setMemberStatusFilter] = useState<'ALL' | 'VERIFIED' | 'FREE'>('ALL');
   const [searchDepositQuery, setSearchDepositQuery] = useState('');
 
   // Pagination states (10 items per page)
@@ -1400,8 +1339,6 @@ export default function AdminDashboard({
     }
   };
 
-
-
   const handleTogglePayoutMode = async () => {
     setLoading(true);
     try {
@@ -1445,17 +1382,6 @@ export default function AdminDashboard({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
-          <button
-            type="button"
-            disabled={isClearingCache}
-            onClick={handleClearCache}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
-            title="Bersihkan Cache Browser & Refresh Data Database"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isClearingCache ? 'animate-spin' : ''}`} />
-            <span>{isClearingCache ? 'CLEARING...' : 'CLEAR CACHE'}</span>
-          </button>
-
           <button
             onClick={() => setIsWorkflowModalOpen(true)}
             className="bg-[#C41230] hover:bg-[#A00E26] text-white px-2.5 py-1.5 rounded text-xs font-black uppercase tracking-wider transition flex items-center gap-1 shadow-xs"
@@ -1618,11 +1544,11 @@ export default function AdminDashboard({
                   }`}
                 >
                   <span className="flex items-center gap-2.5 text-left">
-                    <Truck className="w-4 h-4 shrink-0 text-blue-400" /> Penjualan Produk (RO)
+                    <Truck className="w-4 h-4 shrink-0" /> Pengiriman & Resi Pesanan
                   </span>
                   {orders.length > 0 && (
                     <span className="text-[9px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-bold shrink-0">
-                      {orders.length} penjualan
+                      {orders.length} order
                     </span>
                   )}
                 </button>
@@ -1676,19 +1602,10 @@ export default function AdminDashboard({
               </nav>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-850 space-y-2">
-              <button
-                type="button"
-                disabled={isClearingCache}
-                onClick={() => { setIsMobileMenuOpen(false); handleClearCache(); }}
-                className="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${isClearingCache ? 'animate-spin' : ''}`} />
-                <span>{isClearingCache ? 'Clearing Cache...' : '🧹 Bersihkan Cache Website'}</span>
-              </button>
+            <div className="mt-8 pt-4 border-t border-slate-850">
               <button
                 onClick={() => { setIsMobileMenuOpen(false); onLogout(); }}
-                className="w-full py-2.5 bg-red-600/15 hover:bg-red-600/35 border border-red-500/20 text-red-400 rounded-xl text-xs font-bold transition cursor-pointer"
+                className="w-full py-2.5 bg-red-600/15 hover:bg-red-600/35 border border-red-500/20 text-red-400 rounded-xl text-xs font-bold transition"
               >
                 Keluar Aplikasi
               </button>
@@ -1779,8 +1696,8 @@ export default function AdminDashboard({
                 activeTab === 'orders' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <Truck className="w-4 h-4 shrink-0 text-blue-400" />
-              <span className="flex-1 text-left">Penjualan Produk (RO)</span>
+              <Truck className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Pengiriman & Resi</span>
               {orders.length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${activeTab === 'orders' ? 'bg-blue-500/20 text-white' : 'bg-slate-800 text-slate-300'}`}>
                   {orders.length}
@@ -2338,60 +2255,6 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              {/* Status Filter Pills: All, Verified Premium, Free Member */}
-              <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => { setMemberStatusFilter('ALL'); setPageMembers(1); }}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
-                    memberStatusFilter === 'ALL' ? 'bg-slate-900 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  Semua Anggota
-                  <span className="bg-slate-700 text-white px-2 py-0.2 rounded-full text-[10px] font-extrabold">{users.length}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setMemberStatusFilter('VERIFIED'); setPageMembers(1); }}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
-                    memberStatusFilter === 'VERIFIED' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-50'
-                  }`}
-                >
-                  ✓ Verified Premium (Sudah Bayar)
-                  <span className="bg-emerald-700 text-white px-2 py-0.2 rounded-full text-[10px] font-extrabold">{users.filter(u => u.is_active).length}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setMemberStatusFilter('FREE'); setPageMembers(1); }}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 ${
-                    memberStatusFilter === 'FREE' ? 'bg-amber-500 text-white shadow-xs' : 'bg-white border border-amber-300 text-amber-900 hover:bg-amber-50'
-                  }`}
-                >
-                  ○ Free Member (Belum Bayar)
-                  <span className="bg-amber-600 text-white px-2 py-0.2 rounded-full text-[10px] font-extrabold">{users.filter(u => !u.is_active).length}</span>
-                </button>
-              </div>
-
-              {(() => {
-                const filteredUsers = users.filter(u => {
-                  const q = searchQuery.toLowerCase().trim();
-                  const matchesSearch = !q || (
-                    (u.username || '').toLowerCase().includes(q) ||
-                    (u.fullname || '').toLowerCase().includes(q) ||
-                    (u.phone || '').toLowerCase().includes(q) ||
-                    (u.email || '').toLowerCase().includes(q)
-                  );
-                  const matchesStatus = memberStatusFilter === 'ALL' || (
-                    memberStatusFilter === 'VERIFIED' ? u.is_active : !u.is_active
-                  );
-                  return matchesSearch && matchesStatus;
-                });
-
-                return (
-                  <>
-
               {/* Mobile View: 1 Column per Row */}
               <div className="grid grid-cols-1 gap-2.5 sm:hidden">
                 {filteredUsers.length === 0 ? (
@@ -2414,9 +2277,9 @@ export default function AdminDashboard({
                             </span>
 
                             <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                              u.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                              u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                             }`}>
-                              {u.is_active ? '✓ Verified Premium' : 'Free Member (Belum Bayar)'}
+                              {u.is_active ? 'Aktif' : 'Non-Aktif'}
                             </span>
                           </div>
 
@@ -2577,9 +2440,9 @@ export default function AdminDashboard({
                             <td className="py-3.5 px-4 leading-normal">
                               <div className="mb-1">
                                 <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[9px] uppercase tracking-wide ${
-                                  u.is_active ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                 }`}>
-                                  {u.is_active ? '✓ Verified Premium' : 'Free Member (Belum Bayar)'}
+                                  {u.is_active ? '✓ Lisensi Aktif' : 'Tidak Aktif'}
                                 </span>
                               </div>
                               <div className="text-[10px] text-slate-600 space-y-0.5">
@@ -2681,9 +2544,6 @@ export default function AdminDashboard({
                 itemsPerPage={10}
                 onPageChange={setPageMembers}
               />
-                  </>
-                );
-              })()}
             </div>
           )}
 
@@ -2939,10 +2799,6 @@ export default function AdminDashboard({
                           .map((dep) => {
                             const code = dep.unique_code || (100 + dep.id % 899);
                             const totalTrf = dep.amount + code;
-                            const matchingOrder = orders?.find(o => Number(o.user_id) === Number(dep.user_id));
-                            const proofImg = dep.proof_image || matchingOrder?.proof_image;
-                            const proofNotesStr = dep.proof_notes || matchingOrder?.proof_notes;
-                            
                             return (
                               <div key={dep.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs space-y-2">
                                 <div>
@@ -2971,42 +2827,21 @@ export default function AdminDashboard({
                                 </div>
 
                                 <div>
-                                  {proofImg ? (
-                                    <div className="my-2 bg-emerald-50 border border-emerald-300 rounded-lg p-2 flex flex-col gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => setViewAdminProofImage(proofImg || null)}
-                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-1.5 px-2.5 rounded-md flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
-                                      >
-                                        <Eye className="w-4 h-4" /> 📸 Lihat Bukti Transfer User
-                                      </button>
-                                      {proofNotesStr && (
-                                        <p className="text-[10px] text-emerald-900 font-mono italic">
-                                          Catatan User: "{proofNotesStr}"
-                                        </p>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div className="my-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded text-center">
-                                      Belum Upload Bukti Transfer
-                                    </div>
-                                  )}
-
                                   {dep.status === 'pending' ? (
                                     <div className="flex items-center gap-2 pt-2 border-t border-slate-200/80">
                                       <button
                                         id={`btn-approve-dep-mob-${dep.id}`}
                                         disabled={loading}
                                         onClick={() => handleProcessDeposit(dep.id, 'approve')}
-                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-extrabold py-2 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                                       >
-                                        <Check className="w-3.5 h-3.5" /> Setujui (Acc & Aktifkan)
+                                        <Check className="w-3.5 h-3.5" /> Setujui (Acc)
                                       </button>
                                       <button
                                         id={`btn-reject-dep-mob-${dep.id}`}
                                         disabled={loading}
                                         onClick={() => handleProcessDeposit(dep.id, 'reject')}
-                                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-extrabold py-2 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-extrabold py-1.5 rounded-lg text-xs transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                                       >
                                         <X className="w-3.5 h-3.5" /> Tolak
                                       </button>
@@ -3040,7 +2875,7 @@ export default function AdminDashboard({
                         <tbody className="divide-y divide-slate-200 text-xs">
                           {filteredDeposits.length === 0 ? (
                             <tr>
-                          <td colSpan={7} className="text-center py-8 text-slate-400 font-medium">Tidak ada riwayat deposit ditemukan</td>
+                              <td colSpan={7} className="text-center py-8 text-slate-400 font-medium">Tidak ada riwayat deposit ditemukan</td>
                             </tr>
                           ) : (
                             filteredDeposits
@@ -3048,10 +2883,6 @@ export default function AdminDashboard({
                               .map((dep) => {
                                 const code = dep.unique_code || (100 + dep.id % 899);
                                 const totalTrf = dep.amount + code;
-                                const matchingOrder = orders?.find(o => Number(o.user_id) === Number(dep.user_id));
-                                const proofImg = dep.proof_image || matchingOrder?.proof_image;
-                                const proofNotesStr = dep.proof_notes || matchingOrder?.proof_notes;
-
                                 return (
                                   <tr key={dep.id} className="hover:bg-slate-50/50">
                                     <td className="px-4 py-3.5">
@@ -3066,19 +2897,21 @@ export default function AdminDashboard({
                                       <span className="bg-slate-100 text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
                                         {dep.method.toUpperCase()}
                                       </span>
-                                      {proofImg ? (
-                                        <div className="mt-1.5 bg-emerald-50 border border-emerald-300 rounded-lg p-1.5">
+                                      {dep.proof_image ? (
+                                        <div className="mt-1">
                                           <button
                                             type="button"
-                                            onClick={() => setViewAdminProofImage(proofImg || null)}
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold px-2 py-1 rounded flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                                            onClick={() => setViewAdminProofImage(dep.proof_image || null)}
+                                            className="bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 hover:bg-emerald-200 transition cursor-pointer"
                                           >
-                                            <Eye className="w-3.5 h-3.5" /> 📸 Lihat Bukti Transfer
+                                            <Eye className="w-3 h-3 text-emerald-700" /> Lihat Bukti Transfer
                                           </button>
-                                          {proofNotesStr && <p className="text-[9px] text-emerald-900 italic mt-1 font-mono">"{proofNotesStr}"</p>}
+                                          {dep.proof_notes && <p className="text-[9px] text-slate-500 italic mt-0.5">{dep.proof_notes}</p>}
                                         </div>
                                       ) : (
-                                        <p className="text-[10px] text-amber-600 font-extrabold mt-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block">Belum upload bukti</p>
+                                        dep.method.startsWith('manual') && (
+                                          <p className="text-[10px] text-amber-600 font-semibold mt-1 font-sans">Belum kirim bukti</p>
+                                        )
                                       )}
                                     </td>
                                     <td className="px-4 py-3.5 font-mono">
@@ -3105,52 +2938,50 @@ export default function AdminDashboard({
                                       </span>
                                     </td>
                                     <td className="px-4 py-3.5 text-center">
-                                      <div className="flex flex-col gap-1.5 items-center justify-center">
-                                        {proofImg && (
+                                      {dep.status === 'pending' ? (
+                                        <div className="flex gap-2 justify-center">
+                                          <button
+                                            id={`btn-approve-dep-${dep.id}`}
+                                            disabled={loading}
+                                            onClick={() => handleProcessDeposit(dep.id, 'approve')}
+                                            className="bg-green-600 hover:bg-green-700 text-white font-bold p-1.5 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
+                                            title="Approve & Tambah Saldo"
+                                          >
+                                            <Check className="w-3.5 h-3.5" /> Approve
+                                          </button>
+                                          <button
+                                            id={`btn-reject-dep-${dep.id}`}
+                                            disabled={loading}
+                                            onClick={() => handleProcessDeposit(dep.id, 'reject')}
+                                            className="bg-red-600 hover:bg-red-700 text-white font-bold p-1.5 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer"
+                                            title="Tolak Request"
+                                          >
+                                            <X className="w-3.5 h-3.5" /> Reject
+                                          </button>
                                           <button
                                             type="button"
-                                            onClick={() => setViewAdminProofImage(proofImg || null)}
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-[10px] transition shadow-xs flex items-center gap-1 cursor-pointer w-full justify-center"
+                                            disabled={loading}
+                                            onClick={() => handleDeleteDeposit(dep.id)}
+                                            className="bg-red-50 hover:bg-red-100 text-red-600 font-bold p-1.5 rounded-lg border border-red-200 transition text-[10px] cursor-pointer"
+                                            title="Hapus Data Deposit"
                                           >
-                                            <Eye className="w-3.5 h-3.5" /> 📸 Lihat Bukti
+                                            <Trash2 className="w-3.5 h-3.5" />
                                           </button>
-                                        )}
-                                        {dep.status === 'pending' ? (
-                                          <div className="flex gap-1.5 justify-center w-full">
-                                            <button
-                                              id={`btn-approve-dep-${dep.id}`}
-                                              disabled={loading}
-                                              onClick={() => handleProcessDeposit(dep.id, 'approve')}
-                                              className="bg-green-600 hover:bg-green-700 text-white font-bold px-2 py-1 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer flex-1 justify-center"
-                                              title="Setujui (Acc & Aktifkan Member)"
-                                            >
-                                              <Check className="w-3.5 h-3.5" /> Setujui (Acc)
-                                            </button>
-                                            <button
-                                              id={`btn-reject-dep-${dep.id}`}
-                                              disabled={loading}
-                                              onClick={() => handleProcessDeposit(dep.id, 'reject')}
-                                              className="bg-red-600 hover:bg-red-700 text-white font-bold px-2 py-1 rounded-lg transition shadow-sm flex items-center gap-1 text-[10px] cursor-pointer flex-1 justify-center"
-                                              title="Tolak Request"
-                                            >
-                                              <X className="w-3.5 h-3.5" /> Tolak
-                                            </button>
-                                            {onDeleteDeposit && (
-                                              <button
-                                                type="button"
-                                                disabled={loading}
-                                                onClick={() => onDeleteDeposit(dep.id)}
-                                                className="bg-red-50 hover:bg-red-100 text-red-600 font-bold p-1 rounded-lg border border-red-200 transition text-[10px] cursor-pointer"
-                                                title="Hapus Data Deposit"
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                              </button>
-                                            )}
-                                          </div>
-                                        ) : (
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center justify-center gap-1.5">
                                           <span className="text-slate-400 font-semibold text-[10px] uppercase">Terproses</span>
-                                        )}
-                                      </div>
+                                          <button
+                                            type="button"
+                                            disabled={loading}
+                                            onClick={() => handleDeleteDeposit(dep.id)}
+                                            className="p-1 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-lg border border-red-200 transition text-[10px] cursor-pointer"
+                                            title="Hapus Data Deposit"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      )}
                                     </td>
                                   </tr>
                                 );
@@ -3165,246 +2996,6 @@ export default function AdminDashboard({
                       totalItems={filteredDeposits.length}
                       itemsPerPage={10}
                       onPageChange={setPageDeposits}
-                    />
-                  </>
-                );
-              })()}
-            </div>
-          )}
-
-          {/* TAB: DATA PENJUALAN PRODUK RO & PENGIRIMAN */}
-          {activeTab === 'orders' && (
-            <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-6" id="admin-orders-panel">
-              {/* Top Header & Action */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                <div>
-                  <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                    <Truck className="text-blue-600 w-6 h-6" /> Data Penjualan Produk & Resi Pengiriman (RO)
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Laporan lengkap seluruh transaksi penjualan produk Repeat Order (RO) member, verifikasi bukti transfer, update kurir ekspedisi, dan penerbitan nomor resi.
-                  </p>
-                </div>
-                
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddOrderModalOpen(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs transition shadow-md shadow-blue-600/10 flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <PlusCircle className="w-4 h-4" /> Order Manual Baru
-                  </button>
-                </div>
-              </div>
-
-              {/* Summary Cards */}
-              {(() => {
-                const totalOmsetRO = orders.reduce((acc, o) => acc + (o.amount || 0), 0);
-                const pendingProofCount = orders.filter(o => o.proof_image && o.status === 'PENDING').length;
-                const shippedCount = orders.filter(o => o.status === 'DIKIRIM' || o.status === 'TERIMA' || o.status === 'SELESAI').length;
-
-                return (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-blue-50/60 border border-blue-200 p-4 rounded-2xl">
-                      <span className="text-[10px] font-extrabold uppercase text-blue-700 tracking-wider block">Total Omset Penjualan RO</span>
-                      <p className="text-lg font-black text-blue-950 font-mono mt-1">Rp {totalOmsetRO.toLocaleString('id-ID')}</p>
-                    </div>
-
-                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
-                      <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">Total Transaksi Penjualan</span>
-                      <p className="text-lg font-black text-slate-900 font-mono mt-1">{orders.length} Order</p>
-                    </div>
-
-                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl">
-                      <span className="text-[10px] font-extrabold uppercase text-amber-700 tracking-wider block">Verifikasi Bukti Transfer</span>
-                      <p className="text-lg font-black text-amber-900 font-mono mt-1">{pendingProofCount} Pesanan</p>
-                    </div>
-
-                    <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl">
-                      <span className="text-[10px] font-extrabold uppercase text-emerald-700 tracking-wider block">Sudah Dikirim / Resi Terbit</span>
-                      <p className="text-lg font-black text-emerald-900 font-mono mt-1">{shippedCount} Paket</p>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Filter & Search Bar */}
-              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Cari invoice, username, nama pembeli, nama produk, nomor resi..."
-                    value={orderSearchQuery}
-                    onChange={(e) => {
-                      setOrderSearchQuery(e.target.value);
-                      setPageOrders(1);
-                    }}
-                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Filter Status:</span>
-                  <select
-                    value={orderStatusFilter}
-                    onChange={(e) => {
-                      setOrderStatusFilter(e.target.value as any);
-                      setPageOrders(1);
-                    }}
-                    className="bg-white border border-slate-200 text-xs font-bold text-slate-700 rounded-xl px-3 py-2 focus:outline-none cursor-pointer"
-                  >
-                    <option value="ALL">Semua Status Order</option>
-                    <option value="DIPROSES">Diproses / Pending</option>
-                    <option value="DIKIRIM">Dikirim / Resi Ada</option>
-                    <option value="TERIMA">Selesai / Diterima</option>
-                    <option value="BATAL">Dibatalkan</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Order List Table */}
-              {(() => {
-                const filteredOrders = orders.filter(ord => {
-                  const q = orderSearchQuery.toLowerCase().trim();
-                  const matchQuery = !q || (
-                    (ord.invoice_no || '').toLowerCase().includes(q) ||
-                    (ord.username || '').toLowerCase().includes(q) ||
-                    (ord.fullname || '').toLowerCase().includes(q) ||
-                    (ord.product_name || '').toLowerCase().includes(q) ||
-                    (ord.tracking_number || '').toLowerCase().includes(q) ||
-                    (ord.courier || '').toLowerCase().includes(q)
-                  );
-                  const matchStatus = orderStatusFilter === 'ALL' || (
-                    orderStatusFilter === 'DIPROSES' ? (ord.status === 'DIPROSES' || ord.status === 'PENDING') :
-                    orderStatusFilter === 'DIKIRIM' ? ord.status === 'DIKIRIM' :
-                    orderStatusFilter === 'TERIMA' ? (ord.status === 'TERIMA' || ord.status === 'SELESAI') :
-                    ord.status === orderStatusFilter
-                  );
-                  return matchQuery && matchStatus;
-                });
-
-                return (
-                  <>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-900 text-white uppercase text-[9px] tracking-wider font-extrabold">
-                          <tr>
-                            <th className="py-3.5 px-4">INVOICE & TGL</th>
-                            <th className="py-3.5 px-4">PEMBELI (MEMBER)</th>
-                            <th className="py-3.5 px-4">PRODUK RO</th>
-                            <th className="py-3.5 px-4 text-right">TOTAL Rp & BUKTI TF</th>
-                            <th className="py-3.5 px-4 text-center">EKSPEDISI & RESI</th>
-                            <th className="py-3.5 px-4 text-center">STATUS</th>
-                            <th className="py-3.5 px-4 text-center">AKSI</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 bg-white">
-                          {filteredOrders.length === 0 ? (
-                            <tr>
-                              <td colSpan={7} className="text-center py-10 text-slate-400 font-medium">
-                                Tidak ada data penjualan produk RO ditemukan.
-                              </td>
-                            </tr>
-                          ) : (
-                            filteredOrders
-                              .slice((pageOrders - 1) * 10, pageOrders * 10)
-                              .map((ord) => (
-                                <tr key={ord.id} className="hover:bg-slate-50/80 transition">
-                                  {/* Invoice */}
-                                  <td className="py-3.5 px-4">
-                                    <span className="font-mono font-black text-slate-900 text-xs block">{ord.invoice_no || `#INV-RO-${ord.id}`}</span>
-                                    <span className="text-[10px] text-slate-400 block mt-0.5">{new Date(ord.created_at).toLocaleString('id-ID')}</span>
-                                  </td>
-
-                                  {/* Member / Pembeli */}
-                                  <td className="py-3.5 px-4">
-                                    <span className="font-extrabold text-blue-600 block text-xs">@{ord.username.replace(/^@/, '')}</span>
-                                    <span className="font-bold text-slate-800 block text-xs">{ord.fullname}</span>
-                                    <span className="text-[10px] text-slate-500 font-mono">{ord.phone}</span>
-                                  </td>
-
-                                  {/* Produk */}
-                                  <td className="py-3.5 px-4">
-                                    <span className="font-extrabold text-slate-900 block text-xs">{ord.product_name}</span>
-                                    {(ord.selected_size || ord.size || ord.selected_color || ord.color) && (
-                                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px]">
-                                        {(ord.selected_size || ord.size) && <span className="bg-slate-100 font-mono font-bold text-slate-700 px-1.5 py-0.2 rounded">Size: {ord.selected_size || ord.size}</span>}
-                                        {(ord.selected_color || ord.color) && <span className="bg-slate-100 font-bold text-slate-700 px-1.5 py-0.2 rounded">Warna: {ord.selected_color || ord.color}</span>}
-                                      </div>
-                                    )}
-                                  </td>
-
-                                  {/* Total Rp & Bukti TF */}
-                                  <td className="py-3.5 px-4 text-right">
-                                    <span className="font-mono font-black text-slate-900 text-sm block">Rp {(ord.amount || 0).toLocaleString('id-ID')}</span>
-                                    <span className="text-[10px] text-slate-500 block uppercase font-bold">{ord.payment_method || 'Transfer Bank'}</span>
-                                    {ord.proof_image && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setViewAdminProofImage(ord.proof_image || null)}
-                                        className="mt-1 ml-auto bg-emerald-50 border border-emerald-300 text-emerald-700 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 hover:bg-emerald-100 transition cursor-pointer"
-                                      >
-                                        <Eye className="w-3 h-3 text-emerald-600" /> Lihat Bukti TF
-                                      </button>
-                                    )}
-                                  </td>
-
-                                  {/* Ekspedisi & Resi */}
-                                  <td className="py-3.5 px-4 text-center">
-                                    <span className="bg-slate-100 text-slate-800 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase block w-fit mx-auto">
-                                      {ord.courier || 'JNE REGULER'}
-                                    </span>
-                                    <span className="font-mono font-extrabold text-blue-600 text-xs block mt-1">
-                                      {ord.tracking_number || 'Belum Ada Resi'}
-                                    </span>
-                                  </td>
-
-                                  {/* Status */}
-                                  <td className="py-3.5 px-4 text-center">
-                                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                      ord.status === 'SELESAI' || ord.status === 'TERIMA' ? 'bg-green-100 text-green-800' :
-                                      ord.status === 'DIKIRIM' ? 'bg-blue-100 text-blue-800' :
-                                      ord.status === 'BATAL' ? 'bg-red-100 text-red-800' :
-                                      'bg-amber-100 text-amber-800'
-                                    }`}>
-                                      {ord.status}
-                                    </span>
-                                  </td>
-
-                                  {/* Aksi */}
-                                  <td className="py-3.5 px-4 text-center">
-                                    <div className="flex items-center justify-center gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenEditOrderModal(ord)}
-                                        className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-extrabold rounded-lg text-[10px] transition border border-blue-200 flex items-center gap-1 cursor-pointer"
-                                        title="Edit Resi & Status Pengiriman"
-                                      >
-                                        <Edit className="w-3.5 h-3.5" /> Input Resi
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setDeletingOrderId(ord.id)}
-                                        className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-extrabold rounded-lg text-[10px] transition border border-red-200 cursor-pointer"
-                                        title="Hapus Order"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <PaginationControls
-                      currentPage={pageOrders}
-                      totalItems={filteredOrders.length}
-                      itemsPerPage={10}
-                      onPageChange={setPageOrders}
                     />
                   </>
                 );
@@ -3427,26 +3018,14 @@ export default function AdminDashboard({
                       Pilih kategori pengaturan di bawah untuk mengelola identitas web, komisi MLM, Midtrans, dan email server.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-                    <button
-                      type="button"
-                      disabled={isClearingCache}
-                      onClick={handleClearCache}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                      title="Bersihkan cache browser dan perbarui data dari database"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${isClearingCache ? 'animate-spin' : ''}`} />
-                      {isClearingCache ? 'Clearing...' : '🧹 Clear Cache Website'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveSettingsSubmit}
-                      disabled={loading}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      💾 Simpan Perubahan
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveSettingsSubmit}
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition shadow-md flex items-center justify-center gap-2 self-start md:self-center shrink-0 cursor-pointer"
+                  >
+                    💾 Simpan Perubahan
+                  </button>
                 </div>
 
                 {/* Sub-Tab Navigation Bar */}
@@ -4527,25 +4106,6 @@ export default function AdminDashboard({
                           </label>
                         </div>
 
-                        {onClearMembersReset && (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (window.confirm('Pulihkan tampilan member yang hilang? Ini akan menghapus flag reset tanpa menghapus data member yang ada di Firestore.')) {
-                                setMessage({ text: 'Memulihkan data member...', type: 'info' });
-                                const ok = await onClearMembersReset();
-                                if (ok) {
-                                  setMessage({ text: '✅ Data member berhasil dipulihkan! Refresh halaman untuk melihat perubahan.', type: 'success' });
-                                } else {
-                                  setMessage({ text: '❌ Gagal memulihkan data member.', type: 'error' });
-                                }
-                              }
-                            }}
-                            className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold py-2 px-3 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                          >
-                            🔄 Pulihkan Tampilan Member
-                          </button>
-                        )}
                         <button
                           type="button"
                           onClick={() => handleConfirmReset('members', 'Data Member (selain Admin)')}

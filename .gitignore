@@ -6,7 +6,4 @@ coverage/
 *.log
 .env*
 !.env.example
-firebase-service-account.json
-firebase-applet-config.json
 
-.vercel

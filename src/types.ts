@@ -205,8 +205,6 @@ export interface Order {
   phone: string;
   address: string;
   product_name: string;
-  size?: string;
-  color?: string;
   selected_size?: string;
   selected_color?: string;
   amount: number;

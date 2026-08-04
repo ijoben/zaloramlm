@@ -1,450 +1,121 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { createRequire } from "module";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { initializeFirestore, getFirestore, collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
+import { createClient } from "@supabase/supabase-js";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode, Order } from "./src/types";
 import { DEFAULT_ORDERS } from "./src/data/defaultOrders";
-
-let adminApp: any = null;
-let adminAuth: any = null;
-try {
-  let firebaseAdmin: any = null;
-  try {
-    if (typeof require === "function") {
-      firebaseAdmin = require("firebase-admin");
-    } else {
-      const req = createRequire(import.meta.url);
-      firebaseAdmin = req("firebase-admin");
-    }
-  } catch (e) {
-    try {
-      const req = createRequire(process.cwd() + "/server.ts");
-      firebaseAdmin = req("firebase-admin");
-    } catch (err) {}
-  }
-
-  // Try to load service account from file or env
-  let adminCredential: any = null;
-  const serviceAccountPath = path.join(process.cwd(), "firebase-service-account.json");
-  const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-
-  if (serviceAccountEnv) {
-    try {
-      const sa = JSON.parse(serviceAccountEnv);
-      adminCredential = firebaseAdmin.credential.cert(sa);
-      console.log("🔑 [Firebase Admin] Using service account from FIREBASE_SERVICE_ACCOUNT_JSON env var");
-    } catch (e) {
-      console.warn("⚠️ [Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:", e);
-    }
-  } else if (fs.existsSync(serviceAccountPath)) {
-    try {
-      const sa = JSON.parse(fs.readFileSync(serviceAccountPath, "utf-8"));
-      adminCredential = firebaseAdmin.credential.cert(sa);
-      console.log("🔑 [Firebase Admin] Using service account from firebase-service-account.json");
-    } catch (e) {
-      console.warn("⚠️ [Firebase Admin] Failed to load firebase-service-account.json:", e);
-    }
-  }
-
-  if (adminCredential) {
-    if (firebaseAdmin.apps.length === 0) {
-      adminApp = firebaseAdmin.initializeApp({ credential: adminCredential });
-    } else {
-      adminApp = firebaseAdmin.app();
-    }
-    adminAuth = firebaseAdmin.auth(adminApp);
-    console.log("✅ [Firebase Admin] Admin SDK initialized successfully");
-  } else {
-    console.warn("⚠️ [Firebase Admin] No service account found. Firebase Auth deletion will be skipped during reset. To enable, set FIREBASE_SERVICE_ACCOUNT_JSON env var or place firebase-service-account.json in project root.");
-  }
-} catch (e) {
-  console.warn("⚠️ [Firebase Admin] Failed to initialize Admin SDK:", e);
-}
-
-
-// Helper: delete a Firebase Auth user by UID
-async function deleteFirebaseAuthUser(uid: string): Promise<void> {
-  if (!adminAuth || !uid) return;
-  try {
-    await adminAuth.deleteUser(uid);
-    console.log(`✅ [Firebase Admin] Deleted Auth user UID: ${uid}`);
-  } catch (e: any) {
-    if (e?.code !== 'auth/user-not-found') {
-      console.warn(`⚠️ [Firebase Admin] Failed to delete Auth user UID ${uid}:`, e?.message || e);
-    }
-  }
-}
-
-// Helper: delete a Firebase Auth user by email
-async function deleteFirebaseAuthUserByEmail(email: string): Promise<void> {
-  if (!adminAuth || !email) return;
-  try {
-    const userRecord = await adminAuth.getUserByEmail(email);
-    await adminAuth.deleteUser(userRecord.uid);
-    console.log(`✅ [Firebase Admin] Deleted Auth user by email: ${email}`);
-  } catch (e: any) {
-    if (e?.code !== 'auth/user-not-found') {
-      console.warn(`⚠️ [Firebase Admin] Failed to delete Auth user email ${email}:`, e?.message || e);
-    }
-  }
-}
-
-// Helper: delete all non-admin Firebase Auth users (used in members reset)
-async function deleteAllNonAdminFirebaseAuthUsers(nonAdminUsers: MLMUser[]): Promise<void> {
-  if (!adminAuth) {
-    console.warn("⚠️ [Firebase Admin] Auth not initialized - skipping Firebase Auth user deletion");
-    return;
-  }
-  const deletePromises: Promise<void>[] = [];
-  for (const u of nonAdminUsers) {
-    if (u.firebase_uid) {
-      deletePromises.push(deleteFirebaseAuthUser(u.firebase_uid));
-    } else if (u.email) {
-      deletePromises.push(deleteFirebaseAuthUserByEmail(u.email));
-    }
-  }
-  if (deletePromises.length > 0) {
-    await Promise.allSettled(deletePromises);
-    console.log(`✅ [Firebase Admin] Attempted deletion of ${deletePromises.length} Firebase Auth users`);
-  }
-}
-
-
-// Safe loader for firebase-applet-config.json
-let firebaseConfig: any = {};
-try {
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(configPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-  }
-} catch (err) {
-  console.warn("Notice: firebase-applet-config.json file not found, falling back to process.env variables");
-}
-
-const resolvedServerFirebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey || "AIzaSyCEOmnP2Ua4VJJQ0AFpTdPQeHRa-4OzzvE",
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain || "primordial-antler-0gtt6.firebaseapp.com",
-  projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId || "primordial-antler-0gtt6",
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket || "primordial-antler-0gtt6.firebasestorage.app",
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId || "822667437818",
-  appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId || "1:822667437818:web:625363340a5061f144cb43",
-  firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || "ai-studio-zaloradenimmlmbi-5abf2514-6c97-4eab-bc10-6219841824f9",
-};
-
-let firestoreDb: any = null;
-try {
-  const firebaseApp = getApps().length === 0 ? initializeApp(resolvedServerFirebaseConfig) : getApp();
-  firestoreDb = getFirestore(firebaseApp, resolvedServerFirebaseConfig.firestoreDatabaseId);
-} catch (e) {}
-
-const withTimeout = async (p: any, _ms?: number, _desc?: string) => await p;
 
 const app = express();
 const PORT = 3000;
 
-// Enable CORS for all cross-origin requests
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
-
-app.use(async (req, res, next) => {
-  try {
-    await initFirestoreDataOnce();
-  } catch (e) {}
-  next();
-});
 
 app.get(["/api", "/api/"], (req, res) => {
   res.json({ status: "ok", message: "Hedtro Jeans Official Backend API is active" });
 });
 
 // ==========================================
-// CLOUDFLARE D1 DATABASE & LOCAL FILE PERSISTENCE
+// SUPABASE DATABASE INTEGRATION
 // ==========================================
-const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || "2445b1694607d877f7688ef992b8bda3";
-const CF_D1_DATABASE_ID = process.env.CLOUDFLARE_D1_DATABASE_ID || "e5abc3dd-4b07-40dd-9b2d-e81a11100c37";
-const CF_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || Buffer.from("Y2Z1dF9MNG1wYXZMQ1hYUnU0U2tIWkJzYVJ1OThCM1hxMW9aWEpHU1NKN29BNzViYzIyYjc=", "base64").toString("utf-8");
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://xyzcompany.supabase.co";
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder";
 
-export async function queryD1(sql: string, params: any[] = []): Promise<any> {
-  if (!CF_ACCOUNT_ID || !CF_D1_DATABASE_ID || !CF_API_TOKEN) return null;
-  const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${CF_D1_DATABASE_ID}/query`;
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${CF_API_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ sql, params })
-    });
-    const data = await res.json();
-    return data;
-  } catch (err) {
-    console.warn("⚠️ [Cloudflare D1 Query Error]:", err);
-    return null;
-  }
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+console.log("⚡ Supabase Client initialized! URL:", supabaseUrl);
+
+function cleanForSupabase(obj: any) {
+  if (!obj) return obj;
+  return JSON.parse(JSON.stringify(obj, (key, value) => (value === undefined ? null : value)));
 }
-
-// Local File Store persistence (data_store.json)
-const DATA_STORE_FILE = path.join(process.cwd(), "data_store.json");
-
-export function saveLocalStore() {
-  if (process.env.VERCEL || process.env.NODE_ENV === "production") return;
-  try {
-    const state = {
-      users,
-      products,
-      transactions,
-      deposits,
-      withdrawals,
-      orders,
-      notifications,
-      systemSettings,
-      updated_at: new Date().toISOString()
-    };
-    fs.writeFileSync(DATA_STORE_FILE, JSON.stringify(state, null, 2), "utf-8");
-  } catch (err) {
-    // Ignore read-only filesystem errors on serverless
-  }
-}
-
-export function loadLocalStore(): boolean {
-  try {
-    if (fs.existsSync(DATA_STORE_FILE)) {
-      const raw = fs.readFileSync(DATA_STORE_FILE, "utf-8");
-      const state = JSON.parse(raw);
-      if (state.users && Array.isArray(state.users) && state.users.length > 0) users = state.users;
-      if (state.products && Array.isArray(state.products) && state.products.length > 0) products = state.products;
-      if (state.transactions && Array.isArray(state.transactions)) transactions = state.transactions;
-      if (state.deposits && Array.isArray(state.deposits)) deposits = state.deposits;
-      if (state.withdrawals && Array.isArray(state.withdrawals)) withdrawals = state.withdrawals;
-      if (state.orders && Array.isArray(state.orders)) orders = state.orders;
-      if (state.notifications && Array.isArray(state.notifications)) notifications = state.notifications;
-      if (state.systemSettings && typeof state.systemSettings === 'object') systemSettings = { ...systemSettings, ...state.systemSettings };
-      console.log(`💾 [Local Store] Loaded persisted state from data_store.json (Users: ${users.length}, Products: ${products.length}, Deposits: ${deposits.length}, WD: ${withdrawals.length})`);
-      return true;
-    }
-  } catch (err) {
-    console.warn("⚠️ Error loading local data store:", err);
-  }
-  return false;
-}
-
-// Cloudflare D1 Individual Sync Functions
-export async function syncUserToD1(u: MLMUser) {
-  try {
-    const jsonStr = JSON.stringify(u);
-    await queryD1(
-      `INSERT INTO users (id, username, fullname, email, phone, password, role, is_active, balance, sponsor_bonus, pairing_bonus, level_bonus, ro_bonus, left_count, right_count, left_sales, right_sales, upline_id, sponsor_id, position, data_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-       username=excluded.username, fullname=excluded.fullname, email=excluded.email, phone=excluded.phone,
-       password=excluded.password, role=excluded.role, is_active=excluded.is_active, balance=excluded.balance,
-       sponsor_bonus=excluded.sponsor_bonus, pairing_bonus=excluded.pairing_bonus, level_bonus=excluded.level_bonus,
-       ro_bonus=excluded.ro_bonus, left_count=excluded.left_count, right_count=excluded.right_count,
-       left_sales=excluded.left_sales, right_sales=excluded.right_sales, upline_id=excluded.upline_id,
-       sponsor_id=excluded.sponsor_id, position=excluded.position, data_json=excluded.data_json;`,
-      [
-        u.id, u.username, u.fullname, u.email, u.phone, (u as any).password || '', u.role || 'user',
-        u.is_active ? 1 : 0, u.balance || 0, u.sponsor_bonus || 0, u.pairing_bonus || 0, u.level_bonus || 0, u.ro_bonus || 0,
-        u.left_count || 0, u.right_count || 0, u.left_sales || 0, u.right_sales || 0, u.upline_id, u.sponsor_id, u.position,
-        jsonStr, u.created_at || new Date().toISOString()
-      ]
-    );
-  } catch (e) {
-    console.warn("⚠️ D1 Sync User Error:", e);
-  }
-}
-
-export async function syncDepositToD1(d: DepositRequest) {
-  try {
-    const jsonStr = JSON.stringify(d);
-    await queryD1(
-      `INSERT INTO deposits (id, user_id, username, amount, method, status, payment_code, data_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-       user_id=excluded.user_id, username=excluded.username, amount=excluded.amount, method=excluded.method,
-       status=excluded.status, payment_code=excluded.payment_code, data_json=excluded.data_json;`,
-      [d.id, d.user_id, d.username, d.amount, d.method, d.status, d.payment_code || '', jsonStr, d.created_at || new Date().toISOString()]
-    );
-  } catch (e) {
-    console.warn("⚠️ D1 Sync Deposit Error:", e);
-  }
-}
-
-export async function syncWithdrawalToD1(w: WDRequest) {
-  try {
-    const jsonStr = JSON.stringify(w);
-    await queryD1(
-      `INSERT INTO withdrawals (id, user_id, username, amount, bank_name, account_number, account_holder, status, data_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-       user_id=excluded.user_id, username=excluded.username, amount=excluded.amount, bank_name=excluded.bank_name,
-       account_number=excluded.account_number, account_holder=excluded.account_holder, status=excluded.status, data_json=excluded.data_json;`,
-      [w.id, w.user_id, w.username, w.amount, w.bank_name, w.account_number, w.account_holder, w.status, jsonStr, w.created_at || new Date().toISOString()]
-    );
-  } catch (e) {
-    console.warn("⚠️ D1 Sync Withdrawal Error:", e);
-  }
-}
-
-export async function syncTransactionToD1(t: Transaction) {
-  try {
-    await queryD1(
-      `INSERT INTO transactions (id, user_id, username, type, amount, description, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-       user_id=excluded.user_id, username=excluded.username, type=excluded.type, amount=excluded.amount, description=excluded.description;`,
-      [t.id, t.user_id, t.username, t.type, t.amount, t.description, t.created_at || new Date().toISOString()]
-    );
-  } catch (e) {
-    console.warn("⚠️ D1 Sync Transaction Error:", e);
-  }
-}
-
-export async function syncProductToD1(p: Product) {
-  try {
-    const jsonStr = JSON.stringify(p);
-    await queryD1(
-      `INSERT INTO products (id, name, description, price, member_price, stock, image, data_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-       name=excluded.name, description=excluded.description, price=excluded.price, member_price=excluded.member_price, stock=excluded.stock, image=excluded.image, data_json=excluded.data_json;`,
-      [p.id, p.name, p.description, p.price, p.member_price, p.stock, p.image, jsonStr]
-    );
-  } catch (e) {
-    console.warn("⚠️ D1 Sync Product Error:", e);
-  }
-}
-
-export async function syncOrderToD1(o: Order) {
-  try {
-    const jsonStr = JSON.stringify(o);
-    await queryD1(
-      `INSERT INTO orders (id, invoice_no, user_id, username, product_name, amount, status, data_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-       invoice_no=excluded.invoice_no, user_id=excluded.user_id, username=excluded.username, product_name=excluded.product_name, amount=excluded.amount, status=excluded.status, data_json=excluded.data_json;`,
-      [o.id, o.invoice_no, o.user_id, o.username, o.product_name, o.amount, o.status, jsonStr, o.created_at || new Date().toISOString()]
-    );
-  } catch (e) {
-    console.warn("⚠️ D1 Sync Order Error:", e);
-  }
-}
-
-export async function syncSettingsToD1(s: any) {
-  try {
-    const jsonStr = JSON.stringify(s);
-    await queryD1(
-      `INSERT INTO store_data (key, value, updated_at) VALUES ('systemSettings', ?, ?)
-       ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at;`,
-      [jsonStr, new Date().toISOString()]
-    );
-  } catch (e) {
-    console.warn("⚠️ D1 Sync Settings Error:", e);
-  }
-}
-
-// Load data from Cloudflare D1 SQL database
-export async function loadFromCloudflareD1() {
-  try {
-    console.log("⚡ [Cloudflare D1] Fetching initial state from D1 Database...");
-    const resUsers = await queryD1("SELECT data_json FROM users;");
-    if (resUsers?.success && resUsers.result?.[0]?.results?.length > 0) {
-      const loadedU: MLMUser[] = resUsers.result[0].results.map((r: any) => JSON.parse(r.data_json));
-      if (loadedU.length > 0) users = loadedU;
-    }
-
-    const resProds = await queryD1("SELECT data_json FROM products;");
-    if (resProds?.success && resProds.result?.[0]?.results?.length > 0) {
-      const loadedP: Product[] = resProds.result[0].results.map((r: any) => JSON.parse(r.data_json));
-      if (loadedP.length > 0) products = loadedP;
-    }
-
-    const resDeps = await queryD1("SELECT data_json FROM deposits;");
-    if (resDeps?.success && resDeps.result?.[0]?.results?.length > 0) {
-      deposits = resDeps.result[0].results.map((r: any) => JSON.parse(r.data_json));
-    }
-
-    const resWds = await queryD1("SELECT data_json FROM withdrawals;");
-    if (resWds?.success && resWds.result?.[0]?.results?.length > 0) {
-      withdrawals = resWds.result[0].results.map((r: any) => JSON.parse(r.data_json));
-    }
-
-    const resTxs = await queryD1("SELECT id, user_id, username, type, amount, description, created_at FROM transactions;");
-    if (resTxs?.success && resTxs.result?.[0]?.results?.length > 0) {
-      transactions = resTxs.result[0].results;
-    }
-
-    const resOrders = await queryD1("SELECT data_json FROM orders;");
-    if (resOrders?.success && resOrders.result?.[0]?.results?.length > 0) {
-      orders = resOrders.result[0].results.map((r: any) => JSON.parse(r.data_json));
-    }
-
-    const resSet = await queryD1("SELECT value FROM store_data WHERE key='systemSettings';");
-    if (resSet?.success && resSet.result?.[0]?.results?.length > 0) {
-      systemSettings = { ...systemSettings, ...JSON.parse(resSet.result[0].results[0].value) };
-    }
-
-    console.log(`✅ [Cloudflare D1] Successfully loaded state from D1 Database! (Users: ${users.length}, Products: ${products.length}, Deposits: ${deposits.length}, WD: ${withdrawals.length})`);
-    saveLocalStore();
-  } catch (err) {
-    console.warn("⚠️ Error loading from Cloudflare D1:", err);
-  }
-}
-
-// ==========================================
-// UNIFIED CLOUDFLARE D1 SYNC FUNCTIONS
-// ==========================================
 
 export async function syncUserToFirestore(user: MLMUser) {
-  saveLocalStore();
-  await syncUserToD1(user).catch(() => {});
+  if (!supabase) return;
+  try {
+    const cleaned = cleanForSupabase(user);
+    const { error } = await supabase.from('users').upsert([cleaned], { onConflict: 'id' });
+    if (error) console.warn("Supabase sync user notice:", error.message);
+    else console.log(`⚡ [SUPABASE] User @${user.username} synced to Supabase`);
+  } catch (err) {
+    console.warn("Supabase sync user error:", err);
+  }
 }
 
 export async function syncDepositToFirestore(deposit: DepositRequest) {
-  saveLocalStore();
-  await syncDepositToD1(deposit).catch(() => {});
+  if (!supabase) return;
+  try {
+    const cleaned = cleanForSupabase(deposit);
+    const { error } = await supabase.from('deposit_requests').upsert([cleaned], { onConflict: 'id' });
+    if (error) console.warn("Supabase deposit sync notice:", error.message);
+  } catch (err) {
+    console.warn("Supabase sync deposit error:", err);
+  }
 }
 
 export async function syncWithdrawalToFirestore(wd: WDRequest) {
-  saveLocalStore();
-  await syncWithdrawalToD1(wd).catch(() => {});
+  if (!supabase) return;
+  try {
+    const cleaned = cleanForSupabase(wd);
+    const { error } = await supabase.from('wd_requests').upsert([cleaned], { onConflict: 'id' });
+    if (error) console.warn("Supabase withdrawal sync notice:", error.message);
+  } catch (err) {
+    console.warn("Supabase sync withdrawal error:", err);
+  }
 }
 
 export async function syncTransactionToFirestore(tx: Transaction) {
-  saveLocalStore();
-  await syncTransactionToD1(tx).catch(() => {});
+  if (!supabase) return;
+  try {
+    const cleaned = cleanForSupabase(tx);
+    const { error } = await supabase.from('transactions').upsert([cleaned], { onConflict: 'id' });
+    if (error) console.warn("Supabase transaction sync notice:", error.message);
+  } catch (err) {
+    console.warn("Supabase sync transaction error:", err);
+  }
 }
 
 export async function syncProductToFirestore(p: Product) {
-  saveLocalStore();
-  await syncProductToD1(p).catch(() => {});
+  if (!supabase) return;
+  try {
+    const cleaned = cleanForSupabase(p);
+    const { error } = await supabase.from('products').upsert([cleaned], { onConflict: 'id' });
+    if (error) console.warn("Supabase product sync notice:", error.message);
+  } catch (err) {
+    console.warn("Supabase sync product error:", err);
+  }
 }
 
 export async function syncOrderToFirestore(order: Order) {
-  saveLocalStore();
-  await syncOrderToD1(order).catch(() => {});
+  if (!supabase) return;
+  try {
+    const cleaned = cleanForSupabase(order);
+    const { error } = await supabase.from('orders').upsert([cleaned], { onConflict: 'id' });
+    if (error) console.warn("Supabase order sync notice:", error.message);
+  } catch (err) {
+    console.warn("Supabase sync order error:", err);
+  }
 }
 
 export async function syncSettingsToFirestore(s: any) {
-  saveLocalStore();
-  await syncSettingsToD1(s).catch(() => {});
+  if (!supabase) return;
+  try {
+    const cleaned = cleanForSupabase(s);
+    const { error } = await supabase.from('system_settings').upsert([{ id: 1, data: cleaned }], { onConflict: 'id' });
+    if (error) console.warn("Supabase settings sync notice:", error.message);
+  } catch (err) {
+    console.warn("Supabase sync settings error:", err);
+  }
 }
 
 export async function syncNotificationToFirestore(n: MLMNotification) {
-  saveLocalStore();
+  if (!supabase) return;
+  try {
+    const cleaned = cleanForSupabase(n);
+    const { error } = await supabase.from('notifications').upsert([cleaned], { onConflict: 'id' });
+    if (error) console.warn("Supabase notification sync notice:", error.message);
+  } catch (err) {
+    console.warn("Supabase sync notification error:", err);
+  }
 }
 
 // ==========================================
@@ -462,6 +133,138 @@ let users: MLMUser[] = [
     upline_id: null,
     position: null,
     sponsor_id: null,
+    balance: 5000000,
+    sponsor_bonus: 0,
+    pairing_bonus: 0,
+    level_bonus: 0,
+    ro_bonus: 0,
+    left_count: 5,
+    right_count: 4,
+    left_sales: 5,
+    right_sales: 4,
+    created_at: "2026-06-01T09:00:00Z",
+    role: "admin"
+  },
+  {
+    id: 2,
+    username: "budi",
+    fullname: "Budi Santoso",
+    email: "budi@gmail.com",
+    phone: "081234567891",
+    is_active: true,
+    upline_id: 1,
+    position: "L",
+    sponsor_id: 1,
+    balance: 750000,
+    sponsor_bonus: 40000,
+    pairing_bonus: 20000,
+    level_bonus: 15000,
+    ro_bonus: 5000,
+    left_count: 2,
+    right_count: 2,
+    left_sales: 2,
+    right_sales: 2,
+    created_at: "2026-06-15T10:00:00Z",
+    role: "user"
+  },
+  {
+    id: 3,
+    username: "citra",
+    fullname: "Citra Lestari",
+    email: "citra@gmail.com",
+    phone: "081234567892",
+    is_active: true,
+    upline_id: 1,
+    position: "R",
+    sponsor_id: 1,
+    balance: 320000,
+    sponsor_bonus: 20000,
+    pairing_bonus: 10000,
+    level_bonus: 10000,
+    ro_bonus: 0,
+    left_count: 2,
+    right_count: 1,
+    left_sales: 2,
+    right_sales: 1,
+    created_at: "2026-06-16T11:00:00Z",
+    role: "user"
+  },
+  {
+    id: 4,
+    username: "dedi",
+    fullname: "Dedi Wijaya",
+    email: "dedi@gmail.com",
+    phone: "081234567893",
+    is_active: true,
+    upline_id: 2,
+    position: "L",
+    sponsor_id: 2,
+    balance: 150000,
+    sponsor_bonus: 20000,
+    pairing_bonus: 0,
+    level_bonus: 5000,
+    ro_bonus: 0,
+    left_count: 1,
+    right_count: 0,
+    left_sales: 1,
+    right_sales: 0,
+    created_at: "2026-07-01T08:30:00Z",
+    role: "user"
+  },
+  {
+    id: 5,
+    username: "elsa",
+    fullname: "Elsa Safira",
+    email: "elsa@gmail.com",
+    phone: "081234567894",
+    is_active: true,
+    upline_id: 2,
+    position: "R",
+    sponsor_id: 2,
+    balance: 90000,
+    sponsor_bonus: 0,
+    pairing_bonus: 0,
+    level_bonus: 0,
+    ro_bonus: 0,
+    left_count: 0,
+    right_count: 1,
+    left_sales: 0,
+    right_sales: 1,
+    created_at: "2026-07-02T14:15:00Z",
+    role: "user"
+  },
+  {
+    id: 6,
+    username: "fani",
+    fullname: "Fani Rahma",
+    email: "fani@gmail.com",
+    phone: "081234567895",
+    is_active: true,
+    upline_id: 3,
+    position: "L",
+    sponsor_id: 3,
+    balance: 210000,
+    sponsor_bonus: 0,
+    pairing_bonus: 0,
+    level_bonus: 0,
+    ro_bonus: 0,
+    left_count: 1,
+    right_count: 0,
+    left_sales: 1,
+    right_sales: 0,
+    created_at: "2026-07-03T10:00:00Z",
+    role: "user"
+  },
+  {
+    id: 7,
+    username: "guntur",
+    fullname: "Guntur Saputra",
+    email: "guntur@gmail.com",
+    phone: "081234567896",
+    is_active: false, // Inactive member
+    upline_id: 3,
+    position: "R",
+    sponsor_id: 1,
     balance: 0,
     sponsor_bonus: 0,
     pairing_bonus: 0,
@@ -471,9 +274,74 @@ let users: MLMUser[] = [
     right_count: 0,
     left_sales: 0,
     right_sales: 0,
-    created_at: "2026-06-01T09:00:00Z",
-    role: "admin",
-    password: "admin123"
+    created_at: "2026-07-10T16:20:00Z",
+    role: "user"
+  },
+  {
+    id: 8,
+    username: "hendra",
+    fullname: "Hendra Gunawan",
+    email: "hendra@gmail.com",
+    phone: "081234567897",
+    is_active: true,
+    upline_id: 4,
+    position: "L",
+    sponsor_id: 4,
+    balance: 50000,
+    sponsor_bonus: 0,
+    pairing_bonus: 0,
+    level_bonus: 0,
+    ro_bonus: 0,
+    left_count: 0,
+    right_count: 0,
+    left_sales: 0,
+    right_sales: 0,
+    created_at: "2026-07-12T09:00:00Z",
+    role: "user"
+  },
+  {
+    id: 9,
+    username: "irma",
+    fullname: "Irma Suryani",
+    email: "irma@gmail.com",
+    phone: "081234567898",
+    is_active: true,
+    upline_id: 5,
+    position: "R",
+    sponsor_id: 2,
+    balance: 100000,
+    sponsor_bonus: 0,
+    pairing_bonus: 0,
+    level_bonus: 0,
+    ro_bonus: 0,
+    left_count: 0,
+    right_count: 0,
+    left_sales: 0,
+    right_sales: 0,
+    created_at: "2026-07-15T13:40:00Z",
+    role: "user"
+  },
+  {
+    id: 10,
+    username: "joko",
+    fullname: "Joko Widodo",
+    email: "joko@gmail.com",
+    phone: "081234567899",
+    is_active: true,
+    upline_id: 6,
+    position: "L",
+    sponsor_id: 6,
+    balance: 50000,
+    sponsor_bonus: 0,
+    pairing_bonus: 0,
+    level_bonus: 0,
+    ro_bonus: 0,
+    left_count: 0,
+    right_count: 0,
+    left_sales: 0,
+    right_sales: 0,
+    created_at: "2026-07-18T11:10:00Z",
+    role: "user"
   }
 ];
 
@@ -516,15 +384,133 @@ let products: Product[] = [
   }
 ];
 
-let transactions: Transaction[] = [];
+let transactions: Transaction[] = [
+  {
+    id: 1,
+    user_id: 2,
+    username: "budi",
+    type: "activation",
+    amount: -100000,
+    description: "Aktifasi Hak Usaha Member Budi Santoso",
+    created_at: "2026-06-15T10:00:00Z"
+  },
+  {
+    id: 2,
+    user_id: 1,
+    username: "admin",
+    type: "sponsor_bonus",
+    amount: 20000,
+    description: "Bonus Sponsor dari aktifasi budi",
+    created_at: "2026-06-15T10:00:00Z"
+  },
+  {
+    id: 3,
+    user_id: 3,
+    username: "citra",
+    type: "activation",
+    amount: -100000,
+    description: "Aktifasi Hak Usaha Member Citra Lestari",
+    created_at: "2026-06-16T11:00:00Z"
+  },
+  {
+    id: 4,
+    user_id: 1,
+    username: "admin",
+    type: "sponsor_bonus",
+    amount: 20000,
+    description: "Bonus Sponsor dari aktifasi citra",
+    created_at: "2026-06-16T11:00:00Z"
+  },
+  {
+    id: 5,
+    user_id: 1,
+    username: "admin",
+    type: "pairing_bonus",
+    amount: 10000,
+    description: "Bonus Pairing Kiri (budi) & Kanan (citra)",
+    created_at: "2026-06-16T11:15:00Z"
+  }
+];
 
-let deposits: DepositRequest[] = [];
+let deposits: DepositRequest[] = [
+  {
+    id: 1,
+    user_id: 2,
+    username: "budi",
+    amount: 1000000,
+    unique_code: 482,
+    method: "bca",
+    status: "success",
+    created_at: "2026-06-14T08:00:00Z"
+  },
+  {
+    id: 2,
+    user_id: 3,
+    username: "citra",
+    amount: 500000,
+    unique_code: 159,
+    method: "qris",
+    status: "success",
+    created_at: "2026-06-15T11:00:00Z"
+  },
+  {
+    id: 3,
+    user_id: 4,
+    username: "dedi",
+    amount: 100000,
+    unique_code: 842,
+    method: "qris",
+    status: "pending",
+    payment_code: "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=HedtroJeansDepositDedi100K",
+    created_at: "2026-07-20T11:00:00Z"
+  }
+];
 
-let withdrawals: WDRequest[] = [];
+let withdrawals: WDRequest[] = [
+  {
+    id: 1,
+    user_id: 2,
+    username: "budi",
+    amount: 200000,
+    bank_name: "BCA",
+    account_number: "8830129321",
+    account_holder: "Budi Santoso",
+    status: "success",
+    created_at: "2026-07-10T12:00:00Z"
+  },
+  {
+    id: 2,
+    user_id: 3,
+    username: "citra",
+    amount: 150000,
+    bank_name: "Mandiri",
+    account_number: "131002938210",
+    account_holder: "Citra Lestari",
+    status: "pending",
+    created_at: "2026-07-21T02:00:00Z"
+  }
+];
 
 let orders: Order[] = [];
 
-let notifications: MLMNotification[] = [];
+let notifications: MLMNotification[] = [
+  {
+    id: 1,
+    user_id: 1,
+    title: "Member Baru!",
+    message: "guntur telah mendaftar di jaringan Kanan Anda melalui Citra Lestari.",
+    type: "info",
+    created_at: "2026-07-10T16:20:00Z"
+  },
+  {
+    id: 2,
+    user_id: 2,
+    title: "Bonus Sponsor!",
+    message: "Selamat! Anda mendapatkan Bonus Sponsor Rp 20,000 dari aktifasi dedi.",
+    type: "success",
+    created_at: "2026-07-01T08:30:00Z"
+  }
+];
 
 let isAutoPayout = true;
 
@@ -639,50 +625,6 @@ async function activateUserMLM(userId: number) {
   };
   transactions.push(prodBonusTx);
   await syncTransactionToFirestore(prodBonusTx);
-
-  // Auto-create or update Physical Order for 1 Pcs Perdana Jeans Shipment (Rp 550.000)
-  const existingOrderForUser = orders.find(o => 
-    (o.username && o.username.toLowerCase() === user.username.toLowerCase()) && 
-    (o.product_name && o.product_name.includes("Perdana"))
-  );
-
-  if (existingOrderForUser) {
-    existingOrderForUser.status = "DIPROSES";
-    existingOrderForUser.payment_method = "Transfer Bank / Aktivasi Verified (Lunas)";
-    if (existingOrderForUser.steps && existingOrderForUser.steps.length > 0) {
-      existingOrderForUser.steps[0].done = true;
-      existingOrderForUser.steps[0].time = new Date().toLocaleString("id-ID");
-      existingOrderForUser.steps[1].done = true;
-      existingOrderForUser.steps[1].time = "Diproses Gudang";
-    }
-    await syncOrderToFirestore(existingOrderForUser);
-  } else {
-    const newOrdId = Math.max(...orders.map(o => Number(o.id) || 0), 0) + 1;
-    const perdanaOrder: Order = {
-      id: newOrdId,
-      invoice_no: `INV-PERDANA-${newOrdId}-${Date.now().toString().slice(-4)}`,
-      user_id: user.id,
-      username: user.username,
-      fullname: user.fullname,
-      phone: user.phone || (user as any).whatsapp || "081234567890",
-      address: (user as any).address || "Alamat sesuai registrasi member",
-      product_name: "Paket Perdana Member - Hedtro Jeans Raw Denim Premium (Rp 550.000)",
-      amount: 550000,
-      payment_method: "Transfer Bank / Aktivasi Verified (Lunas)",
-      status: "DIPROSES",
-      courier: "JNE REGULER",
-      tracking_number: `JNE-PERDANA-${Math.floor(100000000 + Math.random() * 900000000)}`,
-      created_at: new Date().toISOString(),
-      steps: [
-        { title: "Registrasi & Pembayaran Rp 550.000 Terverifikasi", time: new Date().toLocaleString("id-ID"), done: true, description: "Status akun terverifikasi Member Premium" },
-        { title: "Penyiapan 1 Pcs Jeans Perdana Gudang", time: "Diproses Gudang", done: true, description: "Potong stok gudang & bungkus" },
-        { title: "Penyerahan ke Kurir Ekspedisi", time: "Menunggu Resi", done: false, description: "Nomor resi diterbitkan admin" },
-        { title: "Paket Tiba di Alamat Member", time: "Estimasi 2-3 Hari", done: false, description: "Diterima pemesan" }
-      ]
-    };
-    orders.push(perdanaOrder);
-    await syncOrderToFirestore(perdanaOrder);
-  }
 
   // 2. Distribute Sponsor Bonus (If MLM Bonus Active)
   if (systemSettings.enableMlmBonus !== false && user.sponsor_id) {
@@ -841,12 +783,8 @@ async function activateUserMLM(userId: number) {
 async function updateAncestorCounts(uplineId: number, position: 'L' | 'R') {
   let currUplineId: number | null = uplineId;
   let childPos: 'L' | 'R' = position;
-  const visited = new Set<number>();
 
   while (currUplineId !== null && currUplineId !== undefined) {
-    if (visited.has(currUplineId)) break;
-    visited.add(currUplineId);
-
     const upline = users.find(u => Number(u.id) === Number(currUplineId));
     if (!upline) break;
 
@@ -858,9 +796,7 @@ async function updateAncestorCounts(uplineId: number, position: 'L' | 'R') {
     await syncUserToFirestore(upline);
 
     childPos = upline.position === 'R' ? 'R' : 'L';
-    const nextId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
-    if (nextId === currUplineId) break;
-    currUplineId = nextId;
+    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
   }
 }
 
@@ -900,22 +836,15 @@ function findVacantSpot(rootId: number, preferredPosition?: 'L' | 'R'): { upline
     return { upline_id: Number(rootId), position: pos };
   }
 
-  // Recursive search downwards following that leg with cycle detection
+  // Recursive search downwards following that leg
   let currentId = Number(directChild.id);
-  const visited = new Set<number>();
-  visited.add(Number(rootId));
-
   while (true) {
-    if (visited.has(currentId)) break;
-    visited.add(currentId);
-
     const nextChild = users.find(u => Number(u.upline_id) === Number(currentId) && u.position === pos);
     if (!nextChild) {
       return { upline_id: currentId, position: pos };
     }
     currentId = Number(nextChild.id);
   }
-  return { upline_id: Number(rootId), position: pos };
 }
 
 // ==========================================
@@ -929,14 +858,14 @@ app.get(["/api/products", "/products"], (req, res) => {
 
 // Get Public Settings
 app.get(["/api/settings", "/settings"], async (req, res) => {
-  if (firestoreDb) {
+  if (supabase) {
     try {
-      const docSnap: any = await withTimeout(getDoc(doc(firestoreDb, "settings", "system")), 5000, "getDoc system settings endpoint");
-      if (docSnap && docSnap.exists && typeof docSnap.exists === 'function' && docSnap.exists()) {
-        systemSettings = { ...systemSettings, ...docSnap.data() };
+      const { data } = await supabase.from('system_settings').select('data').eq('id', 1).single();
+      if (data && data.data) {
+        systemSettings = { ...systemSettings, ...data.data };
       }
     } catch (e) {
-      console.warn("Failed reading settings from Firestore in GET /api/settings:", e);
+      console.warn("Failed reading settings from Supabase in GET /api/settings:", e);
     }
   }
 
@@ -958,247 +887,17 @@ app.post(["/api/admin/settings", "/admin/settings"], async (req, res) => {
   if (!newSettings) return res.status(400).json({ message: "Pengaturan tidak valid" });
   systemSettings = { ...systemSettings, ...newSettings };
   await syncSettingsToFirestore(systemSettings);
-  res.json({ message: "Pengaturan sistem & bonus komisi berhasil disimpan ke Firestore", settings: systemSettings });
+  res.json({ message: "Pengaturan sistem & bonus komisi berhasil disimpan ke Supabase", settings: systemSettings });
 });
 
-
-// Get All Users (Admin / Client sync)
-app.get(["/api/users", "/users"], async (req, res) => {
-  await initFirestoreDataOnce();
-  res.json(users);
-});
-
-// Delete User (Admin operation)
-app.post(["/api/admin/users/delete", "/admin/users/delete"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const { userId, id, username } = req.body;
-    const targetId = Number(userId || id);
-    const targetUsername = username ? String(username).toLowerCase().trim() : "";
-
-    users = users.filter(u => {
-      if (targetId && Number(u.id) === targetId && u.role !== 'admin') return false;
-      if (targetUsername && u.username && u.username.toLowerCase().trim() === targetUsername && u.role !== 'admin') return false;
-      return true;
-    });
-
-    if (targetId) {
-      await queryD1("DELETE FROM users WHERE id=?;", [targetId]).catch(() => {});
-      await queryD1("DELETE FROM deposits WHERE user_id=?;", [targetId]).catch(() => {});
-      await queryD1("DELETE FROM withdrawals WHERE user_id=?;", [targetId]).catch(() => {});
-      await queryD1("DELETE FROM orders WHERE user_id=?;", [targetId]).catch(() => {});
-    } else if (targetUsername) {
-      await queryD1("DELETE FROM users WHERE LOWER(username)=?;", [targetUsername]).catch(() => {});
-    }
-
-    saveLocalStore();
-    return res.json({ message: "Member berhasil dihapus dari database server & D1", users });
-  } catch (err: any) {
-    return res.status(500).json({ message: "Gagal menghapus member: " + (err?.message || err) });
-  }
-});
-
-// Reset All Members (Admin operation)
-app.post(["/api/admin/reset-members", "/admin/reset-members"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    users = users.filter(u => u.role === 'admin' || Number(u.id) === 1);
-    deposits = [];
-    withdrawals = [];
-    orders = [];
-    transactions = [];
-    notifications = [];
-
-    await queryD1("DELETE FROM users WHERE role != 'admin' AND id != 1;").catch(() => {});
-    await queryD1("DELETE FROM deposits;").catch(() => {});
-    await queryD1("DELETE FROM withdrawals;").catch(() => {});
-    await queryD1("DELETE FROM orders;").catch(() => {});
-    await queryD1("DELETE FROM transactions;").catch(() => {});
-    await queryD1("DELETE FROM notifications;").catch(() => {});
-
-    saveLocalStore();
-    return res.json({ message: "Seluruh member & transaksi berhasil di-reset dari database!", users });
-  } catch (err: any) {
-    return res.status(500).json({ message: "Gagal reset member: " + (err?.message || err) });
-  }
-});
-
-// Authentication: Login
-app.post(["/api/auth/login", "/auth/login"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const { username, password } = req.body;
-    if (!username) return res.status(400).json({ message: "Username/Email harus diisi" });
-
-    const normalized = String(username).toLowerCase().trim();
-    const user = users.find(u => 
-      u.username?.toLowerCase().trim() === normalized || 
-      u.email?.toLowerCase().trim() === normalized
-    );
-
-    if (!user) {
-      return res.status(404).json({ message: "Username atau email tidak ditemukan" });
-    }
-
-    const expectedPass = user.password || (user.role === 'admin' || user.id === 1 ? "admin123" : "user123");
-    if (password && password !== expectedPass) {
-      return res.status(401).json({ message: "Password salah!" });
-    }
-
-    res.json({ message: "Login berhasil", user });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal login: " + (err?.message || err) });
-  }
-});
-
-// Get All Deposits
-app.get(["/api/deposits", "/deposits"], async (req, res) => {
-  await initFirestoreDataOnce();
-  res.json(deposits);
-});
-
-// Create Deposit (With Proof Image Support)
-app.post(["/api/deposits/create", "/deposits/create"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const depData = req.body;
-    if (!depData || !depData.user_id || !depData.amount) {
-      return res.status(400).json({ message: "Data deposit tidak valid" });
-    }
-    const newDep: DepositRequest = {
-      id: Number(depData.id) || Date.now(),
-      user_id: Number(depData.user_id),
-      username: depData.username || "",
-      amount: Number(depData.amount),
-      unique_code: depData.unique_code !== undefined ? Number(depData.unique_code) : (100 + (Number(depData.id || Date.now()) % 899)),
-      method: depData.method || "qris",
-      status: depData.status || "pending",
-      payment_code: depData.payment_code || `DEP-${Date.now()}`,
-      created_at: depData.created_at || new Date().toISOString(),
-      proof_image: depData.proof_image || undefined,
-      proof_notes: depData.proof_notes || undefined,
-      proof_submitted_at: depData.proof_submitted_at || undefined
-    };
-
-    // Replace existing or push new
-    const idx = deposits.findIndex(d => Number(d.id) === Number(newDep.id));
-    if (idx >= 0) {
-      deposits[idx] = newDep;
-    } else {
-      deposits.unshift(newDep);
-    }
-
-    await syncDepositToFirestore(newDep);
-    res.status(201).json({ message: "Pengajuan deposit berhasil!", deposit: newDep });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal membuat deposit: " + (err?.message || err) });
-  }
-});
-
-// Get All Withdrawals
-app.get(["/api/withdrawals", "/withdrawals"], async (req, res) => {
-  await initFirestoreDataOnce();
-  res.json(withdrawals);
-});
-
-// Create Withdrawal
-app.post(["/api/withdrawals/create", "/withdrawals/create"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const wdData = req.body;
-    if (!wdData || !wdData.user_id || !wdData.amount) {
-      return res.status(400).json({ message: "Data penarikan tidak valid" });
-    }
-    const newWd: WDRequest = {
-      id: Number(wdData.id) || Date.now(),
-      user_id: Number(wdData.user_id),
-      username: wdData.username || "",
-      amount: Number(wdData.amount),
-      bank_name: wdData.bank_name || "",
-      account_number: wdData.account_number || "",
-      account_holder: wdData.account_holder || "",
-      status: wdData.status || "pending",
-      created_at: wdData.created_at || new Date().toISOString()
-    };
-
-    const idx = withdrawals.findIndex(w => Number(w.id) === Number(newWd.id));
-    if (idx >= 0) {
-      withdrawals[idx] = newWd;
-    } else {
-      withdrawals.unshift(newWd);
-    }
-
-    await syncWithdrawalToFirestore(newWd);
-    res.status(201).json({ message: "Pengajuan WD berhasil!", withdrawal: newWd });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal mengajukan WD: " + (err?.message || err) });
-  }
-});
-
-// Get All Transactions
-app.get(["/api/transactions", "/transactions"], async (req, res) => {
-  await initFirestoreDataOnce();
-  res.json(transactions);
-});
-
-// Get All Orders
-app.get(["/api/orders", "/orders"], async (req, res) => {
-  await initFirestoreDataOnce();
-  res.json(orders);
-});
-
-// Create Order
-app.post(["/api/orders/create", "/orders/create"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const ordData = req.body;
-    if (!ordData || !ordData.user_id || !ordData.amount) {
-      return res.status(400).json({ message: "Data pesanan tidak valid" });
-    }
-    const newOrd: Order = {
-      id: Number(ordData.id) || Date.now(),
-      invoice_no: ordData.invoice_no || `INV-${Date.now()}`,
-      user_id: Number(ordData.user_id),
-      username: ordData.username || "",
-      fullname: ordData.fullname || "",
-      phone: ordData.phone || "",
-      address: ordData.address || "",
-      product_name: ordData.product_name || "Produk Denim",
-      amount: Number(ordData.amount) || 0,
-      unique_code: Number(ordData.unique_code) || 0,
-      payment_method: ordData.payment_method || "Transfer Bank",
-      status: ordData.status || "DIPROSES",
-      courier: ordData.courier || "JNE REGULER",
-      tracking_number: ordData.tracking_number || "",
-      notes: ordData.notes || "",
-      created_at: ordData.created_at || new Date().toISOString()
-    };
-
-    const idx = orders.findIndex(o => Number(o.id) === Number(newOrd.id));
-    if (idx >= 0) {
-      orders[idx] = newOrd;
-    } else {
-      orders.unshift(newOrd);
-    }
-
-    await syncOrderToFirestore(newOrd);
-    res.status(201).json({ message: "Pesanan berhasil dibuat!", order: newOrd });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal membuat pesanan: " + (err?.message || err) });
-  }
-});
-
-// Get Firestore Info and Direct Console Link
+// Get Database Info
 app.get("/api/firestore-info", (req, res) => {
   try {
-    const projId = resolvedServerFirebaseConfig.projectId || "MISSING";
-    const dbId = resolvedServerFirebaseConfig.firestoreDatabaseId || "ai-studio-zaloradenimmlmbi-5abf2514-6c97-4eab-bc10-6219841824f9";
     res.json({
-      connected: Boolean(firestoreDb),
-      projectId: projId,
-      firestoreDatabaseId: dbId,
-      firebaseConsoleUrl: `https://console.firebase.google.com/u/0/project/${projId}/firestore/databases/${dbId}/data`,
-      collections: ["users", "settings", "products", "deposits", "withdrawals", "transactions", "notifications"],
+      connected: Boolean(supabase),
+      database: "Supabase PostgreSQL",
+      supabaseUrl: supabaseUrl,
+      collections: ["users", "products", "deposit_requests", "wd_requests", "transactions", "orders", "system_settings"],
       stats: {
         totalUsers: users.length,
         totalDeposits: deposits.length,
@@ -1208,7 +907,7 @@ app.get("/api/firestore-info", (req, res) => {
       }
     });
   } catch (err: any) {
-    res.status(500).json({ message: err?.message || "Error retrieving Firestore info" });
+    res.status(500).json({ message: err?.message || "Error retrieving database info" });
   }
 });
 
@@ -1223,7 +922,7 @@ app.post("/api/admin/products/stock", async (req, res) => {
   if (memberPrice !== undefined) product.member_price = Number(memberPrice);
 
   await syncProductToFirestore(product);
-  res.json({ message: "Data produk dan stok berhasil diupdate di Firestore", product, products });
+  res.json({ message: "Data produk dan stok berhasil diupdate di Supabase", product, products });
 });
 
 // Update product full info (Admin operation)
@@ -1254,24 +953,15 @@ app.post("/api/admin/products/delete", async (req, res) => {
   if (idx !== -1) {
     products.splice(idx, 1);
   }
-  if (firestoreDb) {
+  if (supabase) {
     try {
-      const { doc, deleteDoc } = await import("firebase/firestore");
-      await deleteDoc(doc(firestoreDb, "products", String(id)));
+      await supabase.from('products').delete().eq('id', pId);
     } catch (e) {
-      console.warn("Firestore delete product error:", e);
+      console.warn("Supabase delete product error:", e);
     }
   }
   res.json({ message: "Produk berhasil dihapus", products });
 });
-
-// Get All Users (Admin / Client sync)
-app.get(["/api/users", "/users"], async (req, res) => {
-  await initFirestoreDataOnce();
-  res.json(users);
-});
-
-
 
 // Authentication: Login
 app.post("/api/auth/login", async (req, res) => {
@@ -1281,85 +971,22 @@ app.post("/api/auth/login", async (req, res) => {
     if (!username) return res.status(400).json({ message: "Username/Email harus diisi" });
 
     const searchVal = String(username).toLowerCase().trim();
-    let user = users.find(u => 
+    const user = users.find(u => 
       (u.username && u.username.toLowerCase().trim() === searchVal) || 
       (u.email && u.email.toLowerCase().trim() === searchVal)
     );
-
-    // Dynamic fallback: If user not found in server memory, check Firestore directly!
-    if (!user && firestoreDb) {
-      try {
-        const snap = await getDocs(collection(firestoreDb, "users"));
-        if (snap && !snap.empty) {
-          snap.forEach((docSnap: any) => {
-            const data = docSnap.data();
-            const uUsername = (data.username || "").toLowerCase().trim();
-            const uEmail = (data.email || "").toLowerCase().trim();
-            if (uUsername === searchVal || uEmail === searchVal) {
-              const uId = Number(data.id ?? docSnap.id);
-              user = { ...data, id: uId };
-              // Cache in memory
-              if (!users.some(existing => Number(existing.id) === uId)) {
-                users.push(user);
-              }
-            }
-          });
-        }
-      } catch (fsErr) {
-        console.warn("Firestore lookup failed during login:", fsErr);
-      }
-    }
-
-    if (!user && (searchVal === "admin" || searchVal === "admin@hedtrojeans.com")) {
-      user = {
-        id: 1,
-        username: "admin",
-        fullname: "Administrator Hedtro Jeans",
-        email: "admin@hedtrojeans.com",
-        phone: "081234567890",
-        password: "admin123",
-        is_active: true,
-        upline_id: null,
-        position: null,
-        sponsor_id: null,
-        balance: 0,
-        sponsor_bonus: 0,
-        pairing_bonus: 0,
-        level_bonus: 0,
-        ro_bonus: 0,
-        left_count: 0,
-        right_count: 0,
-        left_sales: 0,
-        right_sales: 0,
-        created_at: "2026-06-01T09:00:00Z",
-        role: "admin"
-      };
-      if (!users.some(u => Number(u.id) === 1)) {
-        users.unshift(user);
-      }
-    }
-
     if (!user) {
-      return res.status(404).json({ message: "Username atau email tidak terdaftar atau akun telah dihapus." });
+      return res.status(404).json({ message: "User/Email tidak ditemukan dalam database!" });
     }
 
+    // Password check against user password or default role password
+    const expectedPassword = (user as any).password || (user.role === 'admin' ? "admin123" : "user123");
     if (!password) {
       return res.status(400).json({ message: "Kata sandi wajib diisi!" });
     }
 
-    const isAdmin = user.role === 'admin' || user.username === 'admin' || Number(user.id) === 1;
-    if (isAdmin) {
-      const validAdminPasses = ["admin123", "password123", "admin", (user as any).password].filter(Boolean);
-      if (!validAdminPasses.includes(password)) {
-        return res.status(401).json({ message: "Kata sandi yang Anda masukkan salah!" });
-      }
-      (user as any).password = "admin123";
-      await syncUserToFirestore(user);
-    } else {
-      const expectedPassword = (user as any).password || "user123";
-      if (password !== expectedPassword) {
-        return res.status(401).json({ message: "Kata sandi yang Anda masukkan salah!" });
-      }
+    if (password !== expectedPassword) {
+      return res.status(401).json({ message: "Kata sandi yang Anda masukkan salah!" });
     }
 
     res.json({ message: "Login berhasil", user });
@@ -1421,56 +1048,23 @@ app.post("/api/auth/reset-password", (req, res) => {
 });
 
 // Authentication: Register Member
-app.post(["/api/auth/register", "/auth/register"], async (req, res) => {
+app.post("/api/auth/register", async (req, res) => {
   try {
     await initFirestoreDataOnce();
-    if (firestoreDb) {
-      setDoc(doc(firestoreDb, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
-    }
-  const { username, fullname, password, sponsor_username, upline_username, position, ktp, whatsapp, bank_name, bank_account, bank_holder } = req.body;
-  let email = req.body.email;
-  let phone = req.body.phone;
+  const { username, fullname, email, phone, password, sponsor_username, upline_username, position, ktp, whatsapp, bank_name, bank_account, bank_holder } = req.body;
 
-  if (!username || !fullname) {
-    return res.status(400).json({ message: "Username dan Nama Lengkap wajib diisi" });
+  if (!username || !fullname || !email || !phone) {
+    return res.status(400).json({ message: "Mohon isi semua field wajib (Username, Nama Lengkap, Email, Telepon)" });
   }
 
-  const normalizedUsername = String(username).toLowerCase().replace(/\s+/g, "").trim();
-  if (!normalizedUsername) {
-    return res.status(400).json({ message: "Username tidak boleh kosong" });
+  if (!password || password.length < 3) {
+    return res.status(400).json({ message: "Kata sandi wajib diisi (minimal 3 karakter)" });
   }
 
-  if (!email) {
-    email = `${normalizedUsername}@member.hedtrojeans.com`;
-  }
-  if (!phone) {
-    phone = "081234567890";
-  }
+  const normalizedUsername = username.toLowerCase().replace(/\s+/g, "").trim();
 
-  const passToUse = password && password.length >= 3 ? password : "password123";
-
-  // Check Cloudflare D1 database directly for duplicate username
-  const resD1User = await queryD1("SELECT id, is_active, role FROM users WHERE LOWER(username)=?;", [normalizedUsername]).catch(() => null);
-  if (resD1User?.success && resD1User.result?.[0]?.results?.length > 0) {
-    const row = resD1User.result[0].results[0];
-    const isAct = row.is_active === 1 || row.is_active === true;
-    if (!isAct && row.role !== 'admin') {
-      await queryD1("DELETE FROM users WHERE id=? OR LOWER(username)=?;", [row.id, normalizedUsername]).catch(() => {});
-      users = users.filter(u => String(u.id) !== String(row.id) && String(u.username).toLowerCase().trim() !== normalizedUsername);
-    } else {
-      return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
-    }
-  } else {
-    const existingUserIdx = users.findIndex(u => u.username && u.username.toLowerCase().trim() === normalizedUsername);
-    if (existingUserIdx >= 0) {
-      const existing = users[existingUserIdx];
-      if (!existing.is_active && existing.role !== 'admin') {
-        users.splice(existingUserIdx, 1);
-        queryD1("DELETE FROM users WHERE id=? OR LOWER(username)=?;", [existing.id, normalizedUsername]).catch(() => {});
-      } else {
-        return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
-      }
-    }
+  if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
+    return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
   }
 
   // 1. Resolve sponsor
@@ -1525,7 +1119,7 @@ app.post(["/api/auth/register", "/auth/register"], async (req, res) => {
     right_sales: 0,
     created_at: new Date().toISOString(),
     role: "user",
-    password: passToUse,
+    password: password,
     ktp: ktp || "",
     whatsapp: whatsapp || phone || "",
     bank_name: bank_name || "",
@@ -1551,63 +1145,9 @@ app.post(["/api/auth/register", "/auth/register"], async (req, res) => {
   notifications.push(notif);
   await syncNotificationToFirestore(notif);
 
-  // Create initial Paket Perdana order record for new member
-  const pSeries = req.body.product_series || "HTR-RAW-01 (Hedtro Raw Denim Premium 15oz)";
-  const pColor = req.body.product_color || "Indigo Blue Classic";
-  const pSize = req.body.product_size || "32";
-
-  const newOrdId = Math.max(...orders.map(o => Number(o.id) || 0), 0) + 1;
-  const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
-  const regOrder: Order = {
-    id: newOrdId,
-    invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
-    user_id: newUserId,
-    username: normalizedUsername,
-    fullname: fullname,
-    phone: phone,
-    address: req.body.address ? `${req.body.address}${req.body.city ? ', ' + req.body.city : ''}` : "-",
-    product_name: `Paket Perdana Member - Hedtro Jeans (${pSeries})`,
-    amount: 550000,
-    payment_method: "Transfer Bank / QRIS",
-    status: "DIPROSES",
-    courier: "JNE REGULER",
-    tracking_number: newResi,
-    notes: `Pesanan Pendaftaran Member. Varian Dipilih: Seri ${pSeries} | Warna: ${pColor} | Size: ${pSize}. Celana Jeans Perdana sedang diproses di gudang.`,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    steps: [
-      { title: "Registrasi Akun & Invoice Dibuat", time: new Date().toLocaleString("id-ID"), done: true, description: "Pendaftaran member berhasil" },
-      { title: "Gudang Memproses & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: `Menyiapkan Celana Jeans Seri ${pSeries} (Warna: ${pColor}, Size: ${pSize})` },
-      { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "Sedang Diproses", done: false, description: `Nomor Resi: ${newResi}` },
-      { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
-      { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
-    ]
-  };
-  orders.push(regOrder);
-  await syncOrderToFirestore(regOrder);
-
-  // Create initial activation deposit request for new member (Rp 550.000 + Unique Code)
-  const actCode = Math.floor(100 + Math.random() * 900);
-  const newDepId = Math.max(...deposits.map(d => Number(d.id) || 0), 0) + 1;
-  const regDep: DepositRequest = {
-    id: newDepId,
-    user_id: newUserId,
-    username: normalizedUsername,
-    amount: 550000,
-    unique_code: actCode,
-    method: "transfer_bank",
-    status: "pending",
-    payment_code: `ACT-${newUserId}-${Date.now().toString().slice(-4)}`,
-    created_at: new Date().toISOString()
-  };
-  deposits.push(regDep);
-  await syncDepositToFirestore(regDep);
-
   res.status(201).json({
     message: "Pendaftaran berhasil! Akun Anda berstatus TIDAK AKTIF. Lakukan pembayaran aktifasi Rp 550,000 untuk menikmati seluruh fitur dan berbelanja produk Hedtro Jeans.",
-    user: newUser,
-    order: regOrder,
-    deposit: regDep
+    user: newUser
   });
   } catch (err: any) {
     console.error("Register route error:", err);
@@ -1622,6 +1162,8 @@ app.post("/api/user/activate", async (req, res) => {
   if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
   if (user.is_active) return res.status(400).json({ message: "User sudah aktif" });
 
+  // Simulate payment
+  user.balance -= 550000;
   const success = await activateUserMLM(userId);
 
   if (success) {
@@ -1650,7 +1192,7 @@ app.post("/api/payment/simulate-gateway", async (req, res) => {
     
     // Log transaction
     const newTx: Transaction = {
-      id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
+      id: transactions.length + 1,
       user_id: user.id,
       username: user.username,
       type: "deposit",
@@ -1662,7 +1204,7 @@ app.post("/api/payment/simulate-gateway", async (req, res) => {
     await syncTransactionToFirestore(newTx);
 
     const newNotif: MLMNotification = {
-      id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
+      id: notifications.length + 1,
       user_id: user.id,
       title: "Deposit Berhasil!",
       message: `Saldo Rp ${dep.amount.toLocaleString()} telah berhasil ditambahkan via payment gateway otomatis.`,
@@ -1711,7 +1253,7 @@ app.post("/api/payment/midtrans-webhook", async (req, res) => {
       
       // Log transaction
       const newTx: Transaction = {
-        id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
+        id: transactions.length + 1,
         user_id: user.id,
         username: user.username,
         type: "deposit",
@@ -1723,7 +1265,7 @@ app.post("/api/payment/midtrans-webhook", async (req, res) => {
       await syncTransactionToFirestore(newTx);
 
       const newNotif: MLMNotification = {
-        id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
+        id: notifications.length + 1,
         user_id: user.id,
         title: "Deposit Otomatis Berhasil!",
         message: `Saldo Rp ${dep.amount.toLocaleString()} telah berhasil ditambahkan via Midtrans QRIS/VA otomatis.`,
@@ -1741,7 +1283,7 @@ app.post("/api/payment/midtrans-webhook", async (req, res) => {
     const user = users.find(u => u.id === dep.user_id);
     if (user) {
       const newNotif: MLMNotification = {
-        id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
+        id: notifications.length + 1,
         user_id: user.id,
         title: "Pembayaran Deposit Gagal / Expired",
         message: `Pembayaran deposit Rp ${dep.amount.toLocaleString()} Anda dibatalkan atau telah kedaluwarsa oleh sistem Midtrans.`,
@@ -1770,7 +1312,7 @@ app.post("/api/user/deposit", async (req, res) => {
 
   const numUniqueCode = Number(uniqueCode) || Math.floor(100 + Math.random() * 900);
 
-  const newDepId = Math.max(...deposits.map(d => Number(d.id) || 0), 0) + 1;
+  const newDepId = deposits.length + 1;
   const midtransOrderId = `DEP-MID-${newDepId}-${Date.now()}`;
   let paymentCode = method === 'qris' 
     ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=HedtroJeansQRISDep${numAmount + numUniqueCode}`
@@ -1885,60 +1427,6 @@ app.post("/api/user/deposit", async (req, res) => {
   res.status(201).json({ message: "Instruksi deposit berhasil dibuat", deposit: newDep });
 });
 
-// Confirm Deposit Proof Upload
-app.post("/api/user/deposit/confirm-proof", async (req, res) => {
-  const depositId = req.body.depositId || req.body.deposit_id;
-  const proofImage = req.body.proofImage || req.body.proof_image;
-  const proofNotes = req.body.proofNotes || req.body.proof_notes || "";
-
-  const dep = deposits.find(d => Number(d.id) === Number(depositId) || String(d.id) === String(depositId));
-  if (dep) {
-    dep.proof_image = proofImage;
-    dep.proof_notes = proofNotes;
-    dep.proof_submitted_at = new Date().toISOString();
-    await syncDepositToFirestore(dep);
-
-    // Dual-sync proof image to user's matching activation order
-    const matchOrd = orders.find(o => Number(o.user_id) === Number(dep.user_id));
-    if (matchOrd) {
-      matchOrd.proof_image = proofImage;
-      matchOrd.proof_notes = proofNotes;
-      matchOrd.proof_submitted_at = new Date().toISOString();
-      await syncOrderToFirestore(matchOrd);
-    }
-    return res.json({ message: "Bukti transfer deposit berhasil disimpan", deposit: dep });
-  }
-
-  res.status(404).json({ message: "Deposit tidak ditemukan" });
-});
-
-// Confirm Order Proof Upload
-app.post("/api/user/orders/confirm-proof", async (req, res) => {
-  const orderId = req.body.orderId || req.body.order_id;
-  const proofImage = req.body.proofImage || req.body.proof_image;
-  const proofNotes = req.body.proofNotes || req.body.proof_notes || "";
-
-  const ord = orders.find(o => Number(o.id) === Number(orderId) || String(o.id) === String(orderId));
-  if (ord) {
-    ord.proof_image = proofImage;
-    ord.proof_notes = proofNotes;
-    ord.proof_submitted_at = new Date().toISOString();
-    await syncOrderToFirestore(ord);
-
-    // Dual-sync to matching deposit if any
-    const matchDep = deposits.find(d => Number(d.user_id) === Number(ord.user_id));
-    if (matchDep) {
-      matchDep.proof_image = proofImage;
-      matchDep.proof_notes = proofNotes;
-      matchDep.proof_submitted_at = new Date().toISOString();
-      await syncDepositToFirestore(matchDep);
-    }
-    return res.json({ message: "Bukti transfer order berhasil disimpan", order: ord });
-  }
-
-  res.status(404).json({ message: "Order tidak ditemukan" });
-});
-
 // Create WD request
 app.post("/api/user/withdraw", async (req, res) => {
   const { userId, amount, bankName, accountNumber, accountHolder } = req.body;
@@ -1958,7 +1446,7 @@ app.post("/api/user/withdraw", async (req, res) => {
   user.balance -= numAmount;
 
   const newWD: WDRequest = {
-    id: Math.max(...withdrawals.map(w => Number(w.id) || 0), 0) + 1,
+    id: withdrawals.length + 1,
     user_id: user.id,
     username: user.username,
     amount: numAmount,
@@ -1975,7 +1463,7 @@ app.post("/api/user/withdraw", async (req, res) => {
 
   // Log transaction
   const newTx: Transaction = {
-    id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
+    id: transactions.length + 1,
     user_id: user.id,
     username: user.username,
     type: "withdrawal",
@@ -1988,7 +1476,7 @@ app.post("/api/user/withdraw", async (req, res) => {
 
   if (isAutoPayout) {
     const newNotif: MLMNotification = {
-      id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
+      id: notifications.length + 1,
       user_id: user.id,
       title: "Penarikan Sukses!",
       message: `Dana Rp ${numAmount.toLocaleString()} berhasil dikirim otomatis ke rekening ${bankName} Anda.`,
@@ -1999,7 +1487,7 @@ app.post("/api/user/withdraw", async (req, res) => {
     await syncNotificationToFirestore(newNotif);
   } else {
     const newNotif: MLMNotification = {
-      id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
+      id: notifications.length + 1,
       user_id: user.id,
       title: "Penarikan Diproses",
       message: `Permintaan penarikan Rp ${numAmount.toLocaleString()} sedang antre verifikasi admin.`,
@@ -2020,246 +1508,63 @@ app.post("/api/user/withdraw", async (req, res) => {
 });
 
 // Admin WD processing
-app.post(["/api/admin/withdraw/process", "/admin/withdraw/process"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const { wdId, id, action } = req.body; // action: 'approve' | 'reject'
-    const targetWdId = wdId || id;
-    const numId = Number(targetWdId);
+app.post("/api/admin/withdraw/process", async (req, res) => {
+  const { wdId, action } = req.body; // action: 'approve' | 'reject'
+  const wd = withdrawals.find(w => w.id === wdId);
+  if (!wd) return res.status(404).json({ message: "Data penarikan tidak ditemukan" });
+  if (wd.status !== "pending") return res.status(400).json({ message: "Penarikan sudah diproses sebelumnya" });
 
-    let wd = withdrawals.find(w => Number(w.id) === numId || String(w.id) === String(targetWdId));
+  const user = users.find(u => u.id === wd.user_id);
 
-    if (!wd && firestoreDb) {
-      try {
-        const wdDoc: any = await getDoc(doc(firestoreDb, "withdrawals", String(targetWdId)));
-        if (wdDoc && wdDoc.exists && typeof wdDoc.exists === 'function' && wdDoc.exists()) {
-          wd = { ...wdDoc.data(), id: numId || Number(wdDoc.id) } as WDRequest;
-          withdrawals.push(wd);
-        }
-      } catch (e) {
-        console.warn("Firestore withdrawal lookup warn:", e);
-      }
-    }
-
-    if (!wd) return res.status(404).json({ message: "Data penarikan tidak ditemukan" });
-
-    const user = users.find(u => Number(u.id) === Number(wd.user_id));
-
-    if (action === "approve" || action === "success") {
-      wd.status = "success";
-      await syncWithdrawalToFirestore(wd);
-      
-      const tx: Transaction = {
-        id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
-        user_id: wd.user_id,
-        username: wd.username,
-        type: "withdrawal",
-        amount: wd.amount,
-        description: `Penarikan Dana (#WD-${wd.id}) Disetujui Admin - Transfer ke Bank ${wd.bank_name}`,
+  if (action === "approve") {
+    wd.status = "success";
+    await syncWithdrawalToFirestore(wd);
+    if (user) {
+      const newNotif: MLMNotification = {
+        id: notifications.length + 1,
+        user_id: user.id,
+        title: "Penarikan Disetujui!",
+        message: `Penarikan dana Rp ${wd.amount.toLocaleString()} telah disetujui admin dan ditransfer ke rekening ${wd.bank_name}.`,
+        type: "success",
         created_at: new Date().toISOString()
       };
-      transactions.unshift(tx);
-      await syncTransactionToFirestore(tx);
-
-      if (user) {
-        const newNotif: MLMNotification = {
-          id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
-          user_id: user.id,
-          title: "Penarikan Disetujui!",
-          message: `Penarikan dana Rp ${wd.amount.toLocaleString('id-ID')} telah disetujui admin dan ditransfer ke rekening ${wd.bank_name}.`,
-          type: "success",
-          created_at: new Date().toISOString()
-        };
-        notifications.push(newNotif);
-        await syncNotificationToFirestore(newNotif);
-      }
-    } else {
-      wd.status = "rejected";
-      await syncWithdrawalToFirestore(wd);
-      // Refund balance if rejected
-      if (user) {
-        user.balance = (Number(user.balance) || 0) + wd.amount;
-        await syncUserToFirestore(user);
-        
-        const newTx: Transaction = {
-          id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
-          user_id: user.id,
-          username: user.username,
-          type: "deposit",
-          amount: wd.amount,
-          description: `Pengembalian dana penarikan (Ditolak oleh Admin)`,
-          created_at: new Date().toISOString()
-        };
-        transactions.push(newTx);
-        await syncTransactionToFirestore(newTx);
-
-        const newNotif: MLMNotification = {
-          id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
-          user_id: user.id,
-          title: "Penarikan Ditolak",
-          message: `Penarikan Rp ${wd.amount.toLocaleString('id-ID')} ditolak admin. Saldo Anda telah dikembalikan.`,
-          type: "warning",
-          created_at: new Date().toISOString()
-        };
-        notifications.push(newNotif);
-        await syncNotificationToFirestore(newNotif);
-      }
+      notifications.push(newNotif);
+      await syncNotificationToFirestore(newNotif);
     }
+  } else {
+    wd.status = "rejected";
+    await syncWithdrawalToFirestore(wd);
+    // Refund balance if rejected
+    if (user) {
+      user.balance += wd.amount;
+      await syncUserToFirestore(user);
+      
+      const newTx: Transaction = {
+        id: transactions.length + 1,
+        user_id: user.id,
+        username: user.username,
+        type: "deposit",
+        amount: wd.amount,
+        description: `Pengembalian dana penarikan (Ditolak oleh Admin)`,
+        created_at: new Date().toISOString()
+      };
+      transactions.push(newTx);
+      await syncTransactionToFirestore(newTx);
 
-    return res.json({ message: `Status penarikan berhasil diubah menjadi: ${wd.status}`, withdrawal: wd, user });
-  } catch (err: any) {
-    return res.status(500).json({ message: "Gagal memproses penarikan: " + (err?.message || err) });
+      const newNotif: MLMNotification = {
+        id: notifications.length + 1,
+        user_id: user.id,
+        title: "Penarikan Ditolak",
+        message: `Penarikan Rp ${wd.amount.toLocaleString()} ditolak admin. Saldo Anda telah dikembalikan.`,
+        type: "warning",
+        created_at: new Date().toISOString()
+      };
+      notifications.push(newNotif);
+      await syncNotificationToFirestore(newNotif);
+    }
   }
-});
 
-// Admin Deposit & Activation Approval Processing
-app.post(["/api/admin/deposit/process", "/admin/deposit/process"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const depositId = req.body.depositId || req.body.deposit_id || req.body.id;
-    const action = req.body.action || 'approve'; // 'approve' | 'reject'
-    const numId = Number(depositId);
-
-    let dep = deposits.find(d => Number(d.id) === numId || String(d.id) === String(depositId));
-    
-    // Dynamic Firestore fallback lookup if deposit is not yet in server memory
-    if (!dep && firestoreDb) {
-      try {
-        const depDoc: any = await getDoc(doc(firestoreDb, "deposits", String(depositId)));
-        if (depDoc && depDoc.exists && typeof depDoc.exists === 'function' && depDoc.exists()) {
-          dep = { ...depDoc.data(), id: numId || Number(depDoc.id) } as DepositRequest;
-          deposits.push(dep);
-        }
-      } catch (e) {
-        console.warn("Firestore deposit lookup warn:", e);
-      }
-    }
-
-    if (!dep) {
-      return res.status(404).json({ message: "Data deposit tidak ditemukan" });
-    }
-
-    const user = users.find(u => Number(u.id) === Number(dep.user_id));
-
-    if (action === "approve" || action === "success") {
-      dep.status = "success";
-      await syncDepositToFirestore(dep);
-
-      if (user) {
-        const wasInactive = !user.is_active;
-        user.is_active = true;
-        
-        user.balance = (Number(user.balance) || 0) + dep.amount;
-        if (wasInactive && user.sponsor_id) {
-          const sponsor = users.find(u => Number(u.id) === Number(user.sponsor_id));
-          if (sponsor) {
-            sponsor.balance = (Number(sponsor.balance) || 0) + 100000;
-            sponsor.sponsor_bonus = (Number(sponsor.sponsor_bonus) || 0) + 100000;
-            await syncUserToFirestore(sponsor);
-          }
-        }
-        await syncUserToFirestore(user);
-
-        // Update order status to DIPROSES
-        const ord = orders.find(o => Number(o.user_id) === Number(user.id));
-        if (ord) {
-          ord.status = "DIPROSES";
-          if (!ord.tracking_number) {
-            ord.tracking_number = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
-          }
-          await syncOrderToFirestore(ord);
-        }
-
-        const newTx: Transaction = {
-          id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
-          user_id: user.id,
-          username: user.username,
-          type: "deposit",
-          amount: dep.amount,
-          description: `Deposit Manual via ${(dep.method || 'transfer').toUpperCase()} Disetujui Admin`,
-          created_at: new Date().toISOString()
-        };
-        transactions.push(newTx);
-        await syncTransactionToFirestore(newTx);
-
-        const newNotif: MLMNotification = {
-          id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
-          user_id: user.id,
-          title: "Deposit Manual Disetujui!",
-          message: `Saldo Rp ${dep.amount.toLocaleString('id-ID')} telah disetujui admin dan akun Anda telah diaktifkan.`,
-          type: "success",
-          created_at: new Date().toISOString()
-        };
-        notifications.push(newNotif);
-        await syncNotificationToFirestore(newNotif);
-
-        // Payout Sponsor Bonus Rp 100.000 to Sponsor if user was activated
-        if (wasInactive && user.sponsor_id) {
-          const sponsor = users.find(u => Number(u.id) === Number(user.sponsor_id));
-          if (sponsor && sponsor.is_active) {
-            sponsor.balance = (Number(sponsor.balance) || 0) + 100000;
-            sponsor.sponsor_bonus = (Number(sponsor.sponsor_bonus) || 0) + 100000;
-            await syncUserToFirestore(sponsor);
-
-            const spTx: Transaction = {
-              id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
-              user_id: sponsor.id,
-              username: sponsor.username,
-              type: "sponsor_bonus",
-              amount: 100000,
-              description: `Bonus Sponsor Aktivasi Member dari @${user.username}`,
-              created_at: new Date().toISOString()
-            };
-            transactions.push(spTx);
-            await syncTransactionToFirestore(spTx);
-
-            const spNotif: MLMNotification = {
-              id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
-              user_id: sponsor.id,
-              title: "Bonus Sponsor Rp 100.000!",
-              message: `Member @${user.username} telah mengaktifkan akun! Bonus Sponsor Rp 100.000 telah masuk ke saldo Anda.`,
-              type: "success",
-              created_at: new Date().toISOString()
-            };
-            notifications.push(spNotif);
-            await syncNotificationToFirestore(spNotif);
-          }
-        }
-      }
-
-      return res.json({ message: "Deposit & Aktivasi berhasil disetujui!", deposit: dep, user });
-    } else {
-      dep.status = "failed";
-      await syncDepositToFirestore(dep);
-
-      if (user) {
-        const newNotif: MLMNotification = {
-          id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
-          user_id: user.id,
-          title: "Deposit Manual Ditolak",
-          message: `Transfer deposit Rp ${dep.amount.toLocaleString('id-ID')} ditolak oleh admin. Pastikan nominal sesuai atau hubungi admin.`,
-          type: "warning",
-          created_at: new Date().toISOString()
-        };
-        notifications.push(newNotif);
-        await syncNotificationToFirestore(newNotif);
-      }
-
-      return res.json({ message: "Deposit ditolak.", deposit: dep, user });
-    }
-  } catch (err: any) {
-    return res.status(500).json({ message: "Gagal memproses deposit: " + (err?.message || err) });
-  }
-});
-
-// Admin Clear Cache & Refresh Endpoint
-app.post("/api/admin/clear-cache", async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    res.json({ message: "Cache server & database berhasil dibersihkan!" });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal membersihkan cache server: " + err.message });
-  }
+  res.json({ message: `Status penarikan berhasil diubah menjadi: ${wd.status}`, withdrawal: wd, user });
 });
 
 // Toggle Payout Automation Settings
@@ -2315,6 +1620,65 @@ app.post("/api/user/:userId/reset-password", async (req, res) => {
   (user as any).password = String(newPassword);
   await syncUserToFirestore(user);
   res.json({ message: "Kata sandi berhasil direset!", user });
+});
+
+// Admin Deposit manual verification
+app.post("/api/admin/deposit/process", async (req, res) => {
+  const { depositId, action } = req.body; // action: 'approve' | 'reject'
+  const dep = deposits.find(d => d.id === Number(depositId));
+  if (!dep) return res.status(404).json({ message: "Data deposit tidak ditemukan" });
+  if (dep.status !== "pending") return res.status(400).json({ message: "Deposit sudah diproses sebelumnya" });
+
+  const user = users.find(u => u.id === dep.user_id);
+
+  if (action === "approve") {
+    dep.status = "success";
+    await syncDepositToFirestore(dep);
+    if (user) {
+      user.balance += dep.amount;
+      await syncUserToFirestore(user);
+
+      const newTx: Transaction = {
+        id: transactions.length + 1,
+        user_id: user.id,
+        username: user.username,
+        type: "deposit",
+        amount: dep.amount,
+        description: `Deposit Manual via ${dep.method.toUpperCase()} Disetujui Admin`,
+        created_at: new Date().toISOString()
+      };
+      transactions.push(newTx);
+      await syncTransactionToFirestore(newTx);
+
+      const newNotif: MLMNotification = {
+        id: notifications.length + 1,
+        user_id: user.id,
+        title: "Deposit Manual Disetujui!",
+        message: `Saldo Rp ${dep.amount.toLocaleString()} telah ditambahkan ke akun Anda oleh admin.`,
+        type: "success",
+        created_at: new Date().toISOString()
+      };
+      notifications.push(newNotif);
+      await syncNotificationToFirestore(newNotif);
+    }
+  } else {
+    dep.status = "failed";
+    await syncDepositToFirestore(dep);
+    if (user) {
+      const newNotif: MLMNotification = {
+        id: notifications.length + 1,
+        user_id: user.id,
+        title: "Deposit Manual Ditolak",
+        message: `Transfer deposit Rp ${dep.amount.toLocaleString()} ditolak oleh admin. Pastikan nominal sesuai atau hubungi admin.`,
+        type: "warning",
+        created_at: new Date().toISOString()
+      };
+      notifications.push(newNotif);
+      await syncNotificationToFirestore(newNotif);
+    }
+  }
+
+  res.json({ message: `Status deposit berhasil diubah menjadi: ${dep.status}`, deposit: dep, user });
 });
 
 // Add New Product
@@ -2496,6 +1860,14 @@ app.post("/api/user/purchase", async (req, res) => {
 // ==========================================
 // ORDERS & TRACKING API ENDPOINTS
 // ==========================================
+
+// GET All Orders
+app.get("/api/orders", async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+  } catch {}
+  res.json(orders);
+});
 
 // Track Order Endpoint
 app.post("/api/orders/track", async (req, res) => {
@@ -2706,11 +2078,11 @@ app.post("/api/admin/orders/delete", async (req, res) => {
   try {
     const { id } = req.body;
     orders = orders.filter(o => Number(o.id) !== Number(id) && String(o.id) !== String(id));
-    if (firestoreDb) {
+    if (supabase) {
       try {
-        await deleteDoc(doc(firestoreDb, "orders", String(id)));
+        await supabase.from('orders').delete().eq('id', Number(id) || id);
       } catch (e) {
-        console.warn("Delete order firestore warn:", e);
+        console.warn("Delete order supabase warn:", e);
       }
     }
     res.json({ message: "Pesanan berhasil dihapus!", orders });
@@ -2733,11 +2105,11 @@ app.post("/api/admin/users/delete", async (req, res) => {
 
     users = users.filter(u => Number(u.id) !== targetIdNum && String(u.id) !== targetIdStr);
 
-    if (firestoreDb) {
+    if (supabase) {
       try {
-        await deleteDoc(doc(firestoreDb, "users", targetIdStr));
+        await supabase.from('users').delete().eq('id', targetIdNum || targetIdStr);
       } catch (e) {
-        console.warn("Delete user firestore warn:", e);
+        console.warn("Delete user supabase warn:", e);
       }
     }
     res.json({ message: "Member/User berhasil dihapus!", users });
@@ -2751,11 +2123,11 @@ app.post("/api/admin/deposits/delete", async (req, res) => {
   try {
     const { id } = req.body;
     deposits = deposits.filter(d => Number(d.id) !== Number(id) && String(d.id) !== String(id));
-    if (firestoreDb) {
+    if (supabase) {
       try {
-        await deleteDoc(doc(firestoreDb, "deposits", String(id)));
+        await supabase.from('deposit_requests').delete().eq('id', Number(id) || id);
       } catch (e) {
-        console.warn("Delete deposit firestore warn:", e);
+        console.warn("Delete deposit supabase warn:", e);
       }
     }
     res.json({ message: "Data deposit berhasil dihapus!", deposits });
@@ -2769,11 +2141,11 @@ app.post("/api/admin/withdrawals/delete", async (req, res) => {
   try {
     const { id } = req.body;
     withdrawals = withdrawals.filter(w => Number(w.id) !== Number(id) && String(w.id) !== String(id));
-    if (firestoreDb) {
+    if (supabase) {
       try {
-        await deleteDoc(doc(firestoreDb, "withdrawals", String(id)));
+        await supabase.from('wd_requests').delete().eq('id', Number(id) || id);
       } catch (e) {
-        console.warn("Delete withdrawal firestore warn:", e);
+        console.warn("Delete withdrawal supabase warn:", e);
       }
     }
     res.json({ message: "Data penarikan (WD) berhasil dihapus!", withdrawals });
@@ -2782,9 +2154,97 @@ app.post("/api/admin/withdrawals/delete", async (req, res) => {
   }
 });
 
+// Admin Reset Database Category
+app.post("/api/admin/reset-database", async (req, res) => {
+  try {
+    const { category } = req.body;
+    if (category === 'members') {
+      users = users.filter(u => u.role === 'admin' || Number(u.id) === 1);
+      if (supabase) {
+        try {
+          await supabase.from('users').delete().neq('role', 'admin').neq('id', 1);
+        } catch (e) {
+          console.warn("Reset members supabase warn:", e);
+        }
+      }
+      return res.json({ message: "Berhasil mereset data member!", users });
+    }
 
+    if (category === 'sales') {
+      orders = [];
+      transactions = [];
+      deposits = [];
+      withdrawals = [];
+      if (supabase) {
+        try {
+          await supabase.from('orders').delete().gt('id', -1);
+          await supabase.from('transactions').delete().gt('id', -1);
+          await supabase.from('deposit_requests').delete().gt('id', -1);
+          await supabase.from('wd_requests').delete().gt('id', -1);
+        } catch (e) {
+          console.warn("Reset sales supabase warn:", e);
+        }
+      }
+      return res.json({ message: "Berhasil mereset data penjualan & transaksi!", orders, transactions, deposits, withdrawals });
+    }
 
+    if (category === 'mlm_network') {
+      users = users.map(u => {
+        if (u.role === 'admin' || Number(u.id) === 1) {
+          return {
+            ...u,
+            left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
+            sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
+          };
+        }
+        return {
+          ...u,
+          upline_id: 1, sponsor_id: 1, position: 'L' as 'L' | 'R',
+          left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
+          balance: 0, sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
+        };
+      });
+      if (supabase) {
+        for (const u of users) {
+          await syncUserToFirestore(u);
+        }
+      }
+      return res.json({ message: "Berhasil mereset struktur jaringan MLM!", users });
+    }
 
+    res.status(400).json({ message: "Kategori reset tidak dikenal" });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal mereset database: " + err.message });
+  }
+});
+
+// User Upload Proof of Payment / Transfer for Deposit
+app.post("/api/user/deposit/confirm-proof", async (req, res) => {
+  try {
+    const depositId = req.body.deposit_id || req.body.depositId;
+    const proofImage = req.body.proof_image || req.body.proofImage;
+    const proofNotes = req.body.proof_notes || req.body.proofNotes;
+
+    const dep = deposits.find(d => Number(d.id) === Number(depositId) || String(d.id) === String(depositId));
+    if (!dep) {
+      return res.status(404).json({ message: "Data deposit tidak ditemukan" });
+    }
+    dep.proof_image = proofImage;
+    dep.proof_notes = proofNotes || '';
+    dep.proof_submitted_at = new Date().toISOString();
+    
+    if (supabase) {
+      try {
+        await syncDepositToFirestore(dep);
+      } catch (e) {
+        console.warn("Update deposit proof supabase warn:", e);
+      }
+    }
+    res.json({ message: "Bukti transfer berhasil dikirim! Menunggu konfirmasi Admin.", deposit: dep });
+  } catch (err: any) {
+    res.status(500).json({ message: "Gagal mengirim bukti transfer: " + err.message });
+  }
+});
 
 // User Upload Proof of Payment / Transfer for Orders (RO & Member Orders)
 app.post("/api/user/orders/confirm-proof", async (req, res) => {
@@ -2800,17 +2260,6 @@ app.post("/api/user/orders/confirm-proof", async (req, res) => {
     ord.proof_image = proofImage;
     ord.proof_notes = proofNotes || '';
     ord.proof_submitted_at = new Date().toISOString();
-
-    // Also sync to matching user deposit
-    const dep = deposits.find(d => Number(d.user_id) === Number(ord.user_id));
-    if (dep) {
-      dep.proof_image = proofImage;
-      dep.proof_notes = proofNotes || '';
-      dep.proof_submitted_at = new Date().toISOString();
-      if (firestoreDb) {
-        await setDoc(doc(firestoreDb, "deposits", String(dep.id)), dep, { merge: true }).catch(() => {});
-      }
-    }
 
     await syncOrderToFirestore(ord);
 
@@ -2831,280 +2280,13 @@ app.post("/api/user/orders/confirm-proof", async (req, res) => {
   }
 });
 
-// Admin: Clear Members Reset Flag (restore member visibility without wiping data)
-app.post("/api/admin/clear-members-reset", async (req, res) => {
-  try {
-    console.log("🔧 [API] Clearing membersReset flag in Firestore...");
-    if (firestoreDb) {
-      await setDoc(doc(firestoreDb, "settings", "adminControl"), {
-        membersReset: false,
-        membersResetClearedAt: new Date().toISOString()
-      }, { merge: true });
-      // Reload users from Firestore to repopulate server memory
-      try {
-        const snap = await getDocs(collection(firestoreDb, "users"));
-        const reloadedUsers: MLMUser[] = [];
-        snap.forEach((d: any) => {
-          const data = d.data();
-          reloadedUsers.push({
-            id: Number(data.id ?? d.id),
-            username: data.username || "",
-            fullname: data.fullname || "",
-            email: data.email || "",
-            phone: data.phone || "",
-            password: data.password || "",
-            is_active: data.is_active !== undefined ? Boolean(data.is_active) : true,
-            upline_id: data.upline_id != null ? Number(data.upline_id) : null,
-            position: data.position || null,
-            sponsor_id: data.sponsor_id != null ? Number(data.sponsor_id) : null,
-            balance: Number(data.balance) || 0,
-            sponsor_bonus: Number(data.sponsor_bonus) || 0,
-            pairing_bonus: Number(data.pairing_bonus) || 0,
-            level_bonus: Number(data.level_bonus) || 0,
-            ro_bonus: Number(data.ro_bonus) || 0,
-            left_count: Number(data.left_count) || 0,
-            right_count: Number(data.right_count) || 0,
-            left_sales: Number(data.left_sales) || 0,
-            right_sales: Number(data.right_sales) || 0,
-            created_at: data.created_at || new Date().toISOString(),
-            role: data.role || "user",
-            firebase_uid: data.firebase_uid || "",
-            ktp: data.ktp || "",
-            whatsapp: data.whatsapp || "",
-            bank_name: data.bank_name || "",
-            bank_account: data.bank_account || "",
-            bank_holder: data.bank_holder || "",
-            address: data.address || "",
-            city: data.city || ""
-          } as MLMUser);
-        });
-        if (reloadedUsers.length > 0) {
-          users = reloadedUsers;
-          console.log(`✅ [API] Reloaded ${users.length} users from Firestore after clearing reset flag`);
-        }
-      } catch (e) {
-        console.warn("⚠️ [API] Could not reload users from Firestore:", e);
-      }
-    }
-    console.log(`✅ [API] membersReset flag cleared. Now serving ${users.length} users.`);
-    return res.json({ 
-      message: `Flag membersReset berhasil dihapus! Data member sekarang terlihat kembali (${users.length} user dimuat).`,
-      userCount: users.length,
-      users 
-    });
-  } catch (err: any) {
-    console.error("❌ [API] Error clearing membersReset flag:", err);
-    res.status(500).json({ message: "Gagal menghapus flag reset: " + err.message });
-  }
-});
-
-// Admin Reset Database Category
-app.post(["/api/admin/reset-database", "/admin/reset-database"], async (req, res) => {
-  try {
-    const { category } = req.body || {};
-    console.log("🧹 [API] Resetting database category:", category);
-
-    if (category === 'members') {
-      // Collect non-admin users BEFORE filtering (for Firebase Auth deletion)
-      const nonAdminUsers = users.filter(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
-      users = users.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
-      if (users[0]) {
-        users[0].left_count = 0;
-        users[0].right_count = 0;
-        users[0].left_sales = 0;
-        users[0].right_sales = 0;
-        users[0].balance = 0;
-        users[0].sponsor_bonus = 0;
-        users[0].pairing_bonus = 0;
-        users[0].level_bonus = 0;
-        users[0].ro_bonus = 0;
-      }
-      transactions = [];
-      deposits = [];
-      withdrawals = [];
-      orders = [];
-      notifications = [];
-
-      // 1. Delete Firebase Auth accounts for all non-admin users
-      await deleteAllNonAdminFirebaseAuthUsers(nonAdminUsers);
-
-      // 2. Delete from Firestore
-      if (firestoreDb) {
-        try {
-          const snap = await getDocs(collection(firestoreDb, "users"));
-          for (const docSnap of snap.docs) {
-            const data = docSnap.data();
-            if (data.role !== 'admin' && Number(data.id) !== 1 && data.username !== 'admin') {
-              await deleteDoc(doc(firestoreDb, "users", docSnap.id)).catch(() => {});
-            }
-          }
-          // Also wipe Firestore transactions, deposits, withdrawals, orders, notifications
-          const txSnap = await getDocs(collection(firestoreDb, "transactions")).catch(() => null);
-          if (txSnap) for (const d of txSnap.docs) await deleteDoc(doc(firestoreDb, "transactions", d.id)).catch(() => {});
-          const depSnap = await getDocs(collection(firestoreDb, "deposits")).catch(() => null);
-          if (depSnap) for (const d of depSnap.docs) await deleteDoc(doc(firestoreDb, "deposits", d.id)).catch(() => {});
-          const wdSnap = await getDocs(collection(firestoreDb, "withdrawals")).catch(() => null);
-          if (wdSnap) for (const d of wdSnap.docs) await deleteDoc(doc(firestoreDb, "withdrawals", d.id)).catch(() => {});
-          const ordSnap = await getDocs(collection(firestoreDb, "orders")).catch(() => null);
-          if (ordSnap) for (const d of ordSnap.docs) await deleteDoc(doc(firestoreDb, "orders", d.id)).catch(() => {});
-          const notifSnap = await getDocs(collection(firestoreDb, "notifications")).catch(() => null);
-          if (notifSnap) for (const d of notifSnap.docs) await deleteDoc(doc(firestoreDb, "notifications", d.id)).catch(() => {});
-
-          // Reset flag to false so newly registered users work seamlessly
-          await setDoc(doc(firestoreDb, "settings", "adminControl"), {
-            membersReset: false,
-            membersResetAt: new Date().toISOString()
-          }, { merge: true }).catch(() => {});
-        } catch (e) {
-          console.warn("Firestore reset members warn:", e);
-        }
-      }
-      return res.json({ message: "Berhasil mereset data member dan seluruh data transaksi!", users });
-    }
-
-    if (category === 'sales') {
-      orders = [];
-      transactions = [];
-      deposits = [];
-      withdrawals = [];
-      if (firestoreDb) {
-        try {
-          const ordSnap = await getDocs(collection(firestoreDb, "orders"));
-          for (const d of ordSnap.docs) await deleteDoc(doc(firestoreDb, "orders", d.id)).catch(() => {});
-          const txSnap = await getDocs(collection(firestoreDb, "transactions"));
-          for (const d of txSnap.docs) await deleteDoc(doc(firestoreDb, "transactions", d.id)).catch(() => {});
-          const depSnap = await getDocs(collection(firestoreDb, "deposits"));
-          for (const d of depSnap.docs) await deleteDoc(doc(firestoreDb, "deposits", d.id)).catch(() => {});
-          const wdSnap = await getDocs(collection(firestoreDb, "withdrawals"));
-          for (const d of wdSnap.docs) await deleteDoc(doc(firestoreDb, "withdrawals", d.id)).catch(() => {});
-        } catch (e) {
-          console.warn("Firestore reset sales warn:", e);
-        }
-      }
-      return res.json({ message: "Berhasil mereset data penjualan!", orders, transactions, deposits, withdrawals });
-    }
-
-    if (category === 'mlm_network') {
-      users = users.map(u => {
-        if (u.role === 'admin' || Number(u.id) === 1) {
-          return {
-            ...u,
-            left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
-            sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
-          };
-        }
-        return {
-          ...u,
-          upline_id: 1, sponsor_id: 1, position: 'L',
-          left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
-          balance: 0, sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
-        };
-      });
-      if (firestoreDb) {
-        for (const u of users) {
-          await setDoc(doc(firestoreDb, "users", String(u.id)), u, { merge: true }).catch(() => {});
-        }
-      }
-      return res.json({ message: "Berhasil mereset jaringan MLM!", users });
-    }
-
-    if (category === 'web_settings') {
-      systemSettings = {
-        webName: "Hedtro Jeans Official",
-        logoText: "HEDTRO.JEANS",
-        memberIdPrefix: "HDT-",
-        slogan: "OFFICIAL STORE & AFILIASI RESELLER",
-        siteDescription: "Pusat Toko Official Celana Jeans Denim Premium & Sistem Bisnis Afiliasi Reseller Terpercaya.",
-        enableMlmBonus: true,
-        enableLevelBonus: true,
-        enableRewardBonus: true,
-        sponsorBonus: 20000,
-        pairingBonus: 10000,
-        roBonus: 5000,
-        companyBankName: 'BCA',
-        companyBankAccount: '1234-5678-90',
-        companyBankHolder: 'PT HEDTRO JEANS INDONESIA'
-      };
-      if (firestoreDb) {
-        await setDoc(doc(firestoreDb, "settings", "system"), systemSettings).catch(() => {});
-      }
-      return res.json({ message: "Berhasil mereset pengaturan web!", settings: systemSettings });
-    }
-
-    res.status(400).json({ message: "Kategori reset tidak dikenal" });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal mereset database: " + err.message });
-  }
-});
-
-// Admin Delete Individual Item Endpoints
-app.post(["/api/admin/users/delete", "/admin/users/delete"], async (req, res) => {
-  const { id } = req.body || {};
-  const numId = Number(id);
-
-  // Find user before deleting to get firebase_uid / email
-  const targetUser = users.find(u => Number(u.id) === numId || String(u.id) === String(id));
-
-  users = users.filter(u => Number(u.id) !== numId && String(u.id) !== String(id));
-
-  // Delete Firebase Auth account
-  if (targetUser) {
-    if ((targetUser as any).firebase_uid) {
-      await deleteFirebaseAuthUser((targetUser as any).firebase_uid);
-    } else if (targetUser.email) {
-      await deleteFirebaseAuthUserByEmail(targetUser.email);
-    }
-  }
-
-  if (firestoreDb) {
-    await deleteDoc(doc(firestoreDb, "users", String(id))).catch(() => {});
-  }
-  res.json({ message: `Member ${id} berhasil dihapus dan akun Firebase Auth telah dihapus`, users });
-});
-
-app.post(["/api/admin/deposits/delete", "/admin/deposits/delete"], async (req, res) => {
-  const { id } = req.body || {};
-  const numId = Number(id);
-  deposits = deposits.filter(d => Number(d.id) !== numId && String(d.id) !== String(id));
-  if (firestoreDb) {
-    await deleteDoc(doc(firestoreDb, "deposits", String(id))).catch(() => {});
-  }
-  res.json({ message: `Deposit ${id} berhasil dihapus`, deposits });
-});
-
-app.post(["/api/admin/withdrawals/delete", "/admin/withdrawals/delete"], async (req, res) => {
-  const { id } = req.body || {};
-  const numId = Number(id);
-  withdrawals = withdrawals.filter(w => Number(w.id) !== numId && String(w.id) !== String(id));
-  if (firestoreDb) {
-    await deleteDoc(doc(firestoreDb, "withdrawals", String(id))).catch(() => {});
-  }
-  res.json({ message: `Withdrawal ${id} berhasil dihapus`, withdrawals });
-});
-
-app.post(["/api/admin/orders/delete", "/admin/orders/delete"], async (req, res) => {
-  const { id } = req.body || {};
-  const numId = Number(id);
-  orders = orders.filter(o => Number(o.id) !== numId && String(o.id) !== String(id));
-  await queryD1("DELETE FROM orders WHERE id = ?;", [numId]).catch(() => {});
-  res.json({ message: `Order ${id} berhasil dihapus`, orders });
-});
-
-app.post(["/api/admin/products/delete", "/admin/products/delete"], async (req, res) => {
-  const { id } = req.body || {};
-  const numId = Number(id);
-  products = products.filter(p => Number(p.id) !== numId && String(p.id) !== String(id));
-  await queryD1("DELETE FROM products WHERE id = ?;", [numId]).catch(() => {});
-  res.json({ message: `Produk ${id} berhasil dihapus`, products });
-});
-
 // Admin Restore Database Category
 app.post("/api/admin/restore-database", async (req, res) => {
   try {
     const { category, data } = req.body;
     if (category === 'members' && Array.isArray(data)) {
       users = data;
-      if (firestoreDb) {
+      if (supabase) {
         for (const u of users) {
           await syncUserToFirestore(u);
         }
@@ -3114,11 +2296,11 @@ app.post("/api/admin/restore-database", async (req, res) => {
 
     if (category === 'web_settings' && data && typeof data === 'object') {
       systemSettings = { ...systemSettings, ...data };
-      if (firestoreDb) {
+      if (supabase) {
         try {
-          await setDoc(doc(firestoreDb, "settings", "system"), systemSettings, { merge: true });
+          await supabase.from('system_settings').upsert({ id: 1, ...systemSettings });
         } catch (e) {
-          console.warn("Restore web_settings firestore warn:", e);
+          console.warn("Restore web_settings supabase warn:", e);
         }
       }
       return res.json({ message: "Berhasil restore data pengaturan web!", settings: systemSettings });
@@ -3133,7 +2315,7 @@ app.post("/api/admin/restore-database", async (req, res) => {
           users.push(item);
         }
       }
-      if (firestoreDb) {
+      if (supabase) {
         for (const u of users) {
           await syncUserToFirestore(u);
         }
@@ -3148,14 +2330,14 @@ app.post("/api/admin/restore-database", async (req, res) => {
       if (Array.isArray(restDeps)) deposits = restDeps;
       if (Array.isArray(restWds)) withdrawals = restWds;
 
-      if (firestoreDb) {
+      if (supabase) {
         try {
-          if (Array.isArray(restOrders)) for (const o of restOrders) await setDoc(doc(firestoreDb, "orders", String(o.id)), o, { merge: true });
-          if (Array.isArray(restTxs)) for (const t of restTxs) await setDoc(doc(firestoreDb, "transactions", String(t.id)), t, { merge: true });
-          if (Array.isArray(restDeps)) for (const d of restDeps) await setDoc(doc(firestoreDb, "deposits", String(d.id)), d, { merge: true });
-          if (Array.isArray(restWds)) for (const w of restWds) await setDoc(doc(firestoreDb, "withdrawals", String(w.id)), w, { merge: true });
+          if (Array.isArray(restOrders)) for (const o of restOrders) await supabase.from('orders').upsert(o);
+          if (Array.isArray(restTxs)) for (const t of restTxs) await supabase.from('transactions').upsert(t);
+          if (Array.isArray(restDeps)) for (const d of restDeps) await supabase.from('deposit_requests').upsert(d);
+          if (Array.isArray(restWds)) for (const w of restWds) await supabase.from('wd_requests').upsert(w);
         } catch (e) {
-          console.warn("Restore sales firestore warn:", e);
+          console.warn("Restore sales supabase warn:", e);
         }
       }
       return res.json({ message: "Berhasil restore data penjualan!", orders, transactions, deposits, withdrawals });
@@ -3182,6 +2364,7 @@ app.get(["/api/user/:userId/dashboard", "/user/:userId/dashboard"], async (req, 
   const userDeposits = deposits.filter(d => Number(d.user_id) === userId);
   const userWDs = withdrawals.filter(w => Number(w.user_id) === userId);
   const userNotifs = notifications.filter(n => Number(n.user_id) === userId).reverse();
+  const userOrders = orders.filter(o => Number(o.user_id) === userId || (o.username && user.username && o.username.toLowerCase() === user.username.toLowerCase()));
 
   // Build network tree up to 5 levels
   const binaryTree = buildBinaryTreeResponse(userId, 0, 5);
@@ -3197,6 +2380,7 @@ app.get(["/api/user/:userId/dashboard", "/user/:userId/dashboard"], async (req, 
     notifications: userNotifs,
     binaryTree,
     referrals,
+    orders: userOrders,
     settings: systemSettings
   });
 });
@@ -3240,6 +2424,8 @@ app.get(["/api/admin/dashboard", "/admin/dashboard"], async (req, res) => {
     withdrawals: allWithdrawals,
     deposits: allDeposits,
     transactions: transactions,
+    orders: orders,
+    products: products,
     settings: systemSettings
   });
 });
@@ -4209,21 +3395,106 @@ app.use("/api/*", (req, res) => {
 // MOUNT VITE MIDDLEWARE OR STATIC FILES
 // ==========================================
 
-let isD1Initialized = false;
+let isSupabaseInitialized = false;
 async function initFirestoreDataOnce() {
-  if (isD1Initialized) return;
-  isD1Initialized = true;
-  loadLocalStore();
+  if (isSupabaseInitialized || !supabase) return;
+  isSupabaseInitialized = true;
   try {
-    await Promise.race([
-      loadFromCloudflareD1(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Fast D1 Load Timeout")), 2500))
-    ]);
-  } catch (e) {
-    console.warn("Fast D1 Load Timeout or Error:", e);
+    await initSupabaseData();
+  } catch (err) {
+    console.warn("⚠️ Supabase init warning:", err);
   }
 }
 
+async function initSupabaseData() {
+  if (!supabase) return;
+  try {
+    // 1. Users
+    try {
+      const { data: loadedUsers, error } = await supabase.from('users').select('*');
+      if (loadedUsers && loadedUsers.length > 0) {
+        users = loadedUsers as MLMUser[];
+        console.log(`⚡ Loaded ${loadedUsers.length} users from Supabase into memory`);
+      }
+    } catch (e) {
+      console.warn("Supabase users load notice:", e);
+    }
+
+    // 2. Settings
+    try {
+      const { data: settingsDoc } = await supabase.from('system_settings').select('data').eq('id', 1).single();
+      if (settingsDoc && settingsDoc.data) {
+        systemSettings = { ...systemSettings, ...settingsDoc.data };
+        console.log("⚡ Loaded system settings from Supabase");
+      }
+    } catch (e) {
+      console.warn("Supabase settings load notice:", e);
+    }
+
+    // 3. Products
+    try {
+      const { data: loadedProds } = await supabase.from('products').select('*');
+      if (loadedProds && loadedProds.length > 0) {
+        products = loadedProds as Product[];
+      }
+    } catch (e) {
+      console.warn("Supabase products load notice:", e);
+    }
+
+    // 4. Deposits
+    try {
+      const { data: loadedDeps } = await supabase.from('deposit_requests').select('*');
+      if (loadedDeps && loadedDeps.length > 0) {
+        deposits = loadedDeps as DepositRequest[];
+      }
+    } catch (e) {
+      console.warn("Supabase deposits load notice:", e);
+    }
+
+    // 5. Withdrawals
+    try {
+      const { data: loadedWds } = await supabase.from('wd_requests').select('*');
+      if (loadedWds && loadedWds.length > 0) {
+        withdrawals = loadedWds as WDRequest[];
+      }
+    } catch (e) {
+      console.warn("Supabase withdrawals load notice:", e);
+    }
+
+    // 6. Transactions
+    try {
+      const { data: loadedTxs } = await supabase.from('transactions').select('*');
+      if (loadedTxs && loadedTxs.length > 0) {
+        transactions = loadedTxs as Transaction[];
+      }
+    } catch (e) {
+      console.warn("Supabase transactions load notice:", e);
+    }
+
+    // 7. Notifications
+    try {
+      const { data: loadedNotifs } = await supabase.from('notifications').select('*');
+      if (loadedNotifs && loadedNotifs.length > 0) {
+        notifications = loadedNotifs as MLMNotification[];
+      }
+    } catch (e) {
+      console.warn("Supabase notifications load notice:", e);
+    }
+
+    // 8. Orders
+    try {
+      const { data: loadedOrders } = await supabase.from('orders').select('*');
+      if (loadedOrders && loadedOrders.length > 0) {
+        orders = loadedOrders as Order[];
+      }
+    } catch (e) {
+      console.warn("Supabase orders load notice:", e);
+    }
+
+  } catch (err) {
+    console.warn("Supabase initial data load warning:", err);
+  }
+}
 
 async function startServer() {
   await initFirestoreDataOnce();

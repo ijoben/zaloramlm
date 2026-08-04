@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, setDoc, getDoc, getDocs, collection, onSnapshot, deleteDoc } from "firebase/firestore";
-import { auth, db } from "./lib/firebase";
+import { supabase } from "./lib/supabase";
 import LandingPage from "./components/LandingPage";
 import UserDashboard from "./components/UserDashboard";
 import AdminDashboard from "./components/AdminDashboard";
@@ -12,60 +10,19 @@ import { DEFAULT_USERS } from "./data/defaultUsers";
 import { DEFAULT_ORDERS } from "./data/defaultOrders";
 import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send, User, CreditCard, ShoppingBag, Users } from "lucide-react";
 
-// Client-side quota exhaustion flag & timeout helper
-let isClientQuotaExhausted = false;
-
-function withClientTimeout<T>(promise: Promise<T>, ms: number = 2000, label = "Operation"): Promise<T | null> {
-  if (isClientQuotaExhausted) return Promise.resolve(null);
-  return Promise.race([
-    promise.catch((err: any) => {
-      const msg = String(err?.message || err || "");
-      if (msg.includes("Quota limit exceeded") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
-        if (!isClientQuotaExhausted) {
-          isClientQuotaExhausted = true;
-          console.warn(`🛑 [Client Firestore Quota] Quota limit exceeded in ${label}. Bypassing client Firestore calls.`);
-        }
-      } else {
-        console.warn(`⚠️ [Client Firestore Error] ${label}:`, err);
-      }
-      return null;
-    }),
-    new Promise<null>((resolve) => {
-      setTimeout(() => {
-        resolve(null);
-      }, ms);
-    })
-  ]);
-}
-
-// Localstorage persistence helpers for client-side user fallback (Disabled - relying 100% on Cloudflare D1 Backend)
-function getLocalStoredUsers(): MLMUser[] {
-  if (typeof window !== 'undefined') {
-    try { localStorage.removeItem('zalora_local_users'); } catch (e) {}
-  }
-  return [];
-}
-
-function saveLocalStoredUser(_user: MLMUser): void {
-  if (typeof window !== 'undefined') {
-    try { localStorage.removeItem('zalora_local_users'); } catch (e) {}
-  }
-}
-
-// Direct Data Helpers via Cloudflare D1 Backend API
+// Supabase Direct Data Helpers
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
+  if (!supabase) return DEFAULT_USERS;
   try {
-    const res = await fetch("/api/users");
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        return data;
-      }
+    const { data, error } = await supabase.from('users').select('*');
+    if (error || !data || data.length === 0) {
+      return DEFAULT_USERS;
     }
+    return data as MLMUser[];
   } catch (err) {
-    console.warn("⚠️ API /api/users fetch warn:", err);
+    console.warn("Supabase fetch users error:", err);
+    return DEFAULT_USERS;
   }
-  return DEFAULT_USERS;
 }
 
 function findVacantSpotClient(users: MLMUser[], rootId: number, preferredPosition?: 'L' | 'R'): { upline_id: number, position: 'L' | 'R' } {
@@ -79,31 +36,20 @@ function findVacantSpotClient(users: MLMUser[], rootId: number, preferredPositio
   }
 
   let currentId = Number(directChild.id);
-  const visited = new Set<number>();
-  visited.add(Number(rootId));
-
   while (true) {
-    if (visited.has(currentId)) break;
-    visited.add(currentId);
-
     const nextChild = users.find(u => Number(u.upline_id) === Number(currentId) && u.position === pos);
     if (!nextChild) {
       return { upline_id: currentId, position: pos };
     }
     currentId = Number(nextChild.id);
   }
-  return { upline_id: Number(rootId) || 1, position: pos };
 }
 
 async function updateAncestorCountsClient(users: MLMUser[], uplineId: number, position: 'L' | 'R') {
   let currUplineId: number | null = uplineId;
   let childPos: 'L' | 'R' = position;
-  const visited = new Set<number>();
 
   while (currUplineId !== null && currUplineId !== undefined) {
-    if (visited.has(currUplineId)) break;
-    visited.add(currUplineId);
-
     const upline = users.find(u => Number(u.id) === Number(currUplineId));
     if (!upline) break;
 
@@ -113,18 +59,19 @@ async function updateAncestorCountsClient(users: MLMUser[], uplineId: number, po
       upline.right_count = (Number(upline.right_count) || 0) + 1;
     }
 
-    if (db) {
+    if (supabase) {
       try {
-        await setDoc(doc(db, "users", String(upline.id)), upline, { merge: true });
+        await supabase.from('users').update({
+          left_count: upline.left_count,
+          right_count: upline.right_count
+        }).eq('id', upline.id);
       } catch (e) {
-        console.warn("Failed updating ancestor count in Firestore:", e);
+        console.warn("Failed updating ancestor count in Supabase:", e);
       }
     }
 
     childPos = upline.position === 'R' ? 'R' : 'L';
-    const nextUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
-    if (nextUplineId === currUplineId) break;
-    currUplineId = nextUplineId;
+    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
   }
 }
 
@@ -146,53 +93,48 @@ async function registerUserToFirestoreDirect(regData: {
   address?: string;
   city?: string;
 }): Promise<MLMUser> {
-  const normUsername = regData.username.toLowerCase().replace(/\s+/g, "").trim();
+  const users = await fetchFirestoreUsers();
 
-  // 1. Try server API /api/auth/register
-  try {
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(regData)
-    });
-    const resText = await res.text();
-    let resJson: any = {};
-    try { resJson = JSON.parse(resText); } catch (e) {}
-
-    if (res.ok && resJson.user) {
-      saveLocalStoredUser(resJson.user);
-      return resJson.user;
-    }
-
-    if (!res.ok && res.status >= 400 && res.status < 500 && resJson.message) {
-      throw new Error(resJson.message);
-    }
-  } catch (err: any) {
-    if (err.message && (err.message.includes("digunakan") || err.message.includes("wajib") || err.message.includes("kosong"))) {
-      throw err;
-    }
-    console.warn("⚠️ API endpoint /api/auth/register fallback notice:", err);
+  const normalizedUsername = regData.username.toLowerCase().replace(/\s+/g, "").trim();
+  if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
+    throw new Error("Username sudah digunakan oleh member lain");
   }
 
-  // 2. High-availability client fallback: create local user and save order
-  const localUsers = getLocalStoredUsers();
-  const activeLocalUsers = localUsers.filter(u => u.is_active);
-  if (activeLocalUsers.some(u => u.username && u.username.toLowerCase().trim() === normUsername)) {
-    throw new Error("Username sudah digunakan oleh member lain.");
+  let sponsorId: number = 1;
+  if (regData.sponsor_username) {
+    const sSearch = regData.sponsor_username.toLowerCase().trim();
+    const sponsor = users.find(u => u.username && u.username.toLowerCase().trim() === sSearch);
+    if (sponsor) sponsorId = Number(sponsor.id);
   }
 
-  const newId = Math.max(Date.now() % 100000, ...localUsers.map(u => Number(u.id) || 0), 10);
+  let uplineId: number = sponsorId || 1;
+  let finalPos: 'L' | 'R' = (regData.position === 'R' || regData.position === 'L') ? regData.position : "L";
+
+  if (regData.upline_username) {
+    const uSearch = regData.upline_username.toLowerCase().trim();
+    const uplineUser = users.find(u => u.username && u.username.toLowerCase().trim() === uSearch);
+    if (uplineUser) uplineId = Number(uplineUser.id);
+  }
+
+  const taken = users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
+  if (taken) {
+    const vacancy = findVacantSpotClient(users, uplineId, finalPos);
+    uplineId = vacancy.upline_id;
+    finalPos = vacancy.position;
+  }
+
+  const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
   const newUser: MLMUser = {
-    id: newId,
-    username: normUsername,
+    id: newUserId,
+    username: normalizedUsername,
     fullname: regData.fullname,
-    email: regData.email || `${normUsername}@member.hedtrojeans.com`,
-    phone: regData.phone || "081234567890",
+    email: regData.email,
+    phone: regData.phone,
     password: regData.password || "password123",
-    is_active: false,
-    upline_id: 1,
-    position: regData.position || 'L',
-    sponsor_id: 1,
+    is_active: true, // Auto Active upon registration package
+    upline_id: uplineId,
+    position: finalPos,
+    sponsor_id: sponsorId,
     balance: 0,
     sponsor_bonus: 0,
     pairing_bonus: 0,
@@ -207,52 +149,55 @@ async function registerUserToFirestoreDirect(regData: {
     firebase_uid: regData.firebase_uid || "",
     ktp: regData.ktp || "",
     whatsapp: regData.whatsapp || regData.phone || "",
-    bank_name: regData.bank_name || "BCA",
+    bank_name: regData.bank_name || "",
     bank_account: regData.bank_account || "",
     bank_holder: regData.bank_holder || regData.fullname || "",
     address: regData.address || "",
     city: regData.city || ""
   };
 
-  saveLocalStoredUser(newUser);
+  const updatedUsers = [...users, newUser];
 
-  // Auto-create initial deposit & order for new member activation
-  try {
-    const actCode = 100 + (newUser.id * 37) % 899;
-    const initialDep: DepositRequest = {
-      id: Date.now(),
-      user_id: newUser.id,
-      username: newUser.username,
-      amount: 550000,
-      unique_code: actCode,
-      method: "transfer_bank",
-      status: "pending",
-      payment_code: `ACT-${newUser.id}`,
-      created_at: new Date().toISOString()
-    };
-    await createFirestoreDeposit(initialDep).catch(() => {});
+  if (supabase) {
+    try {
+      await supabase.from('users').upsert(newUser);
+      await updateAncestorCountsClient(updatedUsers, uplineId, finalPos);
 
-    const initialOrd: Order = {
-      id: Date.now() + 1,
-      invoice_no: `INV-ACT-${newUser.id}-${Date.now().toString().slice(-4)}`,
-      user_id: newUser.id,
-      username: newUser.username,
-      fullname: regData.fullname,
-      phone: regData.phone || "-",
-      address: regData.address ? `${regData.address}${regData.city ? ', ' + regData.city : ''}` : "-",
-      product_name: "Paket Perdana Member Premium - Hedtro Raw Denim 15oz",
-      amount: 550000,
-      unique_code: actCode,
-      payment_method: "Transfer Bank",
-      status: "DIPROSES",
-      courier: "JNE REGULER",
-      tracking_number: `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
-      notes: "Pesanan Pendaftaran & Aktivasi Member Premium Hedtro Jeans",
-      created_at: new Date().toISOString()
-    };
-    await saveFirestoreOrder(initialOrd).catch(() => {});
-  } catch (e) {
-    console.warn("Auto deposit/order error on register:", e);
+      // Log Gratis 1 Produk Paket Perdana (Rp 550.000) transaction for the new user
+      await createFirestoreTransaction({
+        id: Date.now(),
+        user_id: newUserId,
+        username: normalizedUsername,
+        type: "bonus_produk",
+        amount: 550000,
+        description: "Bonus Registrasi: Gratis 1 Produk Paket Perdana HEDTRO JEANS senilai Rp 550.000 (Termasuk Paket Pendaftaran Hak Usaha)",
+        created_at: new Date().toISOString()
+      });
+
+      // Distribute Sponsor Bonus (Rp 40.000) to Sponsor
+      if (sponsorId) {
+        const sponsor = users.find(u => Number(u.id) === Number(sponsorId));
+        if (sponsor) {
+          const newSponBal = (Number(sponsor.balance) || 0) + 40000;
+          const newSponBonus = (Number(sponsor.sponsor_bonus) || 0) + 40000;
+          await updateFirestoreUserProfile(sponsor.id, {
+            balance: newSponBal,
+            sponsor_bonus: newSponBonus
+          } as any);
+          await createFirestoreTransaction({
+            id: Date.now() + 1,
+            user_id: sponsor.id,
+            username: sponsor.username,
+            type: "sponsor_bonus",
+            amount: 40000,
+            description: `Bonus Sponsor Pendaftaran Member Baru ${normalizedUsername} (+Rp 40.000)`,
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("Supabase upsert failed for user registration:", e);
+    }
   }
 
   return newUser;
@@ -318,197 +263,249 @@ function buildClientBinaryTree(users: MLMUser[], userId: number, depth = 0, maxD
 }
 
 async function fetchFirestoreProducts(): Promise<Product[]> {
-  if (!db) {
-    console.warn("⚠️ [fetchFirestoreProducts] `db` instance is null. Returning DEFAULT_PRODUCTS.");
-    return DEFAULT_PRODUCTS;
-  }
+  if (!supabase) return DEFAULT_PRODUCTS;
 
   try {
-    console.log("📡 [fetchFirestoreProducts] Reading 'products' collection from Firestore...");
-    const querySnapshot: any = await withClientTimeout(getDocs(collection(db, "products")), 8000, "getDocs products");
-    if (!querySnapshot) return DEFAULT_PRODUCTS;
-    console.log(`✅ [fetchFirestoreProducts] Firestore read successful! Received ${querySnapshot.size} products.`);
-    const prods: Product[] = [];
-    querySnapshot.forEach((docSnap: any) => {
-      const data = docSnap.data();
-      prods.push({
-        id: Number(data.id ?? docSnap.id),
-        name: data.name || "",
-        description: data.description || "",
-        price: Number(data.price) || 0,
-        member_price: Number(data.member_price) || 0,
-        stock: Number(data.stock) || 0,
-        image: data.image || "",
-        sizes: data.sizes,
-        colors: data.colors,
-        badge: data.badge
-      });
-    });
-
-    if (prods.length === 0) {
-      console.log("ℹ️ [fetchFirestoreProducts] Collection 'products' is empty in Firestore. Seeding default products...");
-      for (const defP of DEFAULT_PRODUCTS) {
-        try {
-          withClientTimeout(setDoc(doc(db, "products", String(defP.id)), defP), 8000, `seedProduct ${defP.name}`);
-        } catch {}
-      }
+    const { data, error } = await supabase.from('products').select('*');
+    if (error || !data || data.length === 0) {
       return DEFAULT_PRODUCTS;
     }
-
+    const prods: Product[] = data.map(item => ({
+      id: Number(item.id),
+      name: item.name || "",
+      description: item.description || "",
+      price: Number(item.price) || 0,
+      member_price: Number(item.member_price) || 0,
+      stock: Number(item.stock) || 0,
+      image: item.image || "",
+      sizes: item.sizes,
+      colors: item.colors,
+      badge: item.badge
+    }));
     prods.sort((a, b) => a.id - b.id);
     return prods;
-  } catch (err: any) {
-    console.error("❌ [fetchFirestoreProducts] Error reading 'products' from Firestore:", err);
+  } catch (err) {
+    console.warn("Supabase fetch products error:", err);
     return DEFAULT_PRODUCTS;
   }
 }
 
 async function fetchFirestoreSettings(): Promise<any> {
+  if (!supabase) return null;
   try {
-    const res = await fetch("/api/settings");
-    if (res.ok) return await res.json();
-  } catch (err: any) {
-    console.warn("⚠️ [fetchFirestoreSettings] Error reading settings via D1 API:", err);
+    const { data, error } = await supabase.from('system_settings').select('*').eq('id', 1).single();
+    if (!error && data) return data;
+  } catch (err) {
+    console.warn("Supabase fetch settings error:", err);
   }
   return null;
 }
 
 async function saveFirestoreSettings(newSettings: any): Promise<boolean> {
-  try {
-    const res = await fetch("/api/admin/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newSettings)
-    });
-    return res.ok;
-  } catch (err: any) {
-    console.warn("⚠️ [saveFirestoreSettings] Error saving settings via D1 API:", err);
-    return false;
+  if (supabase) {
+    try {
+      await supabase.from('system_settings').upsert({ id: 1, ...newSettings });
+      return true;
+    } catch (err) {
+      console.warn("Supabase save settings error:", err);
+    }
   }
+  return true;
 }
 
 async function fetchFirestoreWithdrawals(): Promise<WDRequest[]> {
+  if (!supabase) return [];
   try {
-    const res = await fetch("/api/withdrawals");
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) return data;
-    }
-  } catch (err: any) {
-    console.error("❌ [fetchFirestoreWithdrawals] Error reading 'withdrawals' via D1 API:", err);
+    const { data, error } = await supabase.from('wd_requests').select('*');
+    if (error || !data) return [];
+    const wds: WDRequest[] = data.map(item => ({
+      id: Number(item.id),
+      user_id: Number(item.user_id),
+      username: item.username || "",
+      amount: Number(item.amount) || 0,
+      bank_name: item.bank_name || "",
+      account_number: item.account_number || "",
+      account_holder: item.account_holder || "",
+      status: item.status || "pending",
+      created_at: item.created_at || new Date().toISOString()
+    }));
+    wds.sort((a, b) => b.id - a.id);
+    return wds;
+  } catch (err) {
+    return [];
   }
-  return [];
 }
 
 async function createFirestoreWithdrawal(wd: WDRequest): Promise<void> {
-  try {
-    await fetch("/api/withdrawals/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(wd)
-    });
-  } catch (err) {
-    console.warn("Error creating withdrawal via D1 API:", err);
+  if (supabase) {
+    try {
+      await supabase.from('wd_requests').upsert(wd);
+    } catch (err) {
+      console.warn("Supabase create WD error:", err);
+    }
   }
 }
 
 async function updateFirestoreWithdrawalStatus(wdId: number, status: 'approved' | 'rejected' | 'pending'): Promise<void> {
-  try {
-    await fetch("/api/admin/withdraw/process", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wdId, action: status === 'approved' ? 'approve' : 'reject' })
+  const wds = await fetchFirestoreWithdrawals();
+  const oldWd = wds.find(w => Number(w.id) === Number(wdId));
+
+  if (oldWd && status === 'approved' && oldWd.status === 'pending') {
+    await createFirestoreTransaction({
+      id: Date.now(),
+      user_id: oldWd.user_id,
+      username: oldWd.username,
+      type: "withdrawal",
+      amount: 0,
+      description: `Penarikan Dana (#WD-${wdId}) Disetujui Admin - Transfer ke Bank ${oldWd.bank_name}`,
+      created_at: new Date().toISOString()
     });
-  } catch (err) {
-    console.warn("Error updating withdrawal status via D1 API:", err);
+  }
+
+  if (supabase) {
+    try {
+      await supabase.from('wd_requests').update({ status }).eq('id', wdId);
+    } catch (err) {
+      console.warn("Supabase update WD error:", err);
+    }
   }
 }
 
 async function fetchFirestoreTransactions(): Promise<Transaction[]> {
+  if (!supabase) return [];
   try {
-    const res = await fetch("/api/transactions");
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) return data;
-    }
-  } catch (err: any) {
-    console.error("❌ [fetchFirestoreTransactions] Error reading 'transactions' via D1 API:", err);
+    const { data, error } = await supabase.from('transactions').select('*');
+    if (error || !data) return [];
+    const txs: Transaction[] = data.map(item => ({
+      id: Number(item.id),
+      user_id: Number(item.user_id),
+      username: item.username || "",
+      type: item.type || "transaction",
+      amount: Number(item.amount) || 0,
+      description: item.description || "",
+      created_at: item.created_at || new Date().toISOString()
+    }));
+    txs.sort((a, b) => b.id - a.id);
+    return txs;
+  } catch (err) {
+    return [];
   }
-  return [];
 }
 
 async function createFirestoreTransaction(tx: Transaction): Promise<void> {
-  try {
-    await fetch("/api/transactions/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(tx)
-    });
-  } catch (err) {
-    console.warn("Error creating transaction via D1 API:", err);
+  if (supabase) {
+    try {
+      await supabase.from('transactions').upsert(tx);
+    } catch (err) {
+      console.warn("Supabase create tx error:", err);
+    }
   }
 }
 
 async function fetchFirestoreDeposits(): Promise<DepositRequest[]> {
+  if (!supabase) return [];
   try {
-    const res = await fetch("/api/deposits");
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) return data;
-    }
-  } catch (err: any) {
-    console.error("❌ [fetchFirestoreDeposits] Error reading 'deposits' via D1 API:", err);
+    const { data, error } = await supabase.from('deposit_requests').select('*');
+    if (error || !data) return [];
+    const deps: DepositRequest[] = data.map(item => ({
+      id: Number(item.id),
+      user_id: Number(item.user_id),
+      username: item.username || "",
+      amount: Number(item.amount) || 0,
+      unique_code: item.unique_code !== undefined ? Number(item.unique_code) : (100 + (Number(item.id) || 1) % 899),
+      method: item.method || "qris",
+      status: item.status || "pending",
+      payment_code: item.payment_code || "",
+      created_at: item.created_at || new Date().toISOString()
+    }));
+    deps.sort((a, b) => b.id - a.id);
+    return deps;
+  } catch (err) {
+    return [];
   }
-  return [];
 }
 
 async function createFirestoreDeposit(dep: DepositRequest): Promise<void> {
-  try {
-    await fetch("/api/deposits/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dep)
-    });
-  } catch (err) {
-    console.warn("Error creating deposit via D1 API:", err);
+  if (supabase) {
+    try {
+      await supabase.from('deposit_requests').upsert(dep);
+    } catch (err) {
+      console.warn("Supabase create deposit error:", err);
+    }
   }
 }
 
 async function fetchFirestoreOrders(): Promise<Order[]> {
+  if (!supabase) return [];
   try {
-    const res = await fetch("/api/orders");
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) return data;
-    }
-  } catch (err: any) {
-    console.error("❌ [fetchFirestoreOrders] Error reading 'orders' via D1 API:", err);
+    const { data, error } = await supabase.from('orders').select('*');
+    if (error || !data) return DEFAULT_ORDERS;
+    const ords: Order[] = data.map(item => ({
+      id: Number(item.id),
+      invoice_no: item.invoice_no || `INV-${item.id}`,
+      user_id: Number(item.user_id) || 0,
+      username: item.username || "",
+      fullname: item.fullname || "",
+      phone: item.phone || "",
+      address: item.address || "",
+      product_name: item.product_name || "Produk Denim",
+      amount: Number(item.amount) || 0,
+      unique_code: item.unique_code !== undefined ? Number(item.unique_code) : (100 + (Number(item.id) || 1) % 899),
+      payment_method: item.payment_method || "Transfer Bank",
+      status: item.status || "DIPROSES",
+      courier: item.courier || "JNE REGULER",
+      tracking_number: item.tracking_number || "",
+      notes: item.notes || "",
+      created_at: item.created_at || new Date().toISOString(),
+      updated_at: item.updated_at || new Date().toISOString(),
+      steps: Array.isArray(item.steps) ? item.steps : []
+    }));
+    ords.sort((a, b) => b.id - a.id);
+    return ords;
+  } catch (err) {
+    return DEFAULT_ORDERS;
   }
-  return [];
 }
 
 async function saveFirestoreOrder(ord: Order): Promise<void> {
-  try {
-    await fetch("/api/orders/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(ord)
-    });
-  } catch (err) {
-    console.warn("Error saving order via D1 API:", err);
+  if (supabase) {
+    try {
+      await supabase.from('orders').upsert(ord);
+    } catch (err) {
+      console.warn("Supabase save order error:", err);
+    }
   }
 }
 
 async function updateFirestoreDepositStatus(depositId: number, status: 'success' | 'failed' | 'pending'): Promise<void> {
-  const action = status === 'success' ? 'approve' : 'reject';
-  try {
-    await fetch("/api/admin/deposit/process", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ depositId, action })
+  const deps = await fetchFirestoreDeposits();
+  const depData = deps.find(d => Number(d.id) === Number(depositId));
+
+  if (depData && status === 'success' && depData.status === 'pending') {
+    const users = await fetchFirestoreUsers();
+    const targetUser = users.find(u => Number(u.id) === Number(depData.user_id));
+    if (targetUser) {
+      const newBal = (Number(targetUser.balance) || 0) + depData.amount;
+      await updateFirestoreUserProfile(targetUser.id, { balance: newBal });
+    }
+
+    await createFirestoreTransaction({
+      id: Date.now(),
+      user_id: depData.user_id,
+      username: depData.username,
+      type: "deposit",
+      amount: depData.amount,
+      description: `Deposit Saldo Berhasil via ${(depData.method || 'QRIS').toUpperCase()} (+Rp ${depData.amount.toLocaleString("id-ID")})`,
+      created_at: new Date().toISOString()
     });
-  } catch (err) {
-    console.warn("Error updating deposit status via D1 API:", err);
+  }
+
+  if (supabase) {
+    try {
+      await supabase.from('deposit_requests').update({ status }).eq('id', depositId);
+    } catch (err) {
+      console.warn("Supabase update deposit error:", err);
+    }
   }
 }
 
@@ -528,11 +525,11 @@ async function addFirestoreProduct(prod: Omit<Product, "id">): Promise<Product> 
     badge: prod.badge
   };
 
-  if (db) {
+  if (supabase) {
     try {
-      await setDoc(doc(db, "products", String(nextId)), newProduct);
+      await supabase.from('products').upsert(newProduct);
     } catch (e) {
-      console.warn("Error adding product to Firestore:", e);
+      console.warn("Supabase add product error:", e);
     }
   }
 
@@ -540,156 +537,169 @@ async function addFirestoreProduct(prod: Omit<Product, "id">): Promise<Product> 
 }
 
 async function updateFirestoreProduct(productId: number, stock: number, price: number, memberPrice: number): Promise<void> {
-  if (db) {
+  if (supabase) {
     try {
-      await setDoc(doc(db, "products", String(productId)), { stock, price, member_price: memberPrice }, { merge: true });
+      await supabase.from('products').update({ stock, price, member_price: memberPrice }).eq('id', productId);
     } catch (e) {
-      console.warn("Error updating product in Firestore:", e);
+      console.warn("Supabase update product error:", e);
     }
   }
 }
 
 async function updateFirestoreProductFull(product: Product): Promise<void> {
-  if (db) {
+  if (supabase) {
     try {
-      const cleanData: any = {
-        id: Number(product.id),
-        name: product.name || "",
-        description: product.description || "",
-        price: Number(product.price) || 0,
-        member_price: Number(product.member_price) || 0,
-        stock: Number(product.stock) || 0,
-        image: product.image || "",
-        sizes: product.sizes || [],
-        colors: product.colors || [],
-        badge: product.badge || ""
-      };
-      await setDoc(doc(db, "products", String(product.id)), cleanData, { merge: true });
+      await supabase.from('products').upsert(product);
     } catch (e) {
-      console.warn("Error updating full product in Firestore:", e);
+      console.warn("Supabase update full product error:", e);
     }
   }
 }
 
 async function deleteFirestoreProduct(productId: number): Promise<void> {
-  if (db) {
+  if (supabase) {
     try {
-      await deleteDoc(doc(db, "products", String(productId)));
+      await supabase.from('products').delete().eq('id', productId);
     } catch (e) {
-      console.warn("Error deleting product from Firestore:", e);
+      console.warn("Supabase delete product error:", e);
     }
   }
 }
 
 async function updateFirestoreUserProfile(userId: number, updateData: { fullname?: string; email?: string; phone?: string; whatsapp?: string; bank_name?: string; bank_account?: string; bank_holder?: string; address?: string; city?: string; password?: string; balance?: number; is_active?: boolean; sponsor_bonus?: number; pairing_bonus?: number; level_bonus?: number; ro_bonus?: number; wishlist?: number[]; profile_photo?: string }): Promise<void> {
-  try {
-    const users = await fetchFirestoreUsers();
-    const target = users.find(u => Number(u.id) === Number(userId));
-    if (target) {
-      const mergedUser = { ...target, ...updateData };
-      await fetch(`/api/user/${userId}/profile`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updateData)
-      });
-      saveLocalStoredUser(mergedUser);
+  if (supabase) {
+    try {
+      await supabase.from('users').update(updateData).eq('id', userId);
+    } catch (e) {
+      console.warn("Supabase update user profile error:", e);
     }
-  } catch (err) {
-    console.warn("Error updating user profile via D1 API:", err);
   }
 }
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<MLMUser | null>(() => {
-    try {
-      const saved = localStorage.getItem("zalora_session_user");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>(() => {
-    try {
-      const saved = localStorage.getItem("zalora_session_user");
-      return saved ? 'dashboard' : 'landing';
-    } catch {
-      return 'landing';
-    }
-  });
+  const [currentUser, setCurrentUser] = useState<MLMUser | null>(null);
+  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>('landing');
 
   const currentUserRef = React.useRef<MLMUser | null>(currentUser);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
-    try {
-      if (currentUser) {
-        localStorage.setItem("zalora_session_user", JSON.stringify(currentUser));
-      } else {
-        localStorage.removeItem("zalora_session_user");
-      }
-    } catch {}
   }, [currentUser]);
 
-  // Listen for Firebase Auth state changes directly
+  // Listen for Supabase Auth state changes if logged in
+  const [sbSession, setSbSession] = useState<any>(null);
+  const [magicLinkNotice, setMagicLinkNotice] = useState('');
+
   useEffect(() => {
-    if (!auth) return;
-    const unsubscribe = auth.onAuthStateChanged(async (fbUser: any) => {
-      if (fbUser && !currentUserRef.current) {
-        console.log("🔥 [Firebase Auth] Active Firebase Auth session detected for:", fbUser.email);
-        const fsUsers = await fetchFirestoreUsers();
-        const foundUser = fsUsers.find(u =>
-          (u.firebase_uid && u.firebase_uid === fbUser.uid) ||
-          (u.email && fbUser.email && u.email.toLowerCase().trim() === fbUser.email.toLowerCase().trim())
-        );
+    if (!supabase) return;
+    
+    // Initial session load
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setSbSession(session);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSbSession(session);
+      if (session?.user && !currentUserRef.current) {
+        const users = await fetchFirestoreUsers();
+        const foundUser = users.find(u => u.email && session.user.email && u.email.toLowerCase().trim() === session.user.email.toLowerCase().trim());
         if (foundUser) {
           setCurrentUser(foundUser);
+          setActiveView('dashboard');
+        } else {
+          // Auto-generate profile for new Supabase Auth user
+          const newSbUser: MLMUser = {
+            id: Date.now(),
+            username: session.user.email ? session.user.email.split('@')[0] : `user_${Date.now()}`,
+            fullname: session.user.user_metadata?.fullname || session.user.email || 'Supabase Member',
+            email: session.user.email || '',
+            phone: session.user.user_metadata?.whatsapp || '081234567890',
+            password: 'password123',
+            sponsor_id: 1,
+            upline_id: 1,
+            position: 'L',
+            balance: 0,
+            sponsor_bonus: 0,
+            pairing_bonus: 0,
+            level_bonus: 0,
+            ro_bonus: 0,
+            left_count: 0,
+            right_count: 0,
+            left_sales: 0,
+            right_sales: 0,
+            role: 'user',
+            is_active: true,
+            created_at: new Date().toISOString()
+          };
+          setCurrentUser(newSbUser);
           setActiveView('dashboard');
         }
       }
     });
-    return () => unsubscribe();
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
+
+  const handleSupabaseOAuthLogin = async (provider: 'google' | 'github') => {
+    if (!supabase) {
+      setLoginError("Supabase client belum terinisialisasi.");
+      return;
+    }
+    try {
+      setIsSubmittingLogin(true);
+      setLoginError('');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: window.location.origin }
+      });
+      if (error) setLoginError(`Supabase OAuth (${provider}) error: ${error.message}`);
+    } catch (err: any) {
+      setLoginError("Koneksi OAuth error: " + err.message);
+    } finally {
+      setIsSubmittingLogin(false);
+    }
+  };
+
+  const handleSupabaseMagicLink = async () => {
+    if (!supabase) {
+      setLoginError("Supabase client belum terinisialisasi.");
+      return;
+    }
+    const targetEmail = loginUsername.includes('@') ? loginUsername.trim() : `${loginUsername.trim()}@gmail.com`;
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setLoginError("Masukkan email valid untuk login Supabase Magic Link!");
+      return;
+    }
+    try {
+      setIsSubmittingLogin(true);
+      setLoginError('');
+      setMagicLinkNotice('');
+      const { error } = await supabase.auth.signInWithOtp({
+        email: targetEmail,
+        options: { emailRedirectTo: window.location.origin }
+      });
+      if (error) {
+        setLoginError("Gagal mengirim Magic Link Supabase: " + error.message);
+      } else {
+        setMagicLinkNotice(`✅ Magic Link Supabase telah dikirim ke ${targetEmail}! Silakan cek email Anda untuk masuk instan.`);
+      }
+    } catch (err: any) {
+      setLoginError("Magic Link error: " + err.message);
+    } finally {
+      setIsSubmittingLogin(false);
+    }
+  };
 
   const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
   
   // Auth state
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [loginMode, setLoginMode] = useState<'member' | 'admin'>('member');
-
-  // Detect URL parameter for dedicated Admin Login (?admin, /admin, #admin)
-  useEffect(() => {
-    const checkAdminUrl = () => {
-      if (typeof window === "undefined") return;
-      const search = window.location.search.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      const path = window.location.pathname.toLowerCase();
-      if (search.includes("admin") || hash.includes("admin") || path.endsWith("/admin") || path === "/admin") {
-        setLoginMode('admin');
-        setShowLoginModal(true);
-      }
-    };
-    checkAdminUrl();
-    window.addEventListener("popstate", checkAdminUrl);
-    return () => window.removeEventListener("popstate", checkAdminUrl);
-  }, []);
-
-  const openMemberLogin = () => {
-    setLoginMode('member');
-    setLoginError('');
-    setShowLoginModal(true);
-  };
-
-  const openAdminLogin = () => {
-    setLoginMode('admin');
-    setLoginError('');
-    setShowLoginModal(true);
-  };
-
+  
   // Login form
   const [loginUsername, setLoginUsername] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  const [loginPassword, setLoginPassword] = useState('password123'); // Demo bypass
   const [loginError, setLoginError] = useState('');
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
 
@@ -774,40 +784,33 @@ export default function App() {
   const [regSponsor, setRegSponsor] = useState('');
   const [regUpline, setRegUpline] = useState('');
   const [regPosition, setRegPosition] = useState<'L' | 'R'>('L');
-  const [regProductSeries, setRegProductSeries] = useState('HTR-RAW-01 (Hedtro Raw Denim Premium 15oz)');
-  const [regProductColor, setRegProductColor] = useState('Indigo Blue Classic');
-  const [regProductSize, setRegProductSize] = useState('32');
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
-  const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
 
   // Dynamic branding & configuration settings
-  const [systemSettings, setSystemSettings] = useState<any>(() => {
-    const defaults = {
-      webName: "HEDTRO JEANS Afiliasi & Reseller",
-      logoText: "HEDTRO.JEANS",
-      logoUrl: "",
-      iconUrl: "",
-      contactPhone: "081234567890",
-      contactEmail: "support@hedtrojeans.com",
-      sponsorBonus: 20000,
-      pairingBonus: 10000,
-      roBonus: 5000,
-      levelBonusG1: 5000,
-      levelBonusG2: 4000,
-      levelBonusG3: 3000,
-      levelBonusG4: 1000,
-      levelBonusG5: 1000,
-      levelBonusG6: 1000,
-      levelBonusG7: 1000,
-      levelBonusG8: 1000,
-      levelBonusG9: 1000,
-      levelBonusG10: 1000,
-      rewardThresholdLeft: 5,
-      rewardThresholdRight: 5,
-      rewardName: "Honda Vario Matic Baru",
-      rewardCashEquivalent: 20000000
-    };
-    return defaults;
+  const [systemSettings, setSystemSettings] = useState<any>({
+    webName: "HEDTRO JEANS Afiliasi & Reseller",
+    logoText: "HEDTRO.JEANS",
+    logoUrl: "",
+    iconUrl: "",
+    contactPhone: "081234567890",
+    contactEmail: "support@hedtrojeans.com",
+    sponsorBonus: 20000,
+    pairingBonus: 10000,
+    roBonus: 5000,
+    levelBonusG1: 5000,
+    levelBonusG2: 4000,
+    levelBonusG3: 3000,
+    levelBonusG4: 1000,
+    levelBonusG5: 1000,
+    levelBonusG6: 1000,
+    levelBonusG7: 1000,
+    levelBonusG8: 1000,
+    levelBonusG9: 1000,
+    levelBonusG10: 1000,
+    rewardThresholdLeft: 5,
+    rewardThresholdRight: 5,
+    rewardName: "Honda Vario Matic Baru",
+    rewardCashEquivalent: 20000000
   });
 
   // Active user data
@@ -816,10 +819,10 @@ export default function App() {
     transactions: Transaction[];
     deposits: DepositRequest[];
     withdrawals: WDRequest[];
-    orders?: Order[];
     notifications: any[];
     binaryTree: any;
     referrals: MLMUser[];
+    orders?: Order[];
   } | null>(null);
 
   // Active admin data
@@ -839,10 +842,11 @@ export default function App() {
     deposits: DepositRequest[];
     transactions: Transaction[];
     orders?: Order[];
+    products?: Product[];
   } | null>(null);
 
   // Orders & Shipping Resi State
-  const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
 
   const fetchOrders = async () => {
     try {
@@ -924,100 +928,42 @@ export default function App() {
   };
 
   const handleDeleteOrder = async (orderId: number | string): Promise<boolean> => {
-    const numId = Number(orderId);
     try {
       await fetch("/api/admin/orders/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: orderId })
-      }).catch(e => console.warn("Delete order API warning:", e));
+      });
+    } catch {}
 
-      if (db) {
-        try {
-          await deleteDoc(doc(db, "orders", String(orderId)));
-        } catch (err) {
-          console.warn("Firestore delete order doc warning:", err);
-        }
-      }
-
-      setOrders(prev => prev.filter(o => Number(o.id) !== numId && String(o.id) !== String(orderId)));
-
-      setAdminDashboardData(prev => prev ? ({
-        ...prev,
-        orders: prev.orders ? prev.orders.filter(o => Number(o.id) !== numId && String(o.id) !== String(orderId)) : []
-      }) : null);
-
-      setUserDashboardData(prev => prev ? ({
-        ...prev,
-        orders: prev.orders ? prev.orders.filter(o => Number(o.id) !== numId && String(o.id) !== String(orderId)) : []
-      }) : null);
-
-      await fetchDashboardData();
-      return true;
-    } catch (err) {
-      console.error("Error deleting order:", err);
-      return false;
+    setOrders(prev => prev.filter(o => Number(o.id) !== Number(orderId)));
+    if (supabase) {
+      try {
+        await supabase.from('orders').delete().eq('id', orderId);
+      } catch {}
     }
+    return true;
   };
 
-  // Real-time Firestore subscription for System Settings
+  // Supabase Realtime subscription for Database Collections
   useEffect(() => {
-    if (!db) return;
-    console.log("🔥 [Firebase Realtime] Subscribing to 'settings/system' Firestore document...");
-    const unsub = onSnapshot(doc(db, "settings", "system"), (docSnap) => {
-      if (docSnap && docSnap.exists && typeof docSnap.exists === 'function' && docSnap.exists()) {
-        const data = docSnap.data();
-        console.log("🔥 [Firebase Realtime] Received live settings update from Firebase:", data);
-        setSystemSettings((prev: any) => ({ ...prev, ...data }));
-      }
-    }, (err) => {
-      console.warn("⚠️ [Firebase Realtime] Error in settings listener:", err);
-    });
-    return () => unsub();
-  }, []);
+    if (!supabase) return;
 
-  // Real-time Firestore subscriptions for Database Collections (Users, WDs, Deposits, Txs, Products)
-  useEffect(() => {
-    if (!db) return;
-    console.log("🔥 [Firebase Realtime] Subscribing to live Firestore database collections...");
-
-    const unsubUsers = onSnapshot(collection(db, "users"), () => {
-      console.log("🔥 [Firebase Realtime] Live change in 'users' collection detected!");
-      if (currentUserRef.current) fetchDashboardData();
-    });
-
-    const unsubWd = onSnapshot(collection(db, "withdrawals"), () => {
-      console.log("🔥 [Firebase Realtime] Live change in 'withdrawals' collection detected!");
-      if (currentUserRef.current) fetchDashboardData();
-    });
-
-    const unsubDep = onSnapshot(collection(db, "deposits"), () => {
-      console.log("🔥 [Firebase Realtime] Live change in 'deposits' collection detected!");
-      if (currentUserRef.current) fetchDashboardData();
-    });
-
-    const unsubTx = onSnapshot(collection(db, "transactions"), () => {
-      console.log("🔥 [Firebase Realtime] Live change in 'transactions' collection detected!");
-      if (currentUserRef.current) fetchDashboardData();
-    });
-
-    const unsubProd = onSnapshot(collection(db, "products"), () => {
-      console.log("🔥 [Firebase Realtime] Live change in 'products' collection detected!");
-      fetchProducts();
-    });
-
-    const unsubOrders = onSnapshot(collection(db, "orders"), () => {
-      console.log("🔥 [Firebase Realtime] Live change in 'orders' collection detected!");
-      fetchOrders();
-    });
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public' },
+        () => {
+          if (currentUserRef.current) fetchDashboardData();
+          fetchProducts();
+          fetchOrders();
+        }
+      )
+      .subscribe();
 
     return () => {
-      unsubUsers();
-      unsubWd();
-      unsubDep();
-      unsubTx();
-      unsubProd();
-      unsubOrders();
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -1135,10 +1081,10 @@ export default function App() {
         pairing_bonus: 0,
         level_bonus: 0,
         ro_bonus: 0,
-        left_count: 0,
-        right_count: 0,
-        left_sales: 0,
-        right_sales: 0,
+        left_count: 5,
+        right_count: 4,
+        left_sales: 5,
+        right_sales: 4,
         created_at: new Date().toISOString(),
         role: "admin"
       };
@@ -1154,33 +1100,41 @@ export default function App() {
         totalMembers: memberUsers.length,
         activeMembers: activeCount,
         inactiveMembers: memberUsers.length - activeCount,
-        totalTurnover: 0,
-        totalBonusesPaid: 0,
-        pendingWDCount: 0,
-        pendingWDAmount: 0,
+        totalTurnover: 15000000,
+        totalBonusesPaid: 3500000,
+        pendingWDCount: 1,
+        pendingWDAmount: 250000,
         isAutoPayout: false
       },
       users: DEFAULT_USERS,
       withdrawals: [],
       deposits: [],
-      transactions: [],
-      orders: []
+      transactions: []
     };
   };
 
   const getDefaultUserDashboard = (user: MLMUser) => ({
     user,
-    transactions: [],
+    transactions: [
+      {
+        id: 1,
+        user_id: user.id,
+        username: user.username,
+        type: "Sponsor Bonus",
+        amount: 40000,
+        description: "Bonus Sponsor Pendaftaran Member @agus",
+        created_at: new Date().toISOString()
+      }
+    ],
     deposits: [],
     withdrawals: [],
-    orders: [],
     notifications: [
       { id: 1, title: "Selamat Datang!", message: "Selamat datang di Portal Afiliasi HEDTRO JEANS.", read: false, time: "Baru saja" }
     ],
     binaryTree: {
       user: user,
-      left: null,
-      right: null
+      left: { user: { username: "koko", fullname: "Koko Prasetyo", is_active: true }, left: null, right: null },
+      right: { user: { username: "siti", fullname: "Siti Rahma", is_active: true }, left: null, right: null }
     },
     referrals: []
   });
@@ -1193,7 +1147,7 @@ export default function App() {
     console.log("🔍 [fetchDashboardData] Starting dashboard sync...", {
       username: targetUser.username,
       role: targetUser.role,
-      dbConnected: !!db,
+      supabaseConnected: !!supabase,
       isVercel: typeof window !== "undefined" && window.location.hostname.includes("vercel.app")
     });
 
@@ -1209,9 +1163,12 @@ export default function App() {
           const data = await res.json();
           console.log("✅ [fetchDashboardData] Backend API response received successfully for admin.");
           const fsTxs = await fetchFirestoreTransactions();
+          const fsOrders = await fetchFirestoreOrders();
           if (!currentUserRef.current) return;
           const mergedTxs = data.transactions && data.transactions.length > 0 ? data.transactions : fsTxs;
-          setAdminDashboardData({ ...data, transactions: mergedTxs });
+          const mergedOrders = data.orders && data.orders.length > 0 ? data.orders : fsOrders;
+          setAdminDashboardData({ ...data, transactions: mergedTxs, orders: mergedOrders });
+          if (data.orders) setOrders(data.orders);
           if (data.settings) setSystemSettings(data.settings);
           apiSuccess = true;
           return;
@@ -1229,11 +1186,15 @@ export default function App() {
           const data = await res.json();
           console.log("✅ [fetchDashboardData] Backend API response received successfully for user.");
           const fsTxs = await fetchFirestoreTransactions();
+          const fsOrders = await fetchFirestoreOrders();
           if (!currentUserRef.current) return;
           const userTxs = data.transactions && data.transactions.length > 0
             ? data.transactions
             : fsTxs.filter(t => Number(t.user_id) === Number(targetUser.id));
-          setUserDashboardData({ ...data, transactions: userTxs });
+          const userOrds = data.orders && data.orders.length > 0
+            ? data.orders
+            : fsOrders.filter(o => Number(o.user_id) === Number(targetUser.id) || (o.username && targetUser.username && o.username.toLowerCase() === targetUser.username.toLowerCase()));
+          setUserDashboardData({ ...data, transactions: userTxs, orders: userOrds });
           if (data.settings) setSystemSettings(data.settings);
           if (data.user && currentUserRef.current) {
             setCurrentUser(data.user);
@@ -1267,68 +1228,18 @@ export default function App() {
         ordersCount: fsOrders.length
       });
 
-      // Auto-ensure all unactivated members have activation orders & deposits for Admin visibility
-      const unactiveMembers = fsUsers.filter(u => !u.is_active && u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
-      unactiveMembers.forEach(u => {
-        const actCode = 100 + (Number(u.id) * 37) % 899;
-
-        if (!fsDeposits.some(d => Number(d.user_id) === Number(u.id))) {
-          const newActDep: DepositRequest = {
-            id: Date.now() + Number(u.id),
-            user_id: Number(u.id),
-            username: u.username,
-            amount: 550000,
-            unique_code: actCode,
-            method: "transfer_bank",
-            status: "pending",
-            payment_code: `ACT-${u.id}`,
-            created_at: u.created_at || new Date().toISOString()
-          };
-          fsDeposits.unshift(newActDep);
-          createFirestoreDeposit(newActDep).catch(() => {});
-        }
-
-        if (!fsOrders.some(o => Number(o.user_id) === Number(u.id))) {
-          const newActOrd: Order = {
-            id: Date.now() + Number(u.id) + 1,
-            invoice_no: `INV-ACT-${u.id}-${Date.now().toString().slice(-4)}`,
-            user_id: Number(u.id),
-            username: u.username,
-            fullname: u.fullname,
-            phone: u.phone || "-",
-            address: u.address || "Alamat Pembeli",
-            product_name: "Paket Perdana Member Premium - Hedtro Raw Denim 15oz",
-            amount: 550000,
-            unique_code: actCode,
-            payment_method: "Transfer Bank",
-            status: "DIPROSES",
-            courier: "JNE REGULER",
-            tracking_number: `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
-            notes: "Pesanan Pendaftaran & Aktivasi Member Premium Hedtro Jeans",
-            created_at: u.created_at || new Date().toISOString()
-          };
-          fsOrders.unshift(newActOrd);
-          saveFirestoreOrder(newActOrd).catch(() => {});
-        }
-      });
+      if (!currentUserRef.current) return;
 
       if (targetUser.role === 'admin') {
-        const memberUsers = fsUsers.filter(u => u.role !== 'admin' && Number(u.id) !== 1 && u.username !== 'admin');
-        const activeCount = memberUsers.filter(u => u.is_active).length;
+        const activeCount = fsUsers.filter(u => u.is_active).length;
         const pendingWDs = fsWithdrawals.filter(w => w.status === 'pending');
-        const purchaseTxs = fsTransactions.filter(t => t.type === 'purchase');
-        const purchaseTurnover = Math.abs(purchaseTxs.reduce((acc, t) => acc + t.amount, 0));
-        const activationTurnover = activeCount * 550000;
-        const totalTurnover = activationTurnover + purchaseTurnover;
-        const bonusTxs = fsTransactions.filter(t => ['sponsor_bonus', 'pairing_bonus', 'level_bonus', 'ro_bonus'].includes(t.type));
-        const totalBonusesPaid = bonusTxs.reduce((acc, t) => acc + t.amount, 0);
         setAdminDashboardData({
           metrics: {
-            totalMembers: memberUsers.length,
+            totalMembers: fsUsers.length,
             activeMembers: activeCount,
-            inactiveMembers: memberUsers.length - activeCount,
-            totalTurnover,
-            totalBonusesPaid,
+            inactiveMembers: fsUsers.length - activeCount,
+            totalTurnover: fsUsers.reduce((acc, u) => acc + (u.is_active ? 550000 : 0), 0),
+            totalBonusesPaid: fsUsers.reduce((acc, u) => acc + (u.sponsor_bonus || 0) + (u.pairing_bonus || 0), 0),
             pendingWDCount: pendingWDs.length,
             pendingWDAmount: pendingWDs.reduce((sum, w) => sum + w.amount, 0),
             isAutoPayout: false
@@ -1339,6 +1250,7 @@ export default function App() {
           transactions: fsTransactions,
           orders: fsOrders
         });
+        setOrders(fsOrders);
         console.log("✅ [fetchDashboardData] Admin dashboard updated via direct Firestore data.");
       } else {
         const freshUser = fsUsers.find(u => Number(u.id) === Number(targetUser.id)) || targetUser;
@@ -1347,71 +1259,9 @@ export default function App() {
         const binaryTree = buildClientBinaryTree(fsUsers, Number(freshUser.id), 0, 30);
         const referrals = fsUsers.filter(u => Number(u.sponsor_id) === Number(freshUser.id));
         const userWDs = fsWithdrawals.filter(w => Number(w.user_id) === Number(freshUser.id));
-        let userDeps = fsDeposits.filter(d => Number(d.user_id) === Number(freshUser.id));
-        let userTxs = fsTransactions.filter(t => Number(t.user_id) === Number(freshUser.id));
-        let userOrds = fsOrders.filter(o => Number(o.user_id) === Number(freshUser.id));
-
-        // Auto-ensure unactivated member has an activation deposit, order, & transaction item
-        if (!freshUser.is_active) {
-          const actCode = 100 + (Number(freshUser.id) * 37) % 899;
-
-          let hasActDep = userDeps.some(d => Number(d.amount) === 550000);
-          if (!hasActDep) {
-            const newActDep: DepositRequest = {
-              id: Date.now(),
-              user_id: Number(freshUser.id),
-              username: freshUser.username,
-              amount: 550000,
-              unique_code: actCode,
-              method: "transfer_bank",
-              status: "pending",
-              payment_code: `ACT-${freshUser.id}`,
-              created_at: new Date().toISOString()
-            };
-            userDeps = [newActDep, ...userDeps];
-            createFirestoreDeposit(newActDep).catch(() => {});
-          }
-
-          let hasActOrd = userOrds.some(o => Number(o.amount) === 550000);
-          if (!hasActOrd) {
-            const newActOrd: Order = {
-              id: Date.now() + 1,
-              invoice_no: `INV-ACT-${freshUser.id}-${Date.now().toString().slice(-4)}`,
-              user_id: Number(freshUser.id),
-              username: freshUser.username,
-              fullname: freshUser.fullname,
-              phone: freshUser.phone || "-",
-              address: freshUser.address || "Alamat Pembeli",
-              product_name: "Paket Perdana Member Premium - Hedtro Raw Denim 15oz",
-              amount: 550000,
-              unique_code: actCode,
-              payment_method: "Transfer Bank",
-              status: "DIPROSES",
-              courier: "JNE REGULER",
-              tracking_number: `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
-              notes: "Pesanan Pendaftaran & Aktivasi Member Premium",
-              created_at: new Date().toISOString()
-            };
-            userOrds = [newActOrd, ...userOrds];
-            saveFirestoreOrder(newActOrd).catch(() => {});
-          }
-
-          let hasActTx = userTxs.some(t => t.type === 'activation' || (Number(t.amount) === 550000 && t.type === 'deposit'));
-          if (!hasActTx) {
-            const newActTx: Transaction = {
-              id: Date.now() + 2,
-              user_id: Number(freshUser.id),
-              username: freshUser.username,
-              type: "activation",
-              amount: 550000,
-              description: "Tagihan Aktivasi Member Premium & Paket Perdana Hedtro Jeans",
-              status: "pending",
-              created_at: new Date().toISOString()
-            };
-            userTxs = [newActTx, ...userTxs];
-            createFirestoreTransaction(newActTx).catch(() => {});
-          }
-        }
+        const userDeps = fsDeposits.filter(d => Number(d.user_id) === Number(freshUser.id));
+        const userTxs = fsTransactions.filter(t => Number(t.user_id) === Number(freshUser.id));
+        const userOrds = fsOrders.filter(o => Number(o.user_id) === Number(freshUser.id) || (o.username && freshUser.username && o.username.toLowerCase() === freshUser.username.toLowerCase()));
 
         setUserDashboardData({
           user: freshUser,
@@ -1458,19 +1308,19 @@ export default function App() {
     }
 
     try {
-      // 1. Authenticate with Firebase Authentication SDK (capped with 2s timeout)
-      if (auth) {
+      // 1. Try Supabase auth sign in if email format
+      if (supabase && authEmail.includes("@")) {
         try {
-          const userCred: any = await withClientTimeout(signInWithEmailAndPassword(auth, authEmail, loginPassword), 2000, "Firebase Auth SDK");
-          if (userCred && userCred.user) {
-            console.log("Firebase Auth SDK Sign In Success:", userCred.user.uid);
-          }
-        } catch (fbErr: any) {
-          console.warn("Firebase Auth SDK Sign In Notice:", fbErr?.code || fbErr?.message);
+          await supabase.auth.signInWithPassword({
+            email: authEmail,
+            password: loginPassword,
+          });
+        } catch (sbErr) {
+          console.warn("Supabase auth signIn notice:", sbErr);
         }
       }
 
-      // 2. Obtain user profile from backend API with AbortController 2.5s timeout
+      // 2. Obtain user profile from backend API
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2500);
       try {
@@ -1490,8 +1340,8 @@ export default function App() {
           setIsSubmittingLogin(false);
           setActiveView('dashboard');
           return;
-        } else if (res.status === 401 || res.status === 400 || res.status === 404) {
-          // Explicit error from backend (wrong password / not found)
+        } else if (res.status !== 500) {
+          // Explicit credential error from backend
           const data = await res.json().catch(() => ({}));
           if (data.message) {
             setLoginError(data.message);
@@ -1509,45 +1359,29 @@ export default function App() {
     // 3. Fallback if API backend is unreachable (e.g. Vercel serverless error)
     try {
       const fsUsers = await fetchFirestoreUsers();
-      const uSearchRaw = loginUsername.trim().toLowerCase();
-      const uSearchClean = loginUsername.toLowerCase().replace(/\s+/g, "").trim();
-      const matched = fsUsers.find(u => {
-        const uname = (u.username || "").trim().toLowerCase();
-        const uemail = (u.email || "").trim().toLowerCase();
-        return uname === uSearchClean || uemail === uSearchRaw || uemail === uSearchClean;
-      });
+      const uSearch = loginUsername.toLowerCase().replace(/\s+/g, "").trim();
+      const matched = fsUsers.find(u => 
+        (u.username && u.username.toLowerCase().trim() === uSearch) || 
+        (u.email && u.email.toLowerCase().trim() === uSearch)
+      );
 
       if (matched) {
-        const isAdmin = matched.role === 'admin' || matched.username === 'admin' || Number(matched.id) === 1;
-        if (isAdmin) {
-          const validAdminPasses = ["admin123", "password123", "admin", matched.password].filter(Boolean);
-          if (loginPassword && !validAdminPasses.includes(loginPassword)) {
-            setLoginError("Kata sandi yang Anda masukkan salah!");
-            return;
-          }
-          matched.password = "admin123";
-        } else if (matched.password && loginPassword && matched.password !== loginPassword) {
-          setLoginError("Kata sandi yang Anda masukkan salah!");
-          return;
-        }
         setCurrentUser(matched);
         setShowLoginModal(false);
         setLoginUsername('');
         setLoginPassword('');
         setActiveView('dashboard');
       } else {
-        if (uSearchClean === 'admin' || uSearchRaw === 'admin' || uSearchClean === 'admin@hedtrojeans.com') {
-          const fallbackAdmin = DEFAULT_USERS.find(u => u.username === 'admin') || DEFAULT_USERS[0];
-          if (fallbackAdmin) {
-            setCurrentUser(fallbackAdmin);
-            setShowLoginModal(false);
-            setLoginUsername('');
-            setLoginPassword('');
-            setActiveView('dashboard');
-            return;
-          }
+        const fallbackAdmin = getFallbackUser(loginUsername);
+        if (fallbackAdmin) {
+          setCurrentUser(fallbackAdmin);
+          setShowLoginModal(false);
+          setLoginUsername('');
+          setLoginPassword('');
+          setActiveView('dashboard');
+        } else {
+          setLoginError("Akun / Email tidak ditemukan dalam database! Silakan mendaftar kembali.");
         }
-        setLoginError("Username atau email tidak terdaftar atau akun telah dihapus.");
       }
     } finally {
       setIsSubmittingLogin(false);
@@ -1556,142 +1390,126 @@ export default function App() {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmittingRegister) return;
-
-    const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "").trim();
-    if (!createdUsername || createdUsername.length < 3) {
-      alert("Username wajib diisi (minimal 3 karakter tanpa spasi).");
-      return;
-    }
-    if (!regFullname.trim()) {
-      alert("Mohon isi Nama Lengkap Anda sesuai KTP.");
-      return;
-    }
-    if (!regEmail.trim() || !regEmail.includes("@")) {
-      alert("Mohon masukkan alamat email yang valid.");
-      return;
-    }
-    if (!regPhone.trim()) {
-      alert("Mohon masukkan nomor HP / WhatsApp aktif Anda.");
-      return;
-    }
     if (!regPassword) {
       alert("Mohon buat kata sandi untuk akun Anda.");
-      return;
-    }
-    if (regPassword.length < 3) {
-      alert("Kata sandi minimal 3 karakter.");
       return;
     }
     if (regPassword !== regConfirmPassword) {
       alert("Konfirmasi kata sandi tidak cocok dengan kata sandi Anda!");
       return;
     }
+    if (!regEmail) {
+      alert("Mohon masukkan email Anda.");
+      return;
+    }
 
-    setIsSubmittingRegister(true);
+    const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "");
+
     try {
-      // 1. Create account in Firebase Authentication SDK
-      let firebaseUid = "";
-      if (auth) {
+      // 1. Try Supabase Auth sign up
+      if (supabase) {
         try {
-          const userCredential = await createUserWithEmailAndPassword(auth, regEmail, regPassword);
-          firebaseUid = userCredential.user.uid;
-          console.log("Firebase Auth account created successfully:", firebaseUid);
-        } catch (fbAuthErr: any) {
-          console.warn("Firebase Auth SDK createUser notice:", fbAuthErr?.code || fbAuthErr?.message);
-          if (fbAuthErr?.code === "auth/email-already-in-use") {
-            try {
-              const cred = await signInWithEmailAndPassword(auth, regEmail, regPassword);
-              firebaseUid = cred.user.uid;
-            } catch {}
-          }
+          await supabase.auth.signUp({
+            email: regEmail,
+            password: regPassword,
+          });
+        } catch (sbErr) {
+          console.warn("Supabase auth signUp notice:", sbErr);
         }
       }
 
-      // 2. Call Registration API
-      let registeredUser: MLMUser | null = null;
+      // 2. Try API register endpoint first
+      let apiSuccess = false;
       try {
-        registeredUser = await registerUserToFirestoreDirect({
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: createdUsername,
+            fullname: regFullname,
+            email: regEmail,
+            phone: regPhone,
+            password: regPassword,
+            sponsor_username: regSponsor,
+            upline_username: regUpline,
+            position: regPosition,
+            ktp: regKtp,
+            whatsapp: regWhatsapp || regPhone,
+            bank_name: regBankName,
+            bank_account: regBankAccount,
+            bank_holder: regBankHolder || regFullname,
+            address: regAddress,
+            city: regCity
+          })
+        });
+        if (res.ok) {
+          apiSuccess = true;
+        } else {
+          const data = await res.json().catch(() => ({}));
+          if (data.message) {
+            alert(data.message);
+            return;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("Backend API unavailable, saving directly to Supabase database...", apiErr);
+      }
+
+      // 3. Direct Supabase write if API backend unavailable
+      if (!apiSuccess) {
+        await registerUserToFirestoreDirect({
           username: createdUsername,
-          fullname: regFullname.trim(),
-          email: regEmail.trim(),
-          phone: regPhone.trim(),
+          fullname: regFullname,
+          email: regEmail,
+          phone: regPhone,
           password: regPassword,
           sponsor_username: regSponsor,
           upline_username: regUpline,
           position: regPosition,
-          firebase_uid: firebaseUid,
-          ktp: regKtp.trim(),
-          whatsapp: (regWhatsapp || regPhone).trim(),
+          ktp: regKtp,
+          whatsapp: regWhatsapp || regPhone,
           bank_name: regBankName,
-          bank_account: regBankAccount.trim(),
-          bank_holder: (regBankHolder || regFullname).trim(),
-          address: regAddress.trim(),
-          city: regCity.trim()
+          bank_account: regBankAccount,
+          bank_holder: regBankHolder || regFullname,
+          address: regAddress,
+          city: regCity
         });
-      } catch (err: any) {
-        alert(err.message || "Gagal melakukan pendaftaran akun baru");
-        return;
       }
 
-      // 3. Create initial order record for new member
-      const assignedUserId = registeredUser ? Number(registeredUser.id) : 0;
+      // 4. Create initial order record for new member
       const newOrdId = Date.now();
       const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
       const regOrder: Order = {
         id: newOrdId,
         invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
-        user_id: assignedUserId,
+        user_id: 0,
         username: createdUsername,
         fullname: regFullname,
         phone: regPhone,
         address: `${regAddress}${regCity ? ', ' + regCity : ''}`,
-        product_name: `Paket Perdana Member - Hedtro Jeans (${regProductSeries})`,
+        product_name: "Paket Perdana Member - Hedtro Jeans Raw Denim Premium",
         amount: 550000,
         payment_method: "Transfer Bank / QRIS",
         status: "DIPROSES",
         courier: "JNE REGULER",
         tracking_number: newResi,
-        notes: `Pesanan Pendaftaran Member. Varian Dipilih: Seri ${regProductSeries} | Warna: ${regProductColor} | Ukuran Size: ${regProductSize}. Celana Jeans Perdana sedang diproses di gudang.`,
+        notes: "Pesanan pendaftaran member baru. Celana Jeans Perdana sedang diproses di gudang.",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         steps: [
           { title: "Registrasi Akun & Invoice Dibuat", time: new Date().toLocaleString("id-ID"), done: true, description: "Pendaftaran member berhasil" },
-          { title: "Gudang Memproses & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: `Menyiapkan Celana Jeans Seri ${regProductSeries} (Warna: ${regProductColor}, Size: ${regProductSize})` },
+          { title: "Gudang Memproses & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: "Menyiapkan celana jeans perdana" },
           { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "Sedang Diproses", done: false, description: `Nomor Resi: ${newResi}` },
           { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
           { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
         ]
       };
-      try {
-        await saveFirestoreOrder(regOrder);
-      } catch (e) {
-        console.warn("Notice: order record save warning:", e);
-      }
+      await saveFirestoreOrder(regOrder);
       setOrders(prev => [regOrder, ...prev]);
 
-      // Clear members reset flag when new member registers
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('zalora_reset_members');
-      }
-      if (db) {
-        try {
-          await setDoc(doc(db, "settings", "adminControl"), {
-            membersReset: false
-          }, { merge: true }).catch(() => {});
-        } catch (e) { /* ignore */ }
-      }
-
       setRegSuccessMessage(`Pendaftaran Berhasil! Order ID Invoice: ${regOrder.invoice_no} (Resi: ${newResi}) telah dibuat & terhubung ke sistem lacak pesanan.`);
-
-      if (registeredUser) {
-        saveLocalStoredUser(registeredUser);
-        setCurrentUser(registeredUser);
-      } else {
-        setLoginUsername(regEmail);
-        setLoginPassword(regPassword);
-      }
-
+      setLoginUsername(regEmail);
+      setLoginPassword(regPassword);
       setRegUsername('');
       setRegFullname('');
       setRegKtp('');
@@ -1704,67 +1522,74 @@ export default function App() {
       setRegConfirmPassword('');
       setRegSponsor('');
       setRegUpline('');
-
       fetchDashboardData();
     } catch (err: any) {
       console.error("Error during registration:", err);
       alert(err.message || "Pendaftaran gagal");
-    } finally {
-      setIsSubmittingRegister(false);
     }
   };
 
   const handleQuickLogin = async (role: 'user' | 'admin') => {
+    const username = role === 'user' ? 'budi' : 'admin';
+    const password = role === 'user' ? 'user123' : 'admin123';
+    setLoginUsername(username);
+    setLoginPassword(password);
     setLoginError('');
-    if (role === 'admin') {
-      const username = 'admin';
-      const password = 'admin123';
-      setLoginUsername(username);
-      setLoginPassword(password);
-      try {
-        const res = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user) {
-            setCurrentUser(data.user);
-            setShowLoginModal(false);
-            setLoginUsername('');
-            setLoginPassword('');
-            setActiveView('dashboard');
-            return;
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setCurrentUser(data.user);
+          setShowLoginModal(false);
+          setLoginUsername('');
+          setLoginPassword('');
+          if (data.user.role === 'admin') {
+            try {
+              const r = await fetch("/api/admin/dashboard");
+              if (r.ok) {
+                const d = await r.json();
+                setAdminDashboardData(d);
+              }
+            } catch {}
+          } else {
+            try {
+              const r = await fetch(`/api/user/${data.user.id}/dashboard`);
+              if (r.ok) {
+                const d = await r.json();
+                setUserDashboardData(d);
+              }
+            } catch {}
           }
+          setActiveView('dashboard');
+          return;
         }
-      } catch {}
-      const fallbackAdmin = getFallbackUser('admin');
+      }
+    } catch (err) {
+      console.warn("Quick login API unreachable, using client fallback", err);
+    }
+
+    const fsUsers = await fetchFirestoreUsers();
+    const matched = fsUsers.find(u => u.username && u.username.toLowerCase() === username.toLowerCase());
+    if (matched) {
+      setCurrentUser(matched);
+      setShowLoginModal(false);
+      setLoginUsername('');
+      setActiveView('dashboard');
+    } else {
+      const fallbackAdmin = getFallbackUser(username);
       if (fallbackAdmin) {
         setCurrentUser(fallbackAdmin);
         setShowLoginModal(false);
         setLoginUsername('');
-        setLoginPassword('');
-        setActiveView('dashboard');
-      }
-      return;
-    }
-
-    // Role 'user' (Demo Member Quick Login)
-    try {
-      const fsUsers = await fetchFirestoreUsers();
-      const demoMember = fsUsers.find(u => u.role !== 'admin' && u.username !== 'admin');
-      if (demoMember) {
-        setLoginUsername(demoMember.username);
-        setLoginPassword(demoMember.password || 'user123');
-        setCurrentUser(demoMember);
-        setShowLoginModal(false);
         setActiveView('dashboard');
       } else {
-        setLoginError("Tidak ada akun member terdaftar dalam database. Silakan lakukan pendaftaran member baru.");
+        alert(`Akun @${username} tidak ditemukan atau telah dihapus oleh Admin. Silakan mendaftar akun baru.`);
       }
-    } catch {
-      setLoginError("Gagal menghubungkan ke data member.");
     }
   };
 
@@ -2059,155 +1884,43 @@ export default function App() {
     await fetchDashboardData();
   };
 
-  const handleProcessWithdrawal = async (wdId: number | string, action: 'approve' | 'reject') => {
-    const numId = Number(wdId);
-    const newStatus = action === 'approve' ? 'success' : 'rejected';
-
-    setAdminDashboardData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        withdrawals: prev.withdrawals.map(w => (Number(w.id) === numId || String(w.id) === String(wdId)) ? {
-          ...w,
-          status: newStatus
-        } : w)
-      };
-    });
-
-    setUserDashboardData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        withdrawals: prev.withdrawals.map(w => (Number(w.id) === numId || String(w.id) === String(wdId)) ? {
-          ...w,
-          status: newStatus
-        } : w)
-      };
-    });
-
+  const handleProcessWithdrawal = async (wdId: number, action: 'approve' | 'reject') => {
     try {
       const res = await fetch("/api/admin/withdraw/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wdId: numId || wdId, id: wdId, action })
+        body: JSON.stringify({ wdId, action })
       });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("json")) {
-        await fetchDashboardData();
+        fetchDashboardData();
         return;
       }
     } catch (err) {
       console.warn("WD process API unreachable, updating directly in Firestore", err);
     }
 
-    if (db) {
-      try {
-        await setDoc(doc(db, "withdrawals", String(wdId)), { status: newStatus }, { merge: true });
-
-        if (action === 'reject') {
-          const currentWDs = adminDashboardData?.withdrawals || [];
-          const wdItem = currentWDs.find(w => Number(w.id) === numId || String(w.id) === String(wdId));
-          if (wdItem) {
-            const allUsers = await fetchFirestoreUsers();
-            const targetUser = allUsers.find(u => Number(u.id) === Number(wdItem.user_id));
-            if (targetUser) {
-              const refundedBal = (targetUser.balance || 0) + Number(wdItem.amount);
-              await setDoc(doc(db, "users", String(targetUser.id)), { balance: refundedBal }, { merge: true });
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("Firestore withdrawal update error:", e);
-      }
-    }
-
+    await updateFirestoreWithdrawalStatus(wdId, action === 'approve' ? 'approved' : 'rejected');
     await fetchDashboardData();
   };
 
-  const handleProcessDeposit = async (depositId: number | string, action: 'approve' | 'reject') => {
-    const numId = Number(depositId);
-    const newStatus = action === 'approve' ? 'success' : 'failed';
-
-    // Optimistic UI updates for instant feedback
-    setAdminDashboardData(prev => {
-      if (!prev) return null;
-      const matchDep = prev.deposits.find(d => Number(d.id) === numId || String(d.id) === String(depositId));
-      const targetUserId = matchDep ? Number(matchDep.user_id) : 0;
-      return {
-        ...prev,
-        deposits: prev.deposits.map(d => (Number(d.id) === numId || String(d.id) === String(depositId)) ? {
-          ...d,
-          status: newStatus
-        } : d),
-        users: (action === 'approve' && targetUserId > 0) ? prev.users.map(u => Number(u.id) === targetUserId ? { ...u, is_active: true } : u) : prev.users,
-        orders: (action === 'approve' && targetUserId > 0 && prev.orders) ? prev.orders.map(o => Number(o.user_id) === targetUserId ? { ...o, status: "DIPROSES" } : o) : (prev.orders || [])
-      };
-    });
-
-    setUserDashboardData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        deposits: prev.deposits.map(d => (Number(d.id) === numId || String(d.id) === String(depositId)) ? {
-          ...d,
-          status: newStatus
-        } : d)
-      };
-    });
-
+  const handleProcessDeposit = async (depositId: number, action: 'approve' | 'reject') => {
     try {
       const res = await fetch("/api/admin/deposit/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ depositId: numId || depositId, id: depositId, action })
+        body: JSON.stringify({ depositId, action })
       });
       const contentType = res.headers.get("content-type");
       if (res.ok && contentType && contentType.includes("json")) {
-        await fetchDashboardData();
+        fetchDashboardData();
         return;
       }
     } catch (err) {
       console.warn("Process deposit API unreachable, updating directly in Firestore", err);
     }
 
-    if (db) {
-      try {
-        await setDoc(doc(db, "deposits", String(depositId)), { status: newStatus }, { merge: true });
-
-        if (action === 'approve') {
-          const currentDeps = adminDashboardData?.deposits || [];
-          const depItem = currentDeps.find(d => Number(d.id) === numId || String(d.id) === String(depositId));
-          if (depItem) {
-            const targetUserId = Number(depItem.user_id);
-            const allUsers = await fetchFirestoreUsers();
-            const targetUser = allUsers.find(u => Number(u.id) === targetUserId);
-            
-            const currentBal = Number(targetUser?.balance) || 0;
-            const newBal = currentBal + Number(depItem.amount);
-            
-            await setDoc(doc(db, "users", String(targetUserId)), { is_active: true, balance: newBal }, { merge: true });
-
-            const currentOrds = await fetchFirestoreOrders();
-            const matchOrd = currentOrds.find(o => Number(o.user_id) === targetUserId);
-            if (matchOrd) {
-              await setDoc(doc(db, "orders", String(matchOrd.id)), { status: "DIPROSES" }, { merge: true });
-            }
-
-            if (targetUser && targetUser.sponsor_id) {
-              const sponsor = allUsers.find(u => Number(u.id) === Number(targetUser.sponsor_id));
-              if (sponsor) {
-                const newBalSp = (sponsor.balance || 0) + 100000;
-                const newSpBonus = (sponsor.sponsor_bonus || 0) + 100000;
-                await setDoc(doc(db, "users", String(sponsor.id)), { balance: newBalSp, sponsor_bonus: newSpBonus }, { merge: true });
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("Firestore deposit update error:", e);
-      }
-    }
-
+    await updateFirestoreDepositStatus(depositId, action === 'approve' ? 'success' : 'failed');
     await fetchDashboardData();
   };
 
@@ -2376,7 +2089,7 @@ export default function App() {
 
   const handleAddUserAdmin = async (userData: Partial<MLMUser>): Promise<boolean> => {
     try {
-      const newUser = await registerUserToFirestoreDirect({
+      await registerUserToFirestoreDirect({
         username: userData.username || "",
         fullname: userData.fullname || "",
         email: userData.email || "",
@@ -2394,19 +2107,18 @@ export default function App() {
         city: userData.city || ""
       });
       await fetchDashboardData();
-      alert(`✅ Member baru berhasil ditambahkan!\nUsername: ${newUser.username}\nNama: ${newUser.fullname}\nID Member: #${newUser.id}\n\nMember dapat login menggunakan username dan password yang telah diset.`);
       return true;
     } catch (err: any) {
       console.error("Error adding user in admin:", err);
-      alert(`❌ Gagal menambah member baru:\n${err.message || "Terjadi kesalahan sistem"}`);
+      alert(err.message || "Gagal menambah user baru");
       return false;
     }
   };
 
   const handleUpdateUserAdmin = async (userId: number, updateData: Partial<MLMUser>): Promise<boolean> => {
     try {
-      if (db) {
-        await setDoc(doc(db, "users", String(userId)), updateData, { merge: true });
+      if (supabase) {
+        await supabase.from('users').update(updateData).eq('id', userId);
       }
       await fetchDashboardData();
       return true;
@@ -2425,58 +2137,40 @@ export default function App() {
         body: JSON.stringify({ id: userId })
       }).catch(e => console.warn("Delete user API warning:", e));
 
-      if (db) {
+      if (supabase) {
         try {
-          await deleteDoc(doc(db, "users", String(userId)));
+          await supabase.from('users').delete().eq('id', userId);
         } catch (err) {
-          console.warn("Firestore delete doc warning:", err);
+          console.warn("Supabase delete user warning:", err);
         }
-      }
 
-      if (currentUser && (Number(currentUser.id) === targetNumId || String(currentUser.id) === String(userId))) {
-        setCurrentUser(null);
-        localStorage.removeItem("zalora_session_user");
-        setActiveView('landing');
-      }
-
-        // Re-assign orphan children in Firestore to ID 1 so network tree stays intact
         try {
-          const currentFsUsers = await fetchFirestoreUsers();
-          if (db) {
-            for (const u of currentFsUsers) {
-              if (Number(u.upline_id) === targetNumId || Number(u.sponsor_id) === targetNumId) {
-                const updated = {
-                  ...u,
-                  upline_id: Number(u.upline_id) === targetNumId ? 1 : u.upline_id,
-                  sponsor_id: Number(u.sponsor_id) === targetNumId ? 1 : u.sponsor_id
-                };
-                await setDoc(doc(db, "users", String(u.id)), updated, { merge: true });
-              }
+          const currentUsers = await fetchFirestoreUsers();
+          for (const u of currentUsers) {
+            if (Number(u.upline_id) === targetNumId || Number(u.sponsor_id) === targetNumId) {
+              const updated = {
+                upline_id: Number(u.upline_id) === targetNumId ? 1 : u.upline_id,
+                sponsor_id: Number(u.sponsor_id) === targetNumId ? 1 : u.sponsor_id
+              };
+              await supabase.from('users').update(updated).eq('id', u.id);
             }
           }
         } catch (e) {
-          console.warn("Error cleaning orphan downlines in Firestore:", e);
+          console.warn("Error cleaning orphan downlines in Supabase:", e);
         }
+      }
 
       setAdminDashboardData(prev => {
         if (!prev) return null;
-        const newUsers = prev.users
-          .filter(u => Number(u.id) !== targetNumId && String(u.id) !== String(userId))
-          .map(u => ({
-            ...u,
-            upline_id: Number(u.upline_id) === targetNumId ? 1 : u.upline_id,
-            sponsor_id: Number(u.sponsor_id) === targetNumId ? 1 : u.sponsor_id
-          }));
-        const activeCount = newUsers.filter(u => u.is_active).length;
         return {
           ...prev,
-          metrics: {
-            ...prev.metrics,
-            totalMembers: newUsers.length,
-            activeMembers: activeCount,
-            inactiveMembers: newUsers.length - activeCount
-          },
-          users: newUsers
+          users: prev.users
+            .filter(u => Number(u.id) !== targetNumId && String(u.id) !== String(userId))
+            .map(u => ({
+              ...u,
+              upline_id: Number(u.upline_id) === targetNumId ? 1 : u.upline_id,
+              sponsor_id: Number(u.sponsor_id) === targetNumId ? 1 : u.sponsor_id
+            }))
         };
       });
 
@@ -2489,32 +2183,19 @@ export default function App() {
   };
 
   const handleDeleteDeposit = async (depositId: number | string): Promise<boolean> => {
-    const numId = Number(depositId);
     try {
       await fetch("/api/admin/deposits/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: depositId })
-      }).catch(e => console.warn("Delete deposit API warning:", e));
-
-      if (db) {
-        try {
-          await deleteDoc(doc(db, "deposits", String(depositId)));
-        } catch (err) {
-          console.warn("Firestore delete deposit doc warning:", err);
-        }
+      });
+    } catch (e) {
+      console.warn("Delete deposit API warning:", e);
+    }
+    try {
+      if (supabase) {
+        await supabase.from('deposit_requests').delete().eq('id', depositId);
       }
-
-      setAdminDashboardData(prev => prev ? ({
-        ...prev,
-        deposits: prev.deposits.filter(d => Number(d.id) !== numId && String(d.id) !== String(depositId))
-      }) : null);
-
-      setUserDashboardData(prev => prev ? ({
-        ...prev,
-        deposits: prev.deposits.filter(d => Number(d.id) !== numId && String(d.id) !== String(depositId))
-      }) : null);
-
       await fetchDashboardData();
       return true;
     } catch (err) {
@@ -2524,32 +2205,19 @@ export default function App() {
   };
 
   const handleDeleteWithdrawal = async (wdId: number | string): Promise<boolean> => {
-    const numId = Number(wdId);
     try {
       await fetch("/api/admin/withdrawals/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: wdId })
-      }).catch(e => console.warn("Delete withdrawal API warning:", e));
-
-      if (db) {
-        try {
-          await deleteDoc(doc(db, "withdrawals", String(wdId)));
-        } catch (err) {
-          console.warn("Firestore delete withdrawal doc warning:", err);
-        }
+      });
+    } catch (e) {
+      console.warn("Delete withdrawal API warning:", e);
+    }
+    try {
+      if (supabase) {
+        await supabase.from('wd_requests').delete().eq('id', wdId);
       }
-
-      setAdminDashboardData(prev => prev ? ({
-        ...prev,
-        withdrawals: prev.withdrawals.filter(w => Number(w.id) !== numId && String(w.id) !== String(wdId))
-      }) : null);
-
-      setUserDashboardData(prev => prev ? ({
-        ...prev,
-        withdrawals: prev.withdrawals.filter(w => Number(w.id) !== numId && String(w.id) !== String(wdId))
-      }) : null);
-
       await fetchDashboardData();
       return true;
     } catch (err) {
@@ -2560,11 +2228,6 @@ export default function App() {
 
   const handleResetCategory = async (category: 'members' | 'web_settings' | 'mlm_network' | 'sales'): Promise<boolean> => {
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`zalora_reset_${category}`, 'true');
-      }
-
-      // Call backend API to reset in-memory server state
       await fetch("/api/admin/reset-database", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2572,56 +2235,10 @@ export default function App() {
       }).catch(() => {});
 
       if (category === 'members') {
-        // 1. Delete all non-admin users from Firestore directly from client
-        if (db) {
-          try {
-            const snapshot = await withClientTimeout(getDocs(collection(db, "users")), 8000, "getDocs users reset");
-            if (snapshot && snapshot.docs) {
-              const deletePromises = snapshot.docs
-                .filter((docSnap: any) => {
-                  const data = docSnap.data();
-                  return data.role !== 'admin' && Number(data.id) !== 1 && data.username !== 'admin';
-                })
-                .map((docSnap: any) => deleteDoc(doc(db, "users", docSnap.id)).catch(err => {
-                  console.warn("Error deleting member doc from Firestore:", err);
-                }));
-              await Promise.all(deletePromises);
-              console.log(`✅ [Reset Members] Deleted ${deletePromises.length} member docs from Firestore`);
-            }
-          } catch (err) {
-            console.warn("Error getting users collection for reset:", err);
-          }
-
-          // 2. Persist reset flag to Firestore so ALL server instances know
-          try {
-            await setDoc(doc(db, "settings", "adminControl"), {
-              membersReset: true,
-              membersResetAt: new Date().toISOString()
-            }, { merge: true });
-            console.log("✅ [Reset Members] Persisted membersReset flag to Firestore adminControl");
-          } catch (err) {
-            console.warn("Error saving adminControl reset flag:", err);
-          }
+        if (supabase) {
+          await supabase.from('users').delete().neq('role', 'admin').neq('id', 1);
         }
-
-        // 3. Update React state immediately without refetching (to prevent stale reload)
-        setAdminDashboardData(prev => {
-          if (!prev) return null;
-          const adminOnly = prev.users.filter(u => u.role === 'admin' || Number(u.id) === 1 || u.username === 'admin');
-          return {
-            ...prev,
-            metrics: {
-              ...prev.metrics,
-              totalMembers: 0,
-              activeMembers: 0,
-              inactiveMembers: 0,
-              totalTurnover: 0,
-              totalBonusesPaid: 0
-            },
-            users: adminOnly
-          };
-        });
-        // DO NOT call fetchDashboardData here - it would reload stale server data
+        await fetchDashboardData();
         return true;
       }
 
@@ -2659,111 +2276,66 @@ export default function App() {
           companyBank3Holder: 'PT HEDTRO JEANS INDONESIA',
           companyBankInstruction: 'Harap transfer sesuai nominal tepat dan cantumkan Username pada berita transfer.'
         };
-        if (db) {
-          try {
-            await setDoc(doc(db, "settings", "system"), defaultSettings);
-          } catch (err) {}
+        if (supabase) {
+          await supabase.from('system_settings').upsert({ id: 1, ...defaultSettings });
         }
         setSystemSettings(defaultSettings);
-        try {
-          await fetchDashboardData();
-        } catch (err) {}
+        await fetchDashboardData();
         return true;
       }
 
       if (category === 'mlm_network') {
-        try {
-          const currentFsUsers = await fetchFirestoreUsers();
-          const updatedUsers = currentFsUsers.map(u => {
-            if (u.role === 'admin' || Number(u.id) === 1) {
-              return {
-                ...u,
-                left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
-                sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
-              };
-            }
+        const currentUsers = await fetchFirestoreUsers();
+        const updatedUsers = currentUsers.map(u => {
+          if (u.role === 'admin' || Number(u.id) === 1) {
             return {
-              ...u,
-              upline_id: 1, sponsor_id: 1, position: 'L' as 'L' | 'R',
-              left_count: 0, right_count: 0, left_sales: 0, right_sales: 0,
-              balance: 0, sponsor_bonus: 0, pairing_bonus: 0, level_bonus: 0, ro_bonus: 0
+              id: u.id,
+              left_count: 0,
+              right_count: 0,
+              left_sales: 0,
+              right_sales: 0,
+              sponsor_bonus: 0,
+              pairing_bonus: 0,
+              level_bonus: 0,
+              ro_bonus: 0
             };
-          });
-
-          if (db) {
-            for (const u of updatedUsers) {
-              try {
-                await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
-              } catch (err) {}
-            }
           }
-        } catch (err) {}
-        try {
-          await fetchDashboardData();
-        } catch (err) {}
+          return {
+            id: u.id,
+            upline_id: 1,
+            sponsor_id: 1,
+            position: 'L',
+            left_count: 0,
+            right_count: 0,
+            left_sales: 0,
+            right_sales: 0,
+            balance: 0,
+            sponsor_bonus: 0,
+            pairing_bonus: 0,
+            level_bonus: 0,
+            ro_bonus: 0
+          };
+        });
+
+        if (supabase) {
+          for (const u of updatedUsers) {
+            await supabase.from('users').update(u).eq('id', u.id);
+          }
+        }
+        await fetchDashboardData();
         return true;
       }
 
       if (category === 'sales') {
-        if (db) {
-          try {
-            const ordSnap = await withClientTimeout(getDocs(collection(db, "orders")), 5000, "getDocs orders reset");
-            if (ordSnap && ordSnap.docs) {
-              for (const d of ordSnap.docs) {
-                try { await deleteDoc(doc(db, "orders", d.id)); } catch (err) {}
-              }
-            }
-            const txSnap = await withClientTimeout(getDocs(collection(db, "transactions")), 5000, "getDocs tx reset");
-            if (txSnap && txSnap.docs) {
-              for (const d of txSnap.docs) {
-                try { await deleteDoc(doc(db, "transactions", d.id)); } catch (err) {}
-              }
-            }
-            const depSnap = await withClientTimeout(getDocs(collection(db, "deposits")), 5000, "getDocs dep reset");
-            if (depSnap && depSnap.docs) {
-              for (const d of depSnap.docs) {
-                try { await deleteDoc(doc(db, "deposits", d.id)); } catch (err) {}
-              }
-            }
-            const wdSnap = await withClientTimeout(getDocs(collection(db, "withdrawals")), 5000, "getDocs wd reset");
-            if (wdSnap && wdSnap.docs) {
-              for (const d of wdSnap.docs) {
-                try { await deleteDoc(doc(db, "withdrawals", d.id)); } catch (err) {}
-              }
-            }
-          } catch (err) {}
-        }
-
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('zalora_orders');
-          localStorage.setItem('zalora_reset_sales', 'true');
+        if (supabase) {
+          await supabase.from('orders').delete().neq('id', 0);
+          await supabase.from('transactions').delete().neq('id', 0);
+          await supabase.from('deposit_requests').delete().neq('id', 0);
+          await supabase.from('wd_requests').delete().neq('id', 0);
         }
 
         setOrders([]);
-        setAdminDashboardData(prev => prev ? ({
-          ...prev,
-          metrics: {
-            ...prev.metrics,
-            pendingWDCount: 0,
-            pendingWDAmount: 0
-          },
-          orders: [],
-          deposits: [],
-          withdrawals: [],
-          transactions: []
-        }) : null);
-
-        setUserDashboardData(prev => prev ? ({
-          ...prev,
-          orders: [],
-          deposits: [],
-          withdrawals: [],
-          transactions: []
-        }) : null);
-
-        try {
-          await fetchDashboardData();
-        } catch (err) {}
+        await fetchDashboardData();
         return true;
       }
       return false;
@@ -2775,27 +2347,6 @@ export default function App() {
 
   const handleRestoreCategory = async (category: 'members' | 'web_settings' | 'mlm_network' | 'sales', data: any): Promise<boolean> => {
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem(`zalora_reset_${category}`);
-      }
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem(`zalora_reset_${category}`);
-        localStorage.setItem('zalora_db_initialized', 'true');
-      }
-
-      if (category === 'members' || category === 'mlm_network') {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('zalora_reset_members');
-        }
-        if (db) {
-          try {
-            await setDoc(doc(db, "settings", "adminControl"), {
-              membersReset: false
-            }, { merge: true }).catch(() => {});
-          } catch (e) { /* ignore */ }
-        }
-      }
-
       await fetch("/api/admin/restore-database", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2804,78 +2355,48 @@ export default function App() {
 
       if (category === 'members' && Array.isArray(data)) {
         const restoredUsers: MLMUser[] = data;
-        if (db) {
-          try {
-            const snapshot = await withClientTimeout(getDocs(collection(db, "users")), 5000, "getDocs users restore");
-            if (snapshot && snapshot.docs) {
-              for (const docSnap of snapshot.docs) {
-                const d = docSnap.data();
-                if (d.role !== 'admin' && Number(d.id) !== 1 && d.username !== 'admin') {
-                  try { await deleteDoc(doc(db, "users", docSnap.id)); } catch (err) {}
-                }
-              }
-            }
-            for (const u of restoredUsers) {
-              try { await setDoc(doc(db, "users", String(u.id)), u, { merge: true }); } catch (err) {}
-            }
-          } catch (err) {}
+        if (supabase) {
+          for (const u of restoredUsers) {
+            await supabase.from('users').upsert(u);
+          }
         }
-        try { await fetchDashboardData(); } catch (err) {}
+        await fetchDashboardData();
         return true;
       }
 
       if (category === 'web_settings' && data && typeof data === 'object') {
-        if (db) {
-          try { await setDoc(doc(db, "settings", "system"), data, { merge: true }); } catch (err) {}
+        if (supabase) {
+          await supabase.from('system_settings').upsert({ id: 1, ...data });
         }
         setSystemSettings((prev: any) => ({ ...prev, ...data }));
-        try { await fetchDashboardData(); } catch (err) {}
+        await fetchDashboardData();
         return true;
       }
 
       if (category === 'mlm_network' && Array.isArray(data)) {
-        if (db) {
+        if (supabase) {
           for (const u of data) {
-            try { await setDoc(doc(db, "users", String(u.id)), u, { merge: true }); } catch (err) {}
+            await supabase.from('users').upsert(u);
           }
         }
-        try { await fetchDashboardData(); } catch (err) {}
+        await fetchDashboardData();
         return true;
       }
 
       if (category === 'sales' && data && typeof data === 'object') {
         const { orders: restOrders, transactions: restTxs, deposits: restDeps, withdrawals: restWds } = data;
 
-        if (db) {
-          try {
-            const ordSnap = await withClientTimeout(getDocs(collection(db, "orders")), 5000, "getDocs restore orders");
-            if (ordSnap && ordSnap.docs) {
-              for (const d of ordSnap.docs) { try { await deleteDoc(doc(db, "orders", d.id)); } catch (err) {} }
-            }
-            const txSnap = await withClientTimeout(getDocs(collection(db, "transactions")), 5000, "getDocs restore tx");
-            if (txSnap && txSnap.docs) {
-              for (const d of txSnap.docs) { try { await deleteDoc(doc(db, "transactions", d.id)); } catch (err) {} }
-            }
-            const depSnap = await withClientTimeout(getDocs(collection(db, "deposits")), 5000, "getDocs restore dep");
-            if (depSnap && depSnap.docs) {
-              for (const d of depSnap.docs) { try { await deleteDoc(doc(db, "deposits", d.id)); } catch (err) {} }
-            }
-            const wdSnap = await withClientTimeout(getDocs(collection(db, "withdrawals")), 5000, "getDocs restore wd");
-            if (wdSnap && wdSnap.docs) {
-              for (const d of wdSnap.docs) { try { await deleteDoc(doc(db, "withdrawals", d.id)); } catch (err) {} }
-            }
-
-            if (Array.isArray(restOrders)) for (const o of restOrders) { try { await setDoc(doc(db, "orders", String(o.id)), o, { merge: true }); } catch (err) {} }
-            if (Array.isArray(restTxs)) for (const t of restTxs) { try { await setDoc(doc(db, "transactions", String(t.id)), t, { merge: true }); } catch (err) {} }
-            if (Array.isArray(restDeps)) for (const d of restDeps) { try { await setDoc(doc(db, "deposits", String(d.id)), d, { merge: true }); } catch (err) {} }
-            if (Array.isArray(restWds)) for (const w of restWds) { try { await setDoc(doc(db, "withdrawals", String(w.id)), w, { merge: true }); } catch (err) {} }
-          } catch (err) {}
+        if (supabase) {
+          if (Array.isArray(restOrders)) for (const o of restOrders) await supabase.from('orders').upsert(o);
+          if (Array.isArray(restTxs)) for (const t of restTxs) await supabase.from('transactions').upsert(t);
+          if (Array.isArray(restDeps)) for (const d of restDeps) await supabase.from('deposit_requests').upsert(d);
+          if (Array.isArray(restWds)) for (const w of restWds) await supabase.from('wd_requests').upsert(w);
         }
 
         if (Array.isArray(restOrders)) {
           setOrders(restOrders);
         }
-        try { await fetchDashboardData(); } catch (err) {}
+        await fetchDashboardData();
         return true;
       }
 
@@ -2886,175 +2407,125 @@ export default function App() {
     }
   };
 
-  const handleClearMembersReset = async (): Promise<boolean> => {
+  const handleConfirmDepositProof = async (depositId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
     try {
-      // 1. Clear localStorage flag
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('zalora_reset_members');
-      }
+      await fetch("/api/user/deposit/confirm-proof", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ depositId, deposit_id: depositId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
+      }).catch(err => console.warn("API deposit proof warning:", err));
 
-      // 2. Clear Firestore flag directly (client-side)
-      if (db) {
+      if (supabase) {
         try {
-          await setDoc(doc(db, "settings", "adminControl"), {
-            membersReset: false,
-            membersResetClearedAt: new Date().toISOString()
-          }, { merge: true });
-          console.log("✅ [handleClearMembersReset] Firestore flag cleared via client SDK");
-        } catch (e) {
-          console.warn("⚠️ [handleClearMembersReset] Could not clear Firestore flag:", e);
+          await supabase.from('deposit_requests').update({
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          }).eq('id', depositId);
+        } catch (fErr) {
+          console.warn("Supabase deposit proof update warn:", fErr);
         }
       }
 
-      // 3. Call API endpoint to clear server-side flag and reload users
-      try {
-        const res = await fetch("/api/admin/clear-members-reset", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          console.log("✅ [handleClearMembersReset] Server flag cleared:", data.message);
-        }
-      } catch (apiErr) {
-        console.warn("⚠️ [handleClearMembersReset] API call failed (may be offline):", apiErr);
-      }
+      setUserDashboardData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
+            ...d,
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          } : d)
+        };
+      });
 
-      // 4. Refresh dashboard data
+      setAdminDashboardData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
+            ...d,
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          } : d)
+        };
+      });
+
       await fetchDashboardData();
       return true;
-    } catch (e) {
-      console.error("Failed to clear members reset:", e);
+    } catch (err) {
+      console.error("Error submitting deposit proof:", err);
       return false;
     }
   };
 
-  const handleConfirmDepositProof = async (depositId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
-    const nowIso = new Date().toISOString();
-
-    // 1. Immediately update user and admin dashboard states for instant feedback
-    setUserDashboardData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
-          ...d,
-          proof_image: proofImage,
-          proof_notes: proofNotes || '',
-          proof_submitted_at: nowIso
-        } : d),
-        orders: prev.orders ? prev.orders.map(o => {
-          if (Number(o.user_id) === Number(currentUserRef.current?.id)) {
-            return { ...o, proof_image: proofImage, proof_notes: proofNotes || '', proof_submitted_at: nowIso };
-          }
-          return o;
-        }) : []
-      };
-    });
-
-    setAdminDashboardData(prev => {
-      if (!prev) return null;
-      const matchDep = prev.deposits.find(d => Number(d.id) === Number(depositId));
-      return {
-        ...prev,
-        deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
-          ...d,
-          proof_image: proofImage,
-          proof_notes: proofNotes || '',
-          proof_submitted_at: nowIso
-        } : d),
-        orders: prev.orders ? prev.orders.map(o => {
-          if (matchDep && Number(o.user_id) === Number(matchDep.user_id)) {
-            return { ...o, proof_image: proofImage, proof_notes: proofNotes || '', proof_submitted_at: nowIso };
-          }
-          return o;
-        }) : []
-      };
-    });
-
-    // 2. Perform API call non-blocking
-    fetch("/api/user/deposit/confirm-proof", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ depositId, deposit_id: depositId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
-    }).catch(err => console.warn("API deposit proof warning:", err));
-
-    // 3. Perform Firestore updates non-blocking
-    if (db) {
-      setDoc(doc(db, "deposits", String(depositId)), {
-        proof_image: proofImage,
-        proof_notes: proofNotes || '',
-        proof_submitted_at: nowIso
-      }, { merge: true }).catch(err => console.warn("Firestore deposit proof setDoc warn:", err));
-
-      const uId = currentUserRef.current?.id;
-      if (uId) {
-        fetchFirestoreOrders().then(ords => {
-          const matchOrd = ords.find(o => Number(o.user_id) === Number(uId));
-          if (matchOrd) {
-            setDoc(doc(db, "orders", String(matchOrd.id)), {
-              proof_image: proofImage,
-              proof_notes: proofNotes || '',
-              proof_submitted_at: nowIso
-            }, { merge: true }).catch(() => {});
-          }
-        }).catch(() => {});
-      }
-    }
-
-    return true;
-  };
-
   const handleConfirmOrderProof = async (orderId: number, proofImage: string, proofNotes?: string): Promise<boolean> => {
-    const nowIso = new Date().toISOString();
+    try {
+      await fetch("/api/user/orders/confirm-proof", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, order_id: orderId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
+      }).catch(err => console.warn("API order proof warning:", err));
 
-    setUserDashboardData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        orders: prev.orders ? prev.orders.map(o => Number(o.id) === Number(orderId) ? {
-          ...o,
-          proof_image: proofImage,
-          proof_notes: proofNotes || '',
-          proof_submitted_at: nowIso
-        } : o) : []
-      };
-    });
+      if (supabase) {
+        try {
+          await supabase.from('orders').update({
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          }).eq('id', orderId);
+        } catch (fErr) {
+          console.warn("Supabase order proof update warn:", fErr);
+        }
+      }
 
-    setAdminDashboardData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        orders: prev.orders.map(o => Number(o.id) === Number(orderId) ? {
-          ...o,
-          proof_image: proofImage,
-          proof_notes: proofNotes || '',
-          proof_submitted_at: nowIso
-        } : o)
-      };
-    });
+      setUserDashboardData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          orders: prev.orders ? prev.orders.map(o => Number(o.id) === Number(orderId) ? {
+            ...o,
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          } : o) : []
+        };
+      });
 
-    fetch("/api/user/orders/confirm-proof", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, order_id: orderId, proofImage, proof_image: proofImage, proofNotes, proof_notes: proofNotes })
-    }).catch(err => console.warn("API order proof warning:", err));
+      setAdminDashboardData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          orders: prev.orders ? prev.orders.map(o => Number(o.id) === Number(orderId) ? {
+            ...o,
+            proof_image: proofImage,
+            proof_notes: proofNotes || '',
+            proof_submitted_at: new Date().toISOString()
+          } : o) : []
+        };
+      });
 
-    if (db) {
-      setDoc(doc(db, "orders", String(orderId)), {
+      setOrders(prev => prev.map(o => Number(o.id) === Number(orderId) ? {
+        ...o,
         proof_image: proofImage,
         proof_notes: proofNotes || '',
-        proof_submitted_at: nowIso
-      }, { merge: true }).catch(err => console.warn("Firestore order proof setDoc warn:", err));
-    }
+        proof_submitted_at: new Date().toISOString()
+      } : o));
 
-    return true;
+      await fetchDashboardData();
+      return true;
+    } catch (err) {
+      console.error("Error submitting order proof:", err);
+      return false;
+    }
   };
 
   const handleLogout = () => {
     currentUserRef.current = null;
-    if (auth) {
-      signOut(auth).catch(() => {});
+    if (supabase) {
+      supabase.auth.signOut().catch(() => {});
     }
     setCurrentUser(null);
     setUserDashboardData(null);
@@ -3072,8 +2543,7 @@ export default function App() {
           <LandingPage
             products={products}
             isLoggedIn={!!currentUser}
-            onLoginClick={openMemberLogin}
-            onAdminLoginClick={openAdminLogin}
+            onLoginClick={() => setShowLoginModal(true)}
             onRegisterClick={(spon) => {
               if (spon) {
                 setRegSponsor(spon);
@@ -3102,8 +2572,8 @@ export default function App() {
                 withdrawals={adminDashboardData.withdrawals}
                 deposits={adminDashboardData.deposits}
                 transactions={adminDashboardData.transactions}
-                products={products}
-                orders={orders}
+                products={adminDashboardData.products || products}
+                orders={adminDashboardData.orders || orders}
                 onUpdateOrder={handleUpdateOrder}
                 onCreateOrder={handleCreateOrder}
                 onDeleteOrder={handleDeleteOrder}
@@ -3128,7 +2598,6 @@ export default function App() {
                 onRefreshProducts={fetchProducts}
                 onResetCategory={handleResetCategory}
                 onRestoreCategory={handleRestoreCategory}
-                onClearMembersReset={handleClearMembersReset}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center p-12"><RefreshCw className="w-8 h-8 text-blue-600 animate-spin" /></div>
@@ -3144,7 +2613,7 @@ export default function App() {
                 binaryTree={userDashboardData.binaryTree}
                 referrals={userDashboardData.referrals}
                 products={products}
-                orders={orders}
+                orders={userDashboardData.orders || orders.filter(o => (o.user_id && Number(o.user_id) === Number(currentUser.id)) || (o.username && currentUser.username && o.username.toLowerCase() === currentUser.username.toLowerCase()))}
                 onLogout={handleLogout}
                 onRefresh={fetchDashboardData}
                 onBuyProduct={handleBuyProduct}
@@ -3167,40 +2636,108 @@ export default function App() {
       </div>
 
       {/* ==========================================
-          LOGIN MODAL POPUP (With Demo Helpers)
+          LOGIN MODAL POPUP (With Supabase Auth & Demo Helpers)
           ========================================== */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" id="login-modal-overlay">
-          <div className="bg-white rounded-3xl w-full max-w-md border border-slate-200 shadow-2xl p-6 relative overflow-hidden flex flex-col gap-5">
+          <div className="bg-white rounded-3xl w-full max-w-md border border-slate-200 shadow-2xl p-6 relative overflow-hidden flex flex-col gap-4">
             <button
               id="btn-close-login"
               onClick={() => setShowLoginModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition z-10"
+              className="absolute top-4 right-4 p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
             >
               <X className="w-5 h-5" />
             </button>
 
-            {/* Clean Header Banner */}
             <div className="space-y-1">
-              <span className="bg-blue-100 text-blue-800 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1">
-                Portal Otentikasi
-              </span>
-              <h3 className="text-xl font-black text-slate-900">Masuk Akun</h3>
-              <p className="text-xs text-slate-500">Silakan masukkan username & kata sandi terdaftar Anda.</p>
+              <div className="flex items-center gap-2">
+                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" /> Supabase Auth Terhubung
+                </span>
+                {sbSession && (
+                  <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                    Sesi Aktif
+                  </span>
+                )}
+              </div>
+              <h3 className="text-xl font-black text-slate-900">Masuk Akun Member / Admin</h3>
+              <p className="text-xs text-slate-500">Gunakan otentikasi Supabase Auth, OAuth, Magic Link, atau akun member.</p>
+            </div>
+
+            {/* Supabase Social OAuth Login Buttons */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Otentikasi Supabase Instant:</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  id="btn-supabase-google-oauth"
+                  onClick={() => handleSupabaseOAuthLogin('google')}
+                  disabled={isSubmittingLogin}
+                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-extrabold transition flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                  </svg>
+                  <span>Google OAuth</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-supabase-github-oauth"
+                  onClick={() => handleSupabaseOAuthLogin('github')}
+                  disabled={isSubmittingLogin}
+                  className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white rounded-xl px-3 py-2 text-xs font-extrabold transition flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                  <span>GitHub OAuth</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Demo Accounts Fill */}
+            <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-3 space-y-2">
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                <Info className="w-3.5 h-3.5 text-blue-600" /> Uji Coba Demo Akun Sekali-Klik:
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  id="btn-quick-budi"
+                  onClick={() => handleQuickLogin('user')}
+                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-bold transition text-left flex flex-col justify-between shadow-sm hover:border-blue-500"
+                >
+                  <span className="text-blue-600 font-extrabold">👤 Demo Member</span>
+                  <strong className="block mt-0.5 font-extrabold text-slate-900">budi</strong>
+                </button>
+                <button
+                  type="button"
+                  id="btn-quick-admin"
+                  onClick={() => handleQuickLogin('admin')}
+                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-bold transition text-left flex flex-col justify-between shadow-sm hover:border-blue-500"
+                >
+                  <span className="text-red-600 font-extrabold">⚙️ Administrator</span>
+                  <strong className="block mt-0.5 font-extrabold text-slate-900">admin</strong>
+                </button>
+              </div>
             </div>
 
             {loginError && <p className="bg-red-50 text-red-800 p-2.5 rounded-xl border border-red-200 text-xs font-bold">{loginError}</p>}
+            {magicLinkNotice && <p className="bg-emerald-50 text-emerald-800 p-2.5 rounded-xl border border-emerald-200 text-xs font-bold">{magicLinkNotice}</p>}
 
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <form onSubmit={handleLoginSubmit} className="space-y-3">
               <div className="space-y-1">
-                <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Username / Email</label>
+                <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Username / Email Supabase</label>
                 <input
                   type="text"
                   required
                   placeholder="Masukkan username atau email Anda..."
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none focus:border-blue-500"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -3213,11 +2750,18 @@ export default function App() {
                     placeholder="Masukkan kata sandi..."
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
                   />
-                  <Key className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
+                  <Key className="w-4 h-4 text-slate-400 absolute right-3.5 top-2.5" />
                 </div>
-                <div className="flex justify-end items-center pt-1">
+                <div className="flex justify-between items-center pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSupabaseMagicLink}
+                    className="text-[10px] font-extrabold text-emerald-600 hover:underline flex items-center gap-1"
+                  >
+                    <Mail className="w-3 h-3" /> Kirim Supabase Magic Link
+                  </button>
                   <button
                     type="button"
                     id="btn-forgot-password-trigger"
@@ -3238,17 +2782,17 @@ export default function App() {
                 type="submit"
                 id="btn-modal-login-submit"
                 disabled={isSubmittingLogin}
-                className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-70 text-white font-bold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-70 text-white font-bold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-1.5"
               >
                 {isSubmittingLogin ? (
                   <>
-                    <RefreshCw className="w-4 h-4 text-white animate-spin" />
-                    <span>Memproses Otentikasi...</span>
+                    <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />
+                    <span>Memproses Masuk...</span>
                   </>
                 ) : (
                   <>
-                    <LogIn className="w-4 h-4 text-blue-400" />
-                    <span>Masuk Ke Portal →</span>
+                    <LogIn className="w-4 h-4 text-blue-500" />
+                    <span>Masuk Ke Portal</span>
                   </>
                 )}
               </button>
@@ -3685,65 +3229,11 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Section 5: Pilihan Varian Produk Perdana */}
-                <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 space-y-3">
-                  <div className="flex items-center gap-2 border-b border-amber-200/80 pb-2">
-                    <ShoppingBag className="w-4 h-4 text-amber-700" />
-                    <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider">5. Pilihan Varian Produk Perdana (Gratis Celana Jeans)</h4>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-amber-900 block">Kode Seri Produk *</label>
-                      <select
-                        value={regProductSeries}
-                        onChange={(e) => setRegProductSeries(e.target.value)}
-                        className="w-full border border-amber-300 rounded-xl px-2 py-2 text-xs font-semibold focus:outline-none bg-white text-slate-800"
-                      >
-                        <option value="HTR-RAW-01 (Hedtro Raw Denim Premium 15oz)">HTR-RAW-01 (Raw Denim 15oz)</option>
-                        <option value="HTR-SELVEDGE-02 (Hedtro Japanese Selvedge Denim 16oz)">HTR-SELVEDGE-02 (Selvedge 16oz)</option>
-                        <option value="HTR-SLIM-03 (Hedtro Slim Fit Stretch Denim)">HTR-SLIM-03 (Slim Fit Stretch)</option>
-                        <option value="HTR-BLACK-04 (Hedtro Deep Black Matte Denim)">HTR-BLACK-04 (Deep Black Matte)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-amber-900 block">Warna Denim *</label>
-                      <select
-                        value={regProductColor}
-                        onChange={(e) => setRegProductColor(e.target.value)}
-                        className="w-full border border-amber-300 rounded-xl px-2 py-2 text-xs font-semibold focus:outline-none bg-white text-slate-800"
-                      >
-                        <option value="Indigo Blue Classic">Indigo Blue Classic</option>
-                        <option value="Raw Navy Deep">Raw Navy Deep</option>
-                        <option value="Black Matte Denim">Black Matte Denim</option>
-                        <option value="Biowash Medium Blue">Biowash Medium Blue</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold uppercase text-amber-900 block">Ukuran Size *</label>
-                      <select
-                        value={regProductSize}
-                        onChange={(e) => setRegProductSize(e.target.value)}
-                        className="w-full border border-amber-300 rounded-xl px-2 py-2 text-xs font-semibold focus:outline-none bg-white text-slate-800 font-mono font-bold"
-                      >
-                        {["28", "29", "30", "31", "32", "33", "34", "36", "38"].map(s => (
-                          <option key={s} value={s}>Size {s}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-amber-800 italic">
-                    * Celana Jeans Perdana sesuai pilihan varian Seri, Warna & Size di atas akan langsung disiapkan dan dikirimkan oleh tim gudang ke alamat Anda.
-                  </p>
-                </div>
-
-                {/* Section 6: Structure Placement */}
+                {/* Section 5: Structure Placement */}
                 <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 space-y-3">
                   <div className="flex items-center gap-2 border-b border-blue-200/60 pb-2">
                     <Users className="w-4 h-4 text-blue-600" />
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">6. Penempatan Tim Afiliasi (Placement)</h4>
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">5. Penempatan Tim Afiliasi (Placement)</h4>
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -3800,18 +3290,9 @@ export default function App() {
                 <button
                   type="submit"
                   id="btn-modal-register-submit"
-                  disabled={isSubmittingRegister}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-1.5 mt-2"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-1.5 mt-2"
                 >
-                  {isSubmittingRegister ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 text-white animate-spin" /> Mendaftarkan Akun...
-                    </>
-                  ) : (
-                    <>
-                      <Award className="w-4 h-4 text-white" /> Daftar Sekarang
-                    </>
-                  )}
+                  <Award className="w-4 h-4 text-white" /> Daftar Sekarang
                 </button>
               </form>
             )}
