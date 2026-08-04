@@ -1,5 +1,17 @@
 import { queryD1, setCorsHeaders } from '../_d1';
 
+function sendJson(res: any, status: number, data: any) {
+  try { setCorsHeaders(res); } catch (e) {}
+  if (typeof res.status === "function") {
+    return res.status(status).json(data);
+  }
+  try {
+    res.statusCode = status;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(data));
+  } catch (e) {}
+}
+
 function findVacantSpot(users: any[], rootId: number, preferredPosition?: 'L' | 'R'): { upline_id: number, position: 'L' | 'R' } {
   const root = users.find(u => Number(u.id) === Number(rootId));
   if (!root) return { upline_id: Number(rootId) || 1, position: preferredPosition || 'L' };
@@ -59,9 +71,9 @@ async function updateAncestorCountsD1(users: any[], uplineId: number, position: 
 }
 
 export default async function handler(req: any, res: any) {
-  setCorsHeaders(res);
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ message: "Method Not Allowed" });
+  try { setCorsHeaders(res); } catch (e) {}
+  if (req.method === "OPTIONS") return sendJson(res, 200, { ok: true });
+  if (req.method !== "POST") return sendJson(res, 405, { message: "Method Not Allowed" });
 
   try {
     let regData: any = {};
@@ -74,16 +86,16 @@ export default async function handler(req: any, res: any) {
         regData = req.body;
       }
     } catch (e) {
-      return res.status(400).json({ message: "Format data JSON pendaftaran tidak valid" });
+      return sendJson(res, 400, { message: "Format data JSON pendaftaran tidak valid" });
     }
 
     if (!regData || !regData.username || !regData.fullname) {
-      return res.status(400).json({ message: "Username dan nama lengkap wajib diisi" });
+      return sendJson(res, 400, { message: "Username dan nama lengkap wajib diisi" });
     }
 
     const normalizedUsername = String(regData.username).toLowerCase().replace(/\s+/g, "").trim();
     if (!normalizedUsername) {
-      return res.status(400).json({ message: "Username tidak boleh kosong" });
+      return sendJson(res, 400, { message: "Username tidak boleh kosong" });
     }
 
     // Fetch existing users from Cloudflare D1
@@ -96,7 +108,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
-      return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
+      return sendJson(res, 400, { message: "Username sudah digunakan oleh member lain" });
     }
 
     let sponsorId: number = 1;
@@ -171,15 +183,15 @@ export default async function handler(req: any, res: any) {
     if (!d1Result?.success) {
       console.error("D1 Insert Error:", d1Result);
       const errMsg = d1Result?.errors?.[0]?.message || "Gagal menyimpan data ke Cloudflare D1";
-      return res.status(500).json({ message: "Gagal menyimpan data member ke Cloudflare D1: " + errMsg });
+      return sendJson(res, 500, { message: "Gagal menyimpan data member ke Cloudflare D1: " + errMsg });
     }
 
     // Update ancestor counts in D1
     await updateAncestorCountsD1(users, uplineId, finalPos).catch(() => {});
 
-    return res.status(201).json({ message: "Registrasi member berhasil!", user: newUser });
+    return sendJson(res, 201, { message: "Registrasi member berhasil!", user: newUser });
   } catch (err: any) {
     console.error("Unexpected register handler error:", err);
-    return res.status(500).json({ message: "Gagal mendaftar: " + (err?.message || String(err)) });
+    return sendJson(res, 500, { message: "Gagal mendaftar: " + (err?.message || String(err)) });
   }
 }
