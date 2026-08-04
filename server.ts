@@ -968,6 +968,61 @@ app.get(["/api/users", "/users"], async (req, res) => {
   res.json(users);
 });
 
+// Delete User (Admin operation)
+app.post(["/api/admin/users/delete", "/admin/users/delete"], async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    const { userId, id, username } = req.body;
+    const targetId = Number(userId || id);
+    const targetUsername = username ? String(username).toLowerCase().trim() : "";
+
+    users = users.filter(u => {
+      if (targetId && Number(u.id) === targetId && u.role !== 'admin') return false;
+      if (targetUsername && u.username && u.username.toLowerCase().trim() === targetUsername && u.role !== 'admin') return false;
+      return true;
+    });
+
+    if (targetId) {
+      await queryD1("DELETE FROM users WHERE id=?;", [targetId]).catch(() => {});
+      await queryD1("DELETE FROM deposits WHERE user_id=?;", [targetId]).catch(() => {});
+      await queryD1("DELETE FROM withdrawals WHERE user_id=?;", [targetId]).catch(() => {});
+      await queryD1("DELETE FROM orders WHERE user_id=?;", [targetId]).catch(() => {});
+    } else if (targetUsername) {
+      await queryD1("DELETE FROM users WHERE LOWER(username)=?;", [targetUsername]).catch(() => {});
+    }
+
+    saveLocalStore();
+    return res.json({ message: "Member berhasil dihapus dari database server & D1", users });
+  } catch (err: any) {
+    return res.status(500).json({ message: "Gagal menghapus member: " + (err?.message || err) });
+  }
+});
+
+// Reset All Members (Admin operation)
+app.post(["/api/admin/reset-members", "/admin/reset-members"], async (req, res) => {
+  try {
+    await initFirestoreDataOnce();
+    users = users.filter(u => u.role === 'admin' || Number(u.id) === 1);
+    deposits = [];
+    withdrawals = [];
+    orders = [];
+    transactions = [];
+    notifications = [];
+
+    await queryD1("DELETE FROM users WHERE role != 'admin' AND id != 1;").catch(() => {});
+    await queryD1("DELETE FROM deposits;").catch(() => {});
+    await queryD1("DELETE FROM withdrawals;").catch(() => {});
+    await queryD1("DELETE FROM orders;").catch(() => {});
+    await queryD1("DELETE FROM transactions;").catch(() => {});
+    await queryD1("DELETE FROM notifications;").catch(() => {});
+
+    saveLocalStore();
+    return res.json({ message: "Seluruh member & transaksi berhasil di-reset dari database!", users });
+  } catch (err: any) {
+    return res.status(500).json({ message: "Gagal reset member: " + (err?.message || err) });
+  }
+});
+
 // Authentication: Login
 app.post(["/api/auth/login", "/auth/login"], async (req, res) => {
   try {
@@ -1394,8 +1449,17 @@ app.post(["/api/auth/register", "/auth/register"], async (req, res) => {
 
   const passToUse = password && password.length >= 3 ? password : "password123";
 
-  if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
-    return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
+  const existingUserIdx = users.findIndex(u => u.username && u.username.toLowerCase().trim() === normalizedUsername);
+  if (existingUserIdx >= 0) {
+    const existing = users[existingUserIdx];
+    const hasOrder = orders.some(o => Number(o.user_id) === Number(existing.id));
+    const hasDeposit = deposits.some(d => Number(d.user_id) === Number(existing.id));
+    if (!existing.is_active && !hasOrder && !hasDeposit && existing.role !== 'admin') {
+      users.splice(existingUserIdx, 1);
+      queryD1("DELETE FROM users WHERE id=? OR LOWER(username)=?;", [existing.id, normalizedUsername]).catch(() => {});
+    } else {
+      return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
+    }
   }
 
   // 1. Resolve sponsor
