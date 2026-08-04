@@ -66,7 +66,13 @@ export default async function handler(req: any, res: any) {
   try {
     let regData: any = {};
     try {
-      regData = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      if (typeof req.body === 'string') {
+        regData = JSON.parse(req.body);
+      } else if (Buffer.isBuffer(req.body)) {
+        regData = JSON.parse((req.body as Buffer).toString('utf-8'));
+      } else if (req.body && typeof req.body === 'object') {
+        regData = req.body;
+      }
     } catch (e) {
       return res.status(400).json({ message: "Format data JSON pendaftaran tidak valid" });
     }

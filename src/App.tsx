@@ -148,28 +148,39 @@ async function registerUserToFirestoreDirect(regData: {
   address?: string;
   city?: string;
 }): Promise<MLMUser> {
-  const res = await fetch("/api/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(regData)
-  });
-
-  const resText = await res.text();
+  let res: Response;
+  let resText = "";
   let resJson: any = {};
+
   try {
-    resJson = JSON.parse(resText);
-  } catch (e) {}
+    res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(regData)
+    });
+    resText = await res.text();
+    try {
+      resJson = JSON.parse(resText);
+    } catch (e) {}
+  } catch (netErr: any) {
+    throw new Error("Gagal terhubung ke server pendaftaran. Silakan periksa koneksi internet Anda.");
+  }
 
   if (!res.ok) {
-    throw new Error(resJson.message || resText || `Gagal mendaftar (Status ${res.status})`);
+    const rawMsg = resJson.message || resText || "";
+    if (rawMsg.includes("digunakan") || rawMsg.includes("wajib") || rawMsg.includes("kosong")) {
+      throw new Error(rawMsg);
+    }
+    throw new Error(resJson.message || "Gagal melakukan pendaftaran ke database server (Status " + res.status + ")");
   }
 
   const newUser: MLMUser = resJson.user;
+  if (!newUser || !newUser.id) {
+    throw new Error("Respon server tidak valid saat membuat akun member.");
+  }
 
   // Sync to local cache for instant UI rendering
-  if (newUser) {
-    saveLocalStoredUser(newUser);
-  }
+  saveLocalStoredUser(newUser);
 
   // Auto-create initial deposit & order for new member activation
   try {
@@ -185,7 +196,7 @@ async function registerUserToFirestoreDirect(regData: {
       payment_code: `ACT-${newUser.id}`,
       created_at: new Date().toISOString()
     };
-    await createFirestoreDeposit(initialDep);
+    await createFirestoreDeposit(initialDep).catch(() => {});
 
     const initialOrd: Order = {
       id: Date.now() + 1,
@@ -205,7 +216,7 @@ async function registerUserToFirestoreDirect(regData: {
       notes: "Pesanan Pendaftaran & Aktivasi Member Premium Hedtro Jeans",
       created_at: new Date().toISOString()
     };
-    await saveFirestoreOrder(initialOrd);
+    await saveFirestoreOrder(initialOrd).catch(() => {});
   } catch (e) {
     console.warn("Auto deposit/order error on register:", e);
   }
@@ -1653,7 +1664,11 @@ export default function App() {
           { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
         ]
       };
-      await saveFirestoreOrder(regOrder);
+      try {
+        await saveFirestoreOrder(regOrder);
+      } catch (e) {
+        console.warn("Notice: order record save warning:", e);
+      }
       setOrders(prev => [regOrder, ...prev]);
 
       // Clear members reset flag when new member registers
