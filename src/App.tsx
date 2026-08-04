@@ -1311,12 +1311,17 @@ export default function App() {
       // 1. Try Supabase auth sign in if email format
       if (supabase && authEmail.includes("@")) {
         try {
-          await supabase.auth.signInWithPassword({
+          const { data: sbAuthData, error: sbAuthErr } = await supabase.auth.signInWithPassword({
             email: authEmail,
             password: loginPassword,
           });
+          if (sbAuthErr) {
+            console.warn("⚠️ Supabase auth signIn notice:", sbAuthErr.message);
+          } else {
+            console.log("✅ Supabase auth signIn success:", sbAuthData);
+          }
         } catch (sbErr) {
-          console.warn("Supabase auth signIn notice:", sbErr);
+          console.warn("Supabase auth signIn catch notice:", sbErr);
         }
       }
 
@@ -1409,12 +1414,24 @@ export default function App() {
       // 1. Try Supabase Auth sign up
       if (supabase) {
         try {
-          await supabase.auth.signUp({
+          const { data: sbAuthData, error: sbAuthErr } = await supabase.auth.signUp({
             email: regEmail,
             password: regPassword,
+            options: {
+              data: {
+                fullname: regFullname,
+                username: createdUsername,
+                phone: regPhone
+              }
+            }
           });
+          if (sbAuthErr) {
+            console.warn("⚠️ Supabase Auth SignUp Notice:", sbAuthErr.message);
+          } else {
+            console.log("✅ Supabase Auth SignUp Success:", sbAuthData);
+          }
         } catch (sbErr) {
-          console.warn("Supabase auth signUp notice:", sbErr);
+          console.warn("Supabase auth signUp catch notice:", sbErr);
         }
       }
 
