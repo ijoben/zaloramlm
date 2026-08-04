@@ -7,13 +7,23 @@ import { initializeFirestore, getFirestore, collection, getDocs, doc, setDoc, ge
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode, Order } from "./src/types";
 import { DEFAULT_ORDERS } from "./src/data/defaultOrders";
 
-const nodeRequire = createRequire(import.meta.url);
-
-// Firebase Admin SDK for server-side Auth management (delete users, etc.)
 let adminApp: any = null;
 let adminAuth: any = null;
 try {
-  const firebaseAdmin = nodeRequire("firebase-admin");
+  let firebaseAdmin: any = null;
+  try {
+    if (typeof require === "function") {
+      firebaseAdmin = require("firebase-admin");
+    } else {
+      const req = createRequire(import.meta.url);
+      firebaseAdmin = req("firebase-admin");
+    }
+  } catch (e) {
+    try {
+      const req = createRequire(process.cwd() + "/server.ts");
+      firebaseAdmin = req("firebase-admin");
+    } catch (err) {}
+  }
 
   // Try to load service account from file or env
   let adminCredential: any = null;
@@ -147,6 +157,13 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+app.use(async (req, res, next) => {
+  try {
+    await initFirestoreDataOnce();
+  } catch (e) {}
+  next();
+});
 
 app.get(["/api", "/api/"], (req, res) => {
   res.json({ status: "ok", message: "Hedtro Jeans Official Backend API is active" });
