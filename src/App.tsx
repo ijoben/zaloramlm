@@ -190,7 +190,8 @@ async function registerUserToFirestoreDirect(regData: {
 
   // 2. High-availability client fallback: create local user and save order
   const localUsers = getLocalStoredUsers();
-  if (localUsers.some(u => u.username && u.username.toLowerCase().trim() === normUsername)) {
+  const activeLocalUsers = localUsers.filter(u => u.is_active);
+  if (activeLocalUsers.some(u => u.username && u.username.toLowerCase().trim() === normUsername)) {
     throw new Error("Username sudah digunakan oleh member lain.");
   }
 

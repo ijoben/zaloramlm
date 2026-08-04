@@ -1452,9 +1452,7 @@ app.post(["/api/auth/register", "/auth/register"], async (req, res) => {
   const existingUserIdx = users.findIndex(u => u.username && u.username.toLowerCase().trim() === normalizedUsername);
   if (existingUserIdx >= 0) {
     const existing = users[existingUserIdx];
-    const hasOrder = orders.some(o => Number(o.user_id) === Number(existing.id));
-    const hasDeposit = deposits.some(d => Number(d.user_id) === Number(existing.id));
-    if (!existing.is_active && !hasOrder && !hasDeposit && existing.role !== 'admin') {
+    if (!existing.is_active && existing.role !== 'admin') {
       users.splice(existingUserIdx, 1);
       queryD1("DELETE FROM users WHERE id=? OR LOWER(username)=?;", [existing.id, normalizedUsername]).catch(() => {});
     } else {
