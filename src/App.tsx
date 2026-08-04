@@ -167,11 +167,8 @@ async function registerUserToFirestoreDirect(regData: {
   }
 
   if (!res.ok) {
-    const rawMsg = resJson.message || resText || "";
-    if (rawMsg.includes("digunakan") || rawMsg.includes("wajib") || rawMsg.includes("kosong")) {
-      throw new Error(rawMsg);
-    }
-    throw new Error(resJson.message || "Gagal melakukan pendaftaran ke database server (Status " + res.status + ")");
+    const rawMsg = resJson.message || (resText && !resText.includes("<html") ? resText : "");
+    throw new Error(rawMsg || `Gagal melakukan pendaftaran ke database server (Status ${res.status}). Mohon coba lagi.`);
   }
 
   const newUser: MLMUser = resJson.user;
