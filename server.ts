@@ -1449,14 +1449,27 @@ app.post(["/api/auth/register", "/auth/register"], async (req, res) => {
 
   const passToUse = password && password.length >= 3 ? password : "password123";
 
-  const existingUserIdx = users.findIndex(u => u.username && u.username.toLowerCase().trim() === normalizedUsername);
-  if (existingUserIdx >= 0) {
-    const existing = users[existingUserIdx];
-    if (!existing.is_active && existing.role !== 'admin') {
-      users.splice(existingUserIdx, 1);
-      queryD1("DELETE FROM users WHERE id=? OR LOWER(username)=?;", [existing.id, normalizedUsername]).catch(() => {});
+  // Check Cloudflare D1 database directly for duplicate username
+  const resD1User = await queryD1("SELECT id, is_active, role FROM users WHERE LOWER(username)=?;", [normalizedUsername]).catch(() => null);
+  if (resD1User?.success && resD1User.result?.[0]?.results?.length > 0) {
+    const row = resD1User.result[0].results[0];
+    const isAct = row.is_active === 1 || row.is_active === true;
+    if (!isAct && row.role !== 'admin') {
+      await queryD1("DELETE FROM users WHERE id=? OR LOWER(username)=?;", [row.id, normalizedUsername]).catch(() => {});
+      users = users.filter(u => String(u.id) !== String(row.id) && String(u.username).toLowerCase().trim() !== normalizedUsername);
     } else {
       return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
+    }
+  } else {
+    const existingUserIdx = users.findIndex(u => u.username && u.username.toLowerCase().trim() === normalizedUsername);
+    if (existingUserIdx >= 0) {
+      const existing = users[existingUserIdx];
+      if (!existing.is_active && existing.role !== 'admin') {
+        users.splice(existingUserIdx, 1);
+        queryD1("DELETE FROM users WHERE id=? OR LOWER(username)=?;", [existing.id, normalizedUsername]).catch(() => {});
+      } else {
+        return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
+      }
     }
   }
 

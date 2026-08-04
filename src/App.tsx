@@ -38,31 +38,17 @@ function withClientTimeout<T>(promise: Promise<T>, ms: number = 2000, label = "O
   ]);
 }
 
-// Localstorage persistence helpers for client-side user fallback
+// Localstorage persistence helpers for client-side user fallback (Disabled - relying 100% on Cloudflare D1 Backend)
 function getLocalStoredUsers(): MLMUser[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem('zalora_local_users');
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
+  if (typeof window !== 'undefined') {
+    try { localStorage.removeItem('zalora_local_users'); } catch (e) {}
   }
+  return [];
 }
 
-function saveLocalStoredUser(user: MLMUser): void {
-  if (typeof window === 'undefined' || !user) return;
-  try {
-    const existing = getLocalStoredUsers();
-    const idx = existing.findIndex(u => Number(u.id) === Number(user.id) || (u.username && u.username.toLowerCase() === (user.username || "").toLowerCase()));
-    if (idx >= 0) {
-      existing[idx] = user;
-    } else {
-      existing.push(user);
-    }
-    localStorage.setItem('zalora_local_users', JSON.stringify(existing));
-  } catch (e) {
-    console.warn("Failed saving local user to localStorage:", e);
+function saveLocalStoredUser(_user: MLMUser): void {
+  if (typeof window !== 'undefined') {
+    try { localStorage.removeItem('zalora_local_users'); } catch (e) {}
   }
 }
 
