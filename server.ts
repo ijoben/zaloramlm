@@ -1,18 +1,19 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { createRequire } from "module";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { initializeFirestore, getFirestore, collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode, Order } from "./src/types";
 import { DEFAULT_ORDERS } from "./src/data/defaultOrders";
 
+const nodeRequire = createRequire(import.meta.url);
+
 // Firebase Admin SDK for server-side Auth management (delete users, etc.)
 let adminApp: any = null;
 let adminAuth: any = null;
 try {
-  // Use require() for CJS compatibility (no top-level await)
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const firebaseAdmin = require("firebase-admin");
+  const firebaseAdmin = nodeRequire("firebase-admin");
 
   // Try to load service account from file or env
   let adminCredential: any = null;
