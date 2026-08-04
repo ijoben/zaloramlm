@@ -101,11 +101,28 @@ export default async function handler(req: any, res: any) {
 
     const newStatus = action === 'approve' ? 'success' : 'failed';
 
-    // 1. Fetch deposit
-    const resDep = await queryD1("SELECT data_json FROM deposits WHERE id=?;", [depositId]).catch(() => null);
+    // 1. Fetch deposit with flexible matching
+    let resDep = await queryD1("SELECT id, data_json FROM deposits WHERE id=? OR id=?;", [depositId, String(depositId)]).catch(() => null);
     let targetUserId = 0;
     let depAmount = 0;
     let depUsername = "";
+    let matchedRowId = depositId;
+
+    if (!resDep?.success || !resDep.result?.[0]?.results?.[0]?.data_json) {
+      const allDeps = await queryD1("SELECT id, data_json FROM deposits ORDER BY id DESC;").catch(() => null);
+      if (allDeps?.success && Array.isArray(allDeps.result?.[0]?.results)) {
+        for (const row of allDeps.result[0].results) {
+          try {
+            const dObj = JSON.parse(row.data_json);
+            if (Number(row.id) === Number(depositId) || Number(dObj.id) === Number(depositId)) {
+              matchedRowId = Number(row.id);
+              resDep = { success: true, result: [{ results: [row] }] };
+              break;
+            }
+          } catch (e) {}
+        }
+      }
+    }
 
     if (resDep?.success && resDep.result?.[0]?.results?.[0]?.data_json) {
       try {
@@ -116,46 +133,51 @@ export default async function handler(req: any, res: any) {
         depUsername = depObj.username || "";
 
         await queryD1(
-          "UPDATE deposits SET status=?, data_json=? WHERE id=?;",
-          [newStatus, JSON.stringify(depObj), depositId]
+          "UPDATE deposits SET status=?, data_json=? WHERE id=? OR id=?;",
+          [newStatus, JSON.stringify(depObj), matchedRowId, String(matchedRowId)]
         ).catch(() => {});
       } catch (e) {}
     }
 
-    // 2. If approved and target user exists, update user status to active and update balance
-    if (action === 'approve' && targetUserId > 0) {
-      const resUser = await queryD1("SELECT data_json FROM users WHERE id=?;", [targetUserId]).catch(() => null);
-      if (resUser?.success && resUser.result?.[0]?.results?.[0]?.data_json) {
-        try {
-          const userObj = JSON.parse(resUser.result[0].results[0].data_json);
-          const isActivating = !userObj.is_active && depAmount >= 550000;
-          
-          userObj.is_active = true; // Always activate member on deposit approval!
-          if (!isActivating) {
-            userObj.balance = (Number(userObj.balance) || 0) + depAmount;
-          }
-
-          await queryD1(
-            "UPDATE users SET data_json=? WHERE id=?;",
-            [JSON.stringify(userObj), targetUserId]
-          ).catch(() => {});
-        } catch (e) {}
+    // 2. If approved, activate target member in D1 users table
+    if (action === 'approve') {
+      const allUsers = await queryD1("SELECT id, data_json FROM users;").catch(() => null);
+      if (allUsers?.success && Array.isArray(allUsers.result?.[0]?.results)) {
+        for (const row of allUsers.result[0].results) {
+          try {
+            const userObj = JSON.parse(row.data_json);
+            if ((targetUserId > 0 && Number(row.id) === Number(targetUserId)) || (depUsername && userObj.username && userObj.username.toLowerCase().trim() === depUsername.toLowerCase().trim())) {
+              const isActivating = !userObj.is_active || depAmount >= 550000;
+              userObj.is_active = true;
+              if (!isActivating) {
+                userObj.balance = (Number(userObj.balance) || 0) + depAmount;
+              }
+              await queryD1(
+                "UPDATE users SET data_json=? WHERE id=? OR id= cast(? as text);",
+                [JSON.stringify(userObj), row.id, row.id]
+              ).catch(() => {});
+              break;
+            }
+          } catch (e) {}
+        }
       }
 
-      // 3. Also update any matching orders for this user to DIPROSES / DISETUJUI
-      const resOrds = await queryD1("SELECT id, data_json FROM orders WHERE user_id=?;", [targetUserId]).catch(() => null);
-      if (resOrds?.success && Array.isArray(resOrds.result?.[0]?.results)) {
-        for (const row of resOrds.result[0].results) {
+      // 3. Update all matching orders for this user to DIPROSES with tracking number
+      const allOrds = await queryD1("SELECT id, data_json FROM orders;").catch(() => null);
+      if (allOrds?.success && Array.isArray(allOrds.result?.[0]?.results)) {
+        for (const row of allOrds.result[0].results) {
           try {
             const ordObj = JSON.parse(row.data_json);
-            ordObj.status = "DIPROSES";
-            if (!ordObj.tracking_number) {
-              ordObj.tracking_number = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
+            if ((targetUserId > 0 && Number(ordObj.user_id) === Number(targetUserId)) || (depUsername && ordObj.username && ordObj.username.toLowerCase().trim() === depUsername.toLowerCase().trim())) {
+              ordObj.status = "DIPROSES";
+              if (!ordObj.tracking_number) {
+                ordObj.tracking_number = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
+              }
+              await queryD1(
+                "UPDATE orders SET status=?, tracking_number=?, data_json=? WHERE id=? OR id=cast(? as text);",
+                ["DIPROSES", ordObj.tracking_number, JSON.stringify(ordObj), row.id, row.id]
+              ).catch(() => {});
             }
-            await queryD1(
-              "UPDATE orders SET status=?, tracking_number=?, data_json=? WHERE id=?;",
-              ["DIPROSES", ordObj.tracking_number, JSON.stringify(ordObj), row.id]
-            ).catch(() => {});
           } catch (e) {}
         }
       }

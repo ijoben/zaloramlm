@@ -291,7 +291,7 @@ export default function UserDashboard({
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 900;
+          const MAX_WIDTH = 500;
           let width = img.width;
           let height = img.height;
 
@@ -305,7 +305,7 @@ export default function UserDashboard({
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.7));
+            resolve(canvas.toDataURL('image/jpeg', 0.55));
           } else {
             resolve((e.target?.result as string) || '');
           }

@@ -262,6 +262,54 @@ export default async function handler(req: any, res: any) {
     // Update ancestor counts in D1
     await updateAncestorCountsD1(users, uplineId, finalPos).catch(() => {});
 
+    // Create initial deposit in D1 for new member activation
+    const depId = Date.now();
+    const actCode = 100 + (newUser.id * 37) % 899;
+    const initialDep = {
+      id: depId,
+      user_id: newUser.id,
+      username: newUser.username,
+      amount: 550000,
+      unique_code: actCode,
+      method: "transfer_bank",
+      status: "pending",
+      payment_code: `ACT-${newUser.id}`,
+      created_at: newUser.created_at
+    };
+    await queryD1(
+      `INSERT INTO deposits (id, user_id, username, amount, method, status, payment_code, data_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET data_json=excluded.data_json;`,
+      [initialDep.id, initialDep.user_id, initialDep.username, initialDep.amount, initialDep.method, initialDep.status, initialDep.payment_code, JSON.stringify(initialDep), initialDep.created_at]
+    ).catch(() => {});
+
+    // Create initial order in D1 for new member package
+    const ordId = depId + 1;
+    const initialOrd = {
+      id: ordId,
+      invoice_no: `INV-ACT-${newUser.id}-${Date.now().toString().slice(-4)}`,
+      user_id: newUser.id,
+      username: newUser.username,
+      fullname: newUser.fullname,
+      phone: newUser.phone || "-",
+      address: newUser.address ? `${newUser.address}${newUser.city ? ', ' + newUser.city : ''}` : "-",
+      product_name: "Paket Perdana Member Premium - Hedtro Raw Denim 15oz",
+      amount: 550000,
+      unique_code: actCode,
+      payment_method: "Transfer Bank",
+      status: "DIPROSES",
+      courier: "JNE REGULER",
+      tracking_number: `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`,
+      notes: "Pesanan Pendaftaran & Aktivasi Member Premium Hedtro Jeans",
+      created_at: newUser.created_at
+    };
+    await queryD1(
+      `INSERT INTO orders (id, invoice_no, user_id, username, fullname, amount, status, tracking_number, data_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET data_json=excluded.data_json;`,
+      [initialOrd.id, initialOrd.invoice_no, initialOrd.user_id, initialOrd.username, initialOrd.fullname, initialOrd.amount, initialOrd.status, initialOrd.tracking_number, JSON.stringify(initialOrd), initialOrd.created_at]
+    ).catch(() => {});
+
     return sendJson(res, 201, { message: "Registrasi member berhasil!", user: newUser });
   } catch (err: any) {
     console.error("Unexpected register handler error:", err);
