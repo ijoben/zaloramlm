@@ -47,8 +47,8 @@ async function updateAncestorCountsD1(users: any[], uplineId: number, position: 
 
     const updatedJson = JSON.stringify(upline);
     await queryD1(
-      `UPDATE users SET left_count=?, right_count=?, data_json=? WHERE id=?`,
-      [upline.left_count, upline.right_count, updatedJson, upline.id]
+      `UPDATE users SET data_json=? WHERE id=?`,
+      [updatedJson, upline.id]
     ).catch(() => {});
 
     childPos = upline.position === 'R' ? 'R' : 'L';
@@ -160,21 +160,12 @@ export default async function handler(req: any, res: any) {
 
     const jsonStr = JSON.stringify(newUser);
     const d1Result = await queryD1(
-      `INSERT INTO users (id, username, fullname, email, phone, password, role, is_active, balance, sponsor_bonus, pairing_bonus, level_bonus, ro_bonus, left_count, right_count, left_sales, right_sales, upline_id, sponsor_id, position, data_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO users (id, username, data_json, created_at)
+       VALUES (?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
-       username=excluded.username, fullname=excluded.fullname, email=excluded.email, phone=excluded.phone,
-       password=excluded.password, role=excluded.role, is_active=excluded.is_active, balance=excluded.balance,
-       sponsor_bonus=excluded.sponsor_bonus, pairing_bonus=excluded.pairing_bonus, level_bonus=excluded.level_bonus,
-       ro_bonus=excluded.ro_bonus, left_count=excluded.left_count, right_count=excluded.right_count,
-       left_sales=excluded.left_sales, right_sales=excluded.right_sales, upline_id=excluded.upline_id,
-       sponsor_id=excluded.sponsor_id, position=excluded.position, data_json=excluded.data_json;`,
-      [
-        newUser.id, newUser.username, newUser.fullname, newUser.email, newUser.phone, newUser.password, newUser.role,
-        0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, newUser.upline_id, newUser.sponsor_id, newUser.position,
-        jsonStr, newUser.created_at
-      ]
+       username=excluded.username,
+       data_json=excluded.data_json;`,
+      [newUser.id, newUser.username, jsonStr, newUser.created_at]
     ).catch((err) => ({ success: false, errors: [{ message: String(err) }] }));
 
     if (!d1Result?.success) {
