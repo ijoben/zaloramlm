@@ -1542,20 +1542,36 @@ export default function App() {
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmittingRegister) return;
+
+    const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "").trim();
+    if (!createdUsername || createdUsername.length < 3) {
+      alert("Username wajib diisi (minimal 3 karakter tanpa spasi).");
+      return;
+    }
+    if (!regFullname.trim()) {
+      alert("Mohon isi Nama Lengkap Anda sesuai KTP.");
+      return;
+    }
+    if (!regEmail.trim() || !regEmail.includes("@")) {
+      alert("Mohon masukkan alamat email yang valid.");
+      return;
+    }
+    if (!regPhone.trim()) {
+      alert("Mohon masukkan nomor HP / WhatsApp aktif Anda.");
+      return;
+    }
     if (!regPassword) {
       alert("Mohon buat kata sandi untuk akun Anda.");
+      return;
+    }
+    if (regPassword.length < 3) {
+      alert("Kata sandi minimal 3 karakter.");
       return;
     }
     if (regPassword !== regConfirmPassword) {
       alert("Konfirmasi kata sandi tidak cocok dengan kata sandi Anda!");
       return;
     }
-    if (!regEmail) {
-      alert("Mohon masukkan email Anda.");
-      return;
-    }
-
-    const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "");
 
     setIsSubmittingRegister(true);
     try {
@@ -1577,33 +1593,33 @@ export default function App() {
         }
       }
 
-      // 2. Call Cloudflare D1 Registration API via registerUserToFirestoreDirect
+      // 2. Call Registration API
       let registeredUser: MLMUser | null = null;
       try {
         registeredUser = await registerUserToFirestoreDirect({
           username: createdUsername,
-          fullname: regFullname,
-          email: regEmail,
-          phone: regPhone,
+          fullname: regFullname.trim(),
+          email: regEmail.trim(),
+          phone: regPhone.trim(),
           password: regPassword,
           sponsor_username: regSponsor,
           upline_username: regUpline,
           position: regPosition,
           firebase_uid: firebaseUid,
-          ktp: regKtp,
-          whatsapp: regWhatsapp || regPhone,
+          ktp: regKtp.trim(),
+          whatsapp: (regWhatsapp || regPhone).trim(),
           bank_name: regBankName,
-          bank_account: regBankAccount,
-          bank_holder: regBankHolder || regFullname,
-          address: regAddress,
-          city: regCity
+          bank_account: regBankAccount.trim(),
+          bank_holder: (regBankHolder || regFullname).trim(),
+          address: regAddress.trim(),
+          city: regCity.trim()
         });
       } catch (err: any) {
         alert(err.message || "Gagal melakukan pendaftaran akun baru");
         return;
       }
 
-      // 4. Create initial order record for new member
+      // 3. Create initial order record for new member
       const assignedUserId = registeredUser ? Number(registeredUser.id) : 0;
       const newOrdId = Date.now();
       const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
@@ -1635,7 +1651,7 @@ export default function App() {
       await saveFirestoreOrder(regOrder);
       setOrders(prev => [regOrder, ...prev]);
 
-      // Clear members reset flag when new member registers (reset is "done")
+      // Clear members reset flag when new member registers
       if (typeof window !== 'undefined') {
         localStorage.removeItem('zalora_reset_members');
       }
@@ -1652,9 +1668,6 @@ export default function App() {
       if (registeredUser) {
         saveLocalStoredUser(registeredUser);
         setCurrentUser(registeredUser);
-        setShowRegisterModal(false);
-        setShowLoginModal(false);
-        setActiveView('dashboard');
       } else {
         setLoginUsername(regEmail);
         setLoginPassword(regPassword);

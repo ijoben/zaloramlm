@@ -128,7 +128,7 @@ try {
   firestoreDb = getFirestore(firebaseApp, resolvedServerFirebaseConfig.firestoreDatabaseId);
 } catch (e) {}
 
-const withTimeout = async (p: any) => await p;
+const withTimeout = async (p: any, _ms?: number, _desc?: string) => await p;
 const processRegistrationBonusAndTree = (...args: any[]) => {};
 
 const app = express();
@@ -986,7 +986,7 @@ app.post(["/api/admin/withdraw/process", "/admin/withdraw/process"], async (req,
     if (!wd) return res.status(404).json({ message: "Penarikan tidak ditemukan" });
 
     if (action === "approve" || action === "success") {
-      wd.status = "approved";
+      wd.status = "success";
       const tx: Transaction = {
         id: Date.now(),
         user_id: wd.user_id,
@@ -1021,85 +1021,7 @@ app.get(["/api/users", "/users"], async (req, res) => {
   res.json(users);
 });
 
-// Authentication: Register Member
-app.post(["/api/auth/register", "/auth/register"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const regData = req.body;
-    if (!regData || !regData.username || !regData.fullname) {
-      return res.status(400).json({ message: "Username dan nama lengkap harus diisi" });
-    }
 
-    const normalizedUsername = String(regData.username).toLowerCase().replace(/\s+/g, "").trim();
-    if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
-      return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
-    }
-
-    let sponsorId: number = 1;
-    if (regData.sponsor_username) {
-      const sSearch = String(regData.sponsor_username).toLowerCase().trim();
-      const sponsor = users.find(u => u.username && u.username.toLowerCase().trim() === sSearch);
-      if (sponsor) sponsorId = Number(sponsor.id);
-    }
-
-    let uplineId: number = sponsorId || 1;
-    let finalPos: 'L' | 'R' = (regData.position === 'R' || regData.position === 'L') ? regData.position : "L";
-
-    if (regData.upline_username) {
-      const uSearch = String(regData.upline_username).toLowerCase().trim();
-      const uplineUser = users.find(u => u.username && u.username.toLowerCase().trim() === uSearch);
-      if (uplineUser) uplineId = Number(uplineUser.id);
-    }
-
-    const taken = users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
-    if (taken) {
-      const vacancy = findVacantSpot(uplineId, finalPos);
-      uplineId = vacancy.upline_id;
-      finalPos = vacancy.position;
-    }
-
-    const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
-    const newUser: MLMUser = {
-      id: newUserId,
-      username: normalizedUsername,
-      fullname: regData.fullname,
-      email: regData.email || "",
-      phone: regData.phone || "",
-      password: regData.password || "password123",
-      is_active: false,
-      upline_id: uplineId,
-      position: finalPos,
-      sponsor_id: sponsorId,
-      balance: 0,
-      sponsor_bonus: 0,
-      pairing_bonus: 0,
-      level_bonus: 0,
-      ro_bonus: 0,
-      left_count: 0,
-      right_count: 0,
-      left_sales: 0,
-      right_sales: 0,
-      created_at: new Date().toISOString(),
-      role: "user",
-      firebase_uid: regData.firebase_uid || "",
-      ktp: regData.ktp || "",
-      whatsapp: regData.whatsapp || regData.phone || "",
-      bank_name: regData.bank_name || "",
-      bank_account: regData.bank_account || "",
-      bank_holder: regData.bank_holder || regData.fullname || "",
-      address: regData.address || "",
-      city: regData.city || ""
-    };
-
-    users.push(newUser);
-    await syncUserToFirestore(newUser);
-    await updateAncestorCounts(uplineId, finalPos);
-
-    res.status(201).json({ message: "Registrasi member berhasil!", user: newUser });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal mendaftar: " + (err?.message || err) });
-  }
-});
 
 // Authentication: Login
 app.post(["/api/auth/login", "/auth/login"], async (req, res) => {
@@ -1349,85 +1271,7 @@ app.get(["/api/users", "/users"], async (req, res) => {
   res.json(users);
 });
 
-// Authentication: Register Member
-app.post("/api/auth/register", async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const regData = req.body;
-    if (!regData || !regData.username || !regData.fullname) {
-      return res.status(400).json({ message: "Username dan nama lengkap harus diisi" });
-    }
 
-    const normalizedUsername = String(regData.username).toLowerCase().replace(/\s+/g, "").trim();
-    if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
-      return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
-    }
-
-    let sponsorId: number = 1;
-    if (regData.sponsor_username) {
-      const sSearch = String(regData.sponsor_username).toLowerCase().trim();
-      const sponsor = users.find(u => u.username && u.username.toLowerCase().trim() === sSearch);
-      if (sponsor) sponsorId = Number(sponsor.id);
-    }
-
-    let uplineId: number = sponsorId || 1;
-    let finalPos: 'L' | 'R' = (regData.position === 'R' || regData.position === 'L') ? regData.position : "L";
-
-    if (regData.upline_username) {
-      const uSearch = String(regData.upline_username).toLowerCase().trim();
-      const uplineUser = users.find(u => u.username && u.username.toLowerCase().trim() === uSearch);
-      if (uplineUser) uplineId = Number(uplineUser.id);
-    }
-
-    const taken = users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
-    if (taken) {
-      const vacancy = findVacantSpot(uplineId, finalPos);
-      uplineId = vacancy.upline_id;
-      finalPos = vacancy.position;
-    }
-
-    const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
-    const newUser: MLMUser = {
-      id: newUserId,
-      username: normalizedUsername,
-      fullname: regData.fullname,
-      email: regData.email || "",
-      phone: regData.phone || "",
-      password: regData.password || "password123",
-      is_active: false,
-      upline_id: uplineId,
-      position: finalPos,
-      sponsor_id: sponsorId,
-      balance: 0,
-      sponsor_bonus: 0,
-      pairing_bonus: 0,
-      level_bonus: 0,
-      ro_bonus: 0,
-      left_count: 0,
-      right_count: 0,
-      left_sales: 0,
-      right_sales: 0,
-      created_at: new Date().toISOString(),
-      role: "user",
-      firebase_uid: regData.firebase_uid || "",
-      ktp: regData.ktp || "",
-      whatsapp: regData.whatsapp || regData.phone || "",
-      bank_name: regData.bank_name || "",
-      bank_account: regData.bank_account || "",
-      bank_holder: regData.bank_holder || regData.fullname || "",
-      address: regData.address || "",
-      city: regData.city || ""
-    };
-
-    users.push(newUser);
-    await syncUserToFirestore(newUser);
-    await updateAncestorCounts(uplineId, finalPos);
-
-    res.status(201).json({ message: "Registrasi member berhasil!", user: newUser });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal mendaftar: " + (err?.message || err) });
-  }
-});
 
 // Authentication: Login
 app.post("/api/auth/login", async (req, res) => {
@@ -1577,23 +1421,33 @@ app.post("/api/auth/reset-password", (req, res) => {
 });
 
 // Authentication: Register Member
-app.post("/api/auth/register", async (req, res) => {
+app.post(["/api/auth/register", "/auth/register"], async (req, res) => {
   try {
     await initFirestoreDataOnce();
     if (firestoreDb) {
       setDoc(doc(firestoreDb, "settings", "adminControl"), { membersReset: false }, { merge: true }).catch(() => {});
     }
-  const { username, fullname, email, phone, password, sponsor_username, upline_username, position, ktp, whatsapp, bank_name, bank_account, bank_holder } = req.body;
+  const { username, fullname, password, sponsor_username, upline_username, position, ktp, whatsapp, bank_name, bank_account, bank_holder } = req.body;
+  let email = req.body.email;
+  let phone = req.body.phone;
 
-  if (!username || !fullname || !email || !phone) {
-    return res.status(400).json({ message: "Mohon isi semua field wajib (Username, Nama Lengkap, Email, Telepon)" });
+  if (!username || !fullname) {
+    return res.status(400).json({ message: "Username dan Nama Lengkap wajib diisi" });
   }
 
-  if (!password || password.length < 3) {
-    return res.status(400).json({ message: "Kata sandi wajib diisi (minimal 3 karakter)" });
+  const normalizedUsername = String(username).toLowerCase().replace(/\s+/g, "").trim();
+  if (!normalizedUsername) {
+    return res.status(400).json({ message: "Username tidak boleh kosong" });
   }
 
-  const normalizedUsername = username.toLowerCase().replace(/\s+/g, "").trim();
+  if (!email) {
+    email = `${normalizedUsername}@member.hedtrojeans.com`;
+  }
+  if (!phone) {
+    phone = "081234567890";
+  }
+
+  const passToUse = password && password.length >= 3 ? password : "password123";
 
   if (users.some(u => u.username && u.username.toLowerCase().trim() === normalizedUsername)) {
     return res.status(400).json({ message: "Username sudah digunakan oleh member lain" });
@@ -1651,7 +1505,7 @@ app.post("/api/auth/register", async (req, res) => {
     right_sales: 0,
     created_at: new Date().toISOString(),
     role: "user",
-    password: password,
+    password: passToUse,
     ktp: ktp || "",
     whatsapp: whatsapp || phone || "",
     bank_name: bank_name || "",

@@ -1,5 +1,51 @@
 import { queryD1, setCorsHeaders } from '../_d1';
 
+function findVacantSpot(users: any[], rootId: number, preferredPosition?: 'L' | 'R'): { upline_id: number, position: 'L' | 'R' } {
+  const root = users.find(u => Number(u.id) === Number(rootId));
+  if (!root) return { upline_id: Number(rootId) || 1, position: preferredPosition || 'L' };
+
+  const pos = preferredPosition || "L";
+
+  const directChild = users.find(u => Number(u.upline_id) === Number(rootId) && u.position === pos);
+  if (!directChild) {
+    return { upline_id: Number(rootId), position: pos };
+  }
+
+  let currentId = Number(directChild.id);
+  while (true) {
+    const nextChild = users.find(u => Number(u.upline_id) === Number(currentId) && u.position === pos);
+    if (!nextChild) {
+      return { upline_id: currentId, position: pos };
+    }
+    currentId = Number(nextChild.id);
+  }
+}
+
+async function updateAncestorCountsD1(users: any[], uplineId: number, position: 'L' | 'R') {
+  let currUplineId: number | null = uplineId;
+  let childPos: 'L' | 'R' = position;
+
+  while (currUplineId !== null && currUplineId !== undefined) {
+    const upline = users.find(u => Number(u.id) === Number(currUplineId));
+    if (!upline) break;
+
+    if (childPos === 'L') {
+      upline.left_count = (Number(upline.left_count) || 0) + 1;
+    } else {
+      upline.right_count = (Number(upline.right_count) || 0) + 1;
+    }
+
+    const updatedJson = JSON.stringify(upline);
+    await queryD1(
+      `UPDATE users SET left_count=?, right_count=?, data_json=? WHERE id=?`,
+      [upline.left_count, upline.right_count, updatedJson, upline.id]
+    ).catch(() => {});
+
+    childPos = upline.position === 'R' ? 'R' : 'L';
+    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+  }
+}
+
 export default async function handler(req: any, res: any) {
   setCorsHeaders(res);
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -8,10 +54,13 @@ export default async function handler(req: any, res: any) {
   try {
     const regData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     if (!regData || !regData.username || !regData.fullname) {
-      return res.status(400).json({ message: "Username dan nama lengkap harus diisi" });
+      return res.status(400).json({ message: "Username dan nama lengkap wajib diisi" });
     }
 
     const normalizedUsername = String(regData.username).toLowerCase().replace(/\s+/g, "").trim();
+    if (!normalizedUsername) {
+      return res.status(400).json({ message: "Username tidak boleh kosong" });
+    }
 
     // Fetch existing users from Cloudflare D1
     const resUsers = await queryD1("SELECT data_json FROM users;");
@@ -44,8 +93,9 @@ export default async function handler(req: any, res: any) {
 
     const taken = users.find(u => Number(u.upline_id) === Number(uplineId) && u.position === finalPos);
     if (taken) {
-      uplineId = Number(taken.upline_id || 1);
-      finalPos = finalPos === 'L' ? 'R' : 'L';
+      const vacancy = findVacantSpot(users, uplineId, finalPos);
+      uplineId = vacancy.upline_id;
+      finalPos = vacancy.position;
     }
 
     const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
@@ -53,8 +103,8 @@ export default async function handler(req: any, res: any) {
       id: newUserId,
       username: normalizedUsername,
       fullname: regData.fullname,
-      email: regData.email || "",
-      phone: regData.phone || "",
+      email: regData.email || `${normalizedUsername}@member.hedtrojeans.com`,
+      phone: regData.phone || "081234567890",
       password: regData.password || "password123",
       is_active: false,
       upline_id: uplineId,
@@ -74,7 +124,7 @@ export default async function handler(req: any, res: any) {
       firebase_uid: regData.firebase_uid || "",
       ktp: regData.ktp || "",
       whatsapp: regData.whatsapp || regData.phone || "",
-      bank_name: regData.bank_name || "",
+      bank_name: regData.bank_name || "BCA",
       bank_account: regData.bank_account || "",
       bank_holder: regData.bank_holder || regData.fullname || "",
       address: regData.address || "",
@@ -105,6 +155,9 @@ export default async function handler(req: any, res: any) {
       const errMsg = d1Result?.errors?.[0]?.message || (typeof d1Result === 'object' ? JSON.stringify(d1Result) : "D1 Query Failed");
       return res.status(500).json({ message: "Gagal menyimpan data member ke Cloudflare D1: " + errMsg });
     }
+
+    // Update ancestor counts in D1
+    await updateAncestorCountsD1(users, uplineId, finalPos);
 
     return res.status(201).json({ message: "Registrasi member berhasil!", user: newUser });
   } catch (err: any) {
