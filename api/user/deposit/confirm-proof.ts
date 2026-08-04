@@ -73,22 +73,71 @@ function setCorsHeaders(res: any) {
   } catch (e) {}
 }
 
+function sendJson(res: any, status: number, data: any) {
+  try { setCorsHeaders(res); } catch (e) {}
+  if (typeof res.status === "function") {
+    return res.status(status).json(data);
+  }
+  try {
+    res.statusCode = status;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(data));
+  } catch (e) {}
+}
+
 export default async function handler(req: any, res: any) {
   try { setCorsHeaders(res); } catch (e) {}
-  if (req.method === "OPTIONS") return res.status?.(200)?.end?.() || res.end?.();
+  if (req.method === "OPTIONS") return sendJson(res, 200, { ok: true });
+  if (req.method !== "POST") return sendJson(res, 405, { message: "Method Not Allowed" });
 
-  const resOrders = await queryD1("SELECT data_json FROM orders ORDER BY id DESC;").catch(() => null);
-  const orders: any[] = [];
-  if (resOrders?.success && Array.isArray(resOrders.result?.[0]?.results)) {
-    resOrders.result[0].results.forEach((row: any) => {
-      try { if (row.data_json) orders.push(JSON.parse(row.data_json)); } catch (e) {}
-    });
-  }
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const depositId = Number(body.depositId || body.deposit_id);
+    const proofImage = body.proofImage || body.proof_image;
+    const proofNotes = body.proofNotes || body.proof_notes || "";
 
-  if (typeof res.status === "function") {
-    return res.status(200).json(orders);
+    if (!depositId || !proofImage) {
+      return sendJson(res, 400, { message: "Deposit ID dan Bukti Foto harus diisi" });
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // 1. Fetch deposit record from D1
+    const resDep = await queryD1("SELECT data_json FROM deposits WHERE id=?;", [depositId]).catch(() => null);
+    let targetUserId = 0;
+    if (resDep?.success && resDep.result?.[0]?.results?.[0]?.data_json) {
+      try {
+        const depObj = JSON.parse(resDep.result[0].results[0].data_json);
+        depObj.proof_image = proofImage;
+        depObj.proof_notes = proofNotes;
+        depObj.proof_submitted_at = nowIso;
+        targetUserId = Number(depObj.user_id) || 0;
+
+        await queryD1(
+          "UPDATE deposits SET data_json=? WHERE id=?;",
+          [JSON.stringify(depObj), depositId]
+        ).catch(() => {});
+      } catch (e) {}
+    }
+
+    // 2. Also update matching order in orders table if user_id is found
+    if (targetUserId > 0) {
+      const resOrds = await queryD1("SELECT id, data_json FROM orders WHERE user_id=?;", [targetUserId]).catch(() => null);
+      if (resOrds?.success && Array.isArray(resOrds.result?.[0]?.results)) {
+        for (const row of resOrds.result[0].results) {
+          try {
+            const ordObj = JSON.parse(row.data_json);
+            ordObj.proof_image = proofImage;
+            ordObj.proof_notes = proofNotes;
+            ordObj.proof_submitted_at = nowIso;
+            await queryD1("UPDATE orders SET data_json=? WHERE id=?;", [JSON.stringify(ordObj), row.id]).catch(() => {});
+          } catch (e) {}
+        }
+      }
+    }
+
+    return sendJson(res, 200, { message: "Bukti transfer berhasil disimpan!", depositId });
+  } catch (err: any) {
+    return sendJson(res, 500, { message: "Gagal menyimpan bukti transfer: " + (err?.message || err) });
   }
-  res.statusCode = 200;
-  res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify(orders));
 }

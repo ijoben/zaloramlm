@@ -91,38 +91,78 @@ export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return sendJson(res, 405, { message: "Method Not Allowed" });
 
   try {
-    const depData = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-    if (!depData || !depData.user_id || !depData.amount) {
-      return sendJson(res, 400, { message: "Data deposit tidak valid" });
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const depositId = Number(body.depositId || body.id);
+    const action = body.action || 'approve';
+
+    if (!depositId) {
+      return sendJson(res, 400, { message: "Deposit ID harus diisi" });
     }
 
-    const newDep = {
-      id: Number(depData.id) || Date.now(),
-      user_id: Number(depData.user_id),
-      username: depData.username || "",
-      amount: Number(depData.amount),
-      unique_code: depData.unique_code !== undefined ? Number(depData.unique_code) : (100 + (Number(depData.id || Date.now()) % 899)),
-      method: depData.method || "qris",
-      status: depData.status || "pending",
-      payment_code: depData.payment_code || `DEP-${Date.now()}`,
-      created_at: depData.created_at || new Date().toISOString(),
-      proof_image: depData.proof_image || undefined,
-      proof_notes: depData.proof_notes || undefined,
-      proof_submitted_at: depData.proof_submitted_at || undefined
-    };
+    const newStatus = action === 'approve' ? 'success' : 'failed';
 
-    const jsonStr = JSON.stringify(newDep);
-    await queryD1(
-      `INSERT INTO deposits (id, user_id, username, amount, method, status, payment_code, data_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-       user_id=excluded.user_id, username=excluded.username, amount=excluded.amount, method=excluded.method,
-       status=excluded.status, payment_code=excluded.payment_code, data_json=excluded.data_json;`,
-      [newDep.id, newDep.user_id, newDep.username, newDep.amount, newDep.method, newDep.status, newDep.payment_code, jsonStr, newDep.created_at]
-    ).catch(() => {});
+    // 1. Fetch deposit
+    const resDep = await queryD1("SELECT data_json FROM deposits WHERE id=?;", [depositId]).catch(() => null);
+    let targetUserId = 0;
+    let depAmount = 0;
+    let depUsername = "";
 
-    return sendJson(res, 201, { message: "Pengajuan deposit berhasil!", deposit: newDep });
+    if (resDep?.success && resDep.result?.[0]?.results?.[0]?.data_json) {
+      try {
+        const depObj = JSON.parse(resDep.result[0].results[0].data_json);
+        depObj.status = newStatus;
+        targetUserId = Number(depObj.user_id) || 0;
+        depAmount = Number(depObj.amount) || 0;
+        depUsername = depObj.username || "";
+
+        await queryD1(
+          "UPDATE deposits SET status=?, data_json=? WHERE id=?;",
+          [newStatus, JSON.stringify(depObj), depositId]
+        ).catch(() => {});
+      } catch (e) {}
+    }
+
+    // 2. If approved and target user exists, update user status to active and update balance
+    if (action === 'approve' && targetUserId > 0) {
+      const resUser = await queryD1("SELECT data_json FROM users WHERE id=?;", [targetUserId]).catch(() => null);
+      if (resUser?.success && resUser.result?.[0]?.results?.[0]?.data_json) {
+        try {
+          const userObj = JSON.parse(resUser.result[0].results[0].data_json);
+          const isActivating = !userObj.is_active && depAmount >= 550000;
+          
+          userObj.is_active = true; // Always activate member on deposit approval!
+          if (!isActivating) {
+            userObj.balance = (Number(userObj.balance) || 0) + depAmount;
+          }
+
+          await queryD1(
+            "UPDATE users SET data_json=? WHERE id=?;",
+            [JSON.stringify(userObj), targetUserId]
+          ).catch(() => {});
+        } catch (e) {}
+      }
+
+      // 3. Also update any matching orders for this user to DIPROSES / DISETUJUI
+      const resOrds = await queryD1("SELECT id, data_json FROM orders WHERE user_id=?;", [targetUserId]).catch(() => null);
+      if (resOrds?.success && Array.isArray(resOrds.result?.[0]?.results)) {
+        for (const row of resOrds.result[0].results) {
+          try {
+            const ordObj = JSON.parse(row.data_json);
+            ordObj.status = "DIPROSES";
+            if (!ordObj.tracking_number) {
+              ordObj.tracking_number = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
+            }
+            await queryD1(
+              "UPDATE orders SET status=?, tracking_number=?, data_json=? WHERE id=?;",
+              ["DIPROSES", ordObj.tracking_number, JSON.stringify(ordObj), row.id]
+            ).catch(() => {});
+          } catch (e) {}
+        }
+      }
+    }
+
+    return sendJson(res, 200, { message: `Deposit #${depositId} berhasil ${action === 'approve' ? 'disetujui & diaktifkan' : 'ditolak'}!`, depositId, status: newStatus });
   } catch (err: any) {
-    return sendJson(res, 500, { message: "Gagal membuat deposit: " + (err?.message || err) });
+    return sendJson(res, 500, { message: "Gagal memproses deposit: " + (err?.message || err) });
   }
 }

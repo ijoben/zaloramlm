@@ -501,38 +501,15 @@ async function saveFirestoreOrder(ord: Order): Promise<void> {
 }
 
 async function updateFirestoreDepositStatus(depositId: number, status: 'success' | 'failed' | 'pending'): Promise<void> {
-  const deps = await fetchFirestoreDeposits();
-  const depData = deps.find(d => Number(d.id) === Number(depositId));
-
-  if (depData && status === 'success' && depData.status === 'pending') {
-    const users = await fetchFirestoreUsers();
-    const targetUser = users.find(u => Number(u.id) === Number(depData.user_id));
-    if (targetUser) {
-      const isActivating = !targetUser.is_active && depData.amount >= 550000;
-      const newBal = isActivating ? (Number(targetUser.balance) || 0) : ((Number(targetUser.balance) || 0) + depData.amount);
-      await updateFirestoreUserProfile(targetUser.id, { 
-        balance: newBal, 
-        is_active: isActivating ? true : targetUser.is_active 
-      });
-    }
-
-    await createFirestoreTransaction({
-      id: Date.now(),
-      user_id: depData.user_id,
-      username: depData.username,
-      type: "deposit",
-      amount: depData.amount,
-      description: `Deposit Saldo Berhasil via ${(depData.method || 'QRIS').toUpperCase()} (+Rp ${depData.amount.toLocaleString("id-ID")})`,
-      created_at: new Date().toISOString()
+  const action = status === 'success' ? 'approve' : 'reject';
+  try {
+    await fetch("/api/admin/deposit/process", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ depositId, action })
     });
-  }
-
-  if (db) {
-    try {
-      await setDoc(doc(db, "deposits", String(depositId)), { status }, { merge: true });
-    } catch (err) {
-      console.warn("Error updating deposit in Firestore:", err);
-    }
+  } catch (err) {
+    console.warn("Error updating deposit status via D1 API:", err);
   }
 }
 
@@ -606,32 +583,20 @@ async function deleteFirestoreProduct(productId: number): Promise<void> {
 }
 
 async function updateFirestoreUserProfile(userId: number, updateData: { fullname?: string; email?: string; phone?: string; whatsapp?: string; bank_name?: string; bank_account?: string; bank_holder?: string; address?: string; city?: string; password?: string; balance?: number; is_active?: boolean; sponsor_bonus?: number; pairing_bonus?: number; level_bonus?: number; ro_bonus?: number; wishlist?: number[]; profile_photo?: string }): Promise<void> {
-  if (db) {
-    try {
-      const cleanData: any = {};
-      if (updateData.fullname !== undefined) cleanData.fullname = updateData.fullname;
-      if (updateData.email !== undefined) cleanData.email = updateData.email;
-      if (updateData.phone !== undefined) cleanData.phone = updateData.phone;
-      if (updateData.whatsapp !== undefined) cleanData.whatsapp = updateData.whatsapp;
-      if (updateData.bank_name !== undefined) cleanData.bank_name = updateData.bank_name;
-      if (updateData.bank_account !== undefined) cleanData.bank_account = updateData.bank_account;
-      if (updateData.bank_holder !== undefined) cleanData.bank_holder = updateData.bank_holder;
-      if (updateData.address !== undefined) cleanData.address = updateData.address;
-      if (updateData.city !== undefined) cleanData.city = updateData.city;
-      if (updateData.password !== undefined) cleanData.password = updateData.password;
-      if (updateData.wishlist !== undefined) cleanData.wishlist = updateData.wishlist;
-      if (updateData.balance !== undefined) cleanData.balance = updateData.balance;
-      if (updateData.is_active !== undefined) cleanData.is_active = updateData.is_active;
-      if (updateData.sponsor_bonus !== undefined) cleanData.sponsor_bonus = updateData.sponsor_bonus;
-      if (updateData.pairing_bonus !== undefined) cleanData.pairing_bonus = updateData.pairing_bonus;
-      if (updateData.level_bonus !== undefined) cleanData.level_bonus = updateData.level_bonus;
-      if (updateData.ro_bonus !== undefined) cleanData.ro_bonus = updateData.ro_bonus;
-      if (updateData.profile_photo !== undefined) cleanData.profile_photo = updateData.profile_photo;
-
-      await setDoc(doc(db, "users", String(userId)), cleanData, { merge: true });
-    } catch (e) {
-      console.warn("Error updating user profile in Firestore:", e);
+  try {
+    const users = await fetchFirestoreUsers();
+    const target = users.find(u => Number(u.id) === Number(userId));
+    if (target) {
+      const mergedUser = { ...target, ...updateData };
+      await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mergedUser)
+      });
+      saveLocalStoredUser(mergedUser);
     }
+  } catch (err) {
+    console.warn("Error updating user profile via D1 API:", err);
   }
 }
 
@@ -2950,17 +2915,18 @@ export default function App() {
           proof_notes: proofNotes || '',
           proof_submitted_at: nowIso
         } : d),
-        orders: prev.orders ? prev.orders.map(o => ({
-          ...o,
-          proof_image: proofImage,
-          proof_notes: proofNotes || '',
-          proof_submitted_at: nowIso
-        })) : []
+        orders: prev.orders ? prev.orders.map(o => {
+          if (Number(o.user_id) === Number(currentUserRef.current?.id)) {
+            return { ...o, proof_image: proofImage, proof_notes: proofNotes || '', proof_submitted_at: nowIso };
+          }
+          return o;
+        }) : []
       };
     });
 
     setAdminDashboardData(prev => {
       if (!prev) return null;
+      const matchDep = prev.deposits.find(d => Number(d.id) === Number(depositId));
       return {
         ...prev,
         deposits: prev.deposits.map(d => Number(d.id) === Number(depositId) ? {
@@ -2969,12 +2935,12 @@ export default function App() {
           proof_notes: proofNotes || '',
           proof_submitted_at: nowIso
         } : d),
-        orders: prev.orders.map(o => ({
-          ...o,
-          proof_image: proofImage,
-          proof_notes: proofNotes || '',
-          proof_submitted_at: nowIso
-        }))
+        orders: prev.orders ? prev.orders.map(o => {
+          if (matchDep && Number(o.user_id) === Number(matchDep.user_id)) {
+            return { ...o, proof_image: proofImage, proof_notes: proofNotes || '', proof_submitted_at: nowIso };
+          }
+          return o;
+        }) : []
       };
     });
 
