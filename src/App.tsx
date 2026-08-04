@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, setDoc, getDoc, getDocs, collection, onSnapshot, deleteDoc } from "firebase/firestore";
-import { app, auth, db } from "./lib/firebase";
-import { resolvedFirebaseConfig } from "./lib/firebaseConfig";
+import { auth, db } from "./lib/firebase";
 import LandingPage from "./components/LandingPage";
 import UserDashboard from "./components/UserDashboard";
 import AdminDashboard from "./components/AdminDashboard";
@@ -94,20 +93,31 @@ function findVacantSpotClient(users: MLMUser[], rootId: number, preferredPositio
   }
 
   let currentId = Number(directChild.id);
+  const visited = new Set<number>();
+  visited.add(Number(rootId));
+
   while (true) {
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+
     const nextChild = users.find(u => Number(u.upline_id) === Number(currentId) && u.position === pos);
     if (!nextChild) {
       return { upline_id: currentId, position: pos };
     }
     currentId = Number(nextChild.id);
   }
+  return { upline_id: Number(rootId) || 1, position: pos };
 }
 
 async function updateAncestorCountsClient(users: MLMUser[], uplineId: number, position: 'L' | 'R') {
   let currUplineId: number | null = uplineId;
   let childPos: 'L' | 'R' = position;
+  const visited = new Set<number>();
 
   while (currUplineId !== null && currUplineId !== undefined) {
+    if (visited.has(currUplineId)) break;
+    visited.add(currUplineId);
+
     const upline = users.find(u => Number(u.id) === Number(currUplineId));
     if (!upline) break;
 
@@ -126,7 +136,9 @@ async function updateAncestorCountsClient(users: MLMUser[], uplineId: number, po
     }
 
     childPos = upline.position === 'R' ? 'R' : 'L';
-    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+    const nextUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+    if (nextUplineId === currUplineId) break;
+    currUplineId = nextUplineId;
   }
 }
 
@@ -588,10 +600,10 @@ async function updateFirestoreUserProfile(userId: number, updateData: { fullname
     const target = users.find(u => Number(u.id) === Number(userId));
     if (target) {
       const mergedUser = { ...target, ...updateData };
-      await fetch("/api/auth/register", {
+      await fetch(`/api/user/${userId}/profile`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mergedUser)
+        body: JSON.stringify(updateData)
       });
       saveLocalStoredUser(mergedUser);
     }
@@ -1491,8 +1503,8 @@ export default function App() {
           setIsSubmittingLogin(false);
           setActiveView('dashboard');
           return;
-        } else if (res.status === 401) {
-          // Explicit wrong password error from backend
+        } else if (res.status === 401 || res.status === 400 || res.status === 404) {
+          // Explicit error from backend (wrong password / not found)
           const data = await res.json().catch(() => ({}));
           if (data.message) {
             setLoginError(data.message);
@@ -2416,14 +2428,16 @@ export default function App() {
         // Re-assign orphan children in Firestore to ID 1 so network tree stays intact
         try {
           const currentFsUsers = await fetchFirestoreUsers();
-          for (const u of currentFsUsers) {
-            if (Number(u.upline_id) === targetNumId || Number(u.sponsor_id) === targetNumId) {
-              const updated = {
-                ...u,
-                upline_id: Number(u.upline_id) === targetNumId ? 1 : u.upline_id,
-                sponsor_id: Number(u.sponsor_id) === targetNumId ? 1 : u.sponsor_id
-              };
-              await setDoc(doc(db, "users", String(u.id)), updated, { merge: true });
+          if (db) {
+            for (const u of currentFsUsers) {
+              if (Number(u.upline_id) === targetNumId || Number(u.sponsor_id) === targetNumId) {
+                const updated = {
+                  ...u,
+                  upline_id: Number(u.upline_id) === targetNumId ? 1 : u.upline_id,
+                  sponsor_id: Number(u.sponsor_id) === targetNumId ? 1 : u.sponsor_id
+                };
+                await setDoc(doc(db, "users", String(u.id)), updated, { merge: true });
+              }
             }
           }
         } catch (e) {

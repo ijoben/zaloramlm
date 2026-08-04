@@ -129,7 +129,6 @@ try {
 } catch (e) {}
 
 const withTimeout = async (p: any, _ms?: number, _desc?: string) => await p;
-const processRegistrationBonusAndTree = (...args: any[]) => {};
 
 const app = express();
 const PORT = 3000;
@@ -824,8 +823,12 @@ async function activateUserMLM(userId: number) {
 async function updateAncestorCounts(uplineId: number, position: 'L' | 'R') {
   let currUplineId: number | null = uplineId;
   let childPos: 'L' | 'R' = position;
+  const visited = new Set<number>();
 
   while (currUplineId !== null && currUplineId !== undefined) {
+    if (visited.has(currUplineId)) break;
+    visited.add(currUplineId);
+
     const upline = users.find(u => Number(u.id) === Number(currUplineId));
     if (!upline) break;
 
@@ -837,7 +840,9 @@ async function updateAncestorCounts(uplineId: number, position: 'L' | 'R') {
     await syncUserToFirestore(upline);
 
     childPos = upline.position === 'R' ? 'R' : 'L';
-    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+    const nextId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+    if (nextId === currUplineId) break;
+    currUplineId = nextId;
   }
 }
 
@@ -877,15 +882,22 @@ function findVacantSpot(rootId: number, preferredPosition?: 'L' | 'R'): { upline
     return { upline_id: Number(rootId), position: pos };
   }
 
-  // Recursive search downwards following that leg
+  // Recursive search downwards following that leg with cycle detection
   let currentId = Number(directChild.id);
+  const visited = new Set<number>();
+  visited.add(Number(rootId));
+
   while (true) {
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+
     const nextChild = users.find(u => Number(u.upline_id) === Number(currentId) && u.position === pos);
     if (!nextChild) {
       return { upline_id: currentId, position: pos };
     }
     currentId = Number(nextChild.id);
   }
+  return { upline_id: Number(rootId), position: pos };
 }
 
 // ==========================================
@@ -929,126 +941,6 @@ app.post(["/api/admin/settings", "/admin/settings"], async (req, res) => {
   systemSettings = { ...systemSettings, ...newSettings };
   await syncSettingsToFirestore(systemSettings);
   res.json({ message: "Pengaturan sistem & bonus komisi berhasil disimpan ke Firestore", settings: systemSettings });
-});
-
-// Process Deposit (Approve / Reject) by Admin
-app.post(["/api/admin/deposit/process", "/admin/deposit/process"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const { depositId, action } = req.body;
-    const depId = Number(depositId);
-    const dep = deposits.find(d => Number(d.id) === depId);
-    if (!dep) return res.status(404).json({ message: "Deposit tidak ditemukan" });
-
-    if (action === "approve" || action === "success") {
-      dep.status = "success";
-      const targetUser = users.find(u => Number(u.id) === Number(dep.user_id));
-      if (targetUser) {
-        const isActivating = !targetUser.is_active && dep.amount >= 550000;
-        if (isActivating) {
-          targetUser.is_active = true;
-          await processRegistrationBonusAndTree(targetUser);
-        } else {
-          targetUser.balance = (Number(targetUser.balance) || 0) + dep.amount;
-        }
-        await syncUserToFirestore(targetUser);
-      }
-
-      const tx: Transaction = {
-        id: Date.now(),
-        user_id: dep.user_id,
-        username: dep.username,
-        type: "deposit",
-        amount: dep.amount,
-        description: `Deposit Saldo Berhasil via ${(dep.method || 'QRIS').toUpperCase()} (+Rp ${dep.amount.toLocaleString("id-ID")})`,
-        created_at: new Date().toISOString()
-      };
-      transactions.unshift(tx);
-      await syncTransactionToFirestore(tx);
-    } else if (action === "reject" || action === "failed") {
-      dep.status = "failed";
-    }
-
-    await syncDepositToFirestore(dep);
-    res.json({ message: `Deposit berhasil di-${action === 'approve' ? 'setujui' : 'tolak'}`, deposit: dep });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal memproses deposit: " + (err?.message || err) });
-  }
-});
-
-// Process Withdrawal (Approve / Reject) by Admin
-app.post(["/api/admin/withdraw/process", "/admin/withdraw/process"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const { wdId, action } = req.body;
-    const id = Number(wdId);
-    const wd = withdrawals.find(w => Number(w.id) === id);
-    if (!wd) return res.status(404).json({ message: "Penarikan tidak ditemukan" });
-
-    if (action === "approve" || action === "success") {
-      wd.status = "success";
-      const tx: Transaction = {
-        id: Date.now(),
-        user_id: wd.user_id,
-        username: wd.username,
-        type: "withdrawal",
-        amount: wd.amount,
-        description: `Penarikan Dana (#WD-${id}) Disetujui Admin - Transfer ke Bank ${wd.bank_name}`,
-        created_at: new Date().toISOString()
-      };
-      transactions.unshift(tx);
-      await syncTransactionToFirestore(tx);
-    } else if (action === "reject" || action === "failed") {
-      wd.status = "rejected";
-      // Refund user balance
-      const targetUser = users.find(u => Number(u.id) === Number(wd.user_id));
-      if (targetUser) {
-        targetUser.balance = (Number(targetUser.balance) || 0) + wd.amount;
-        await syncUserToFirestore(targetUser);
-      }
-    }
-
-    await syncWithdrawalToFirestore(wd);
-    res.json({ message: `Penarikan berhasil di-${action === 'approve' ? 'setujui' : 'tolak'}`, withdrawal: wd });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal memproses penarikan: " + (err?.message || err) });
-  }
-});
-
-// Get All Users (Admin / Client sync)
-app.get(["/api/users", "/users"], async (req, res) => {
-  await initFirestoreDataOnce();
-  res.json(users);
-});
-
-
-
-// Authentication: Login
-app.post(["/api/auth/login", "/auth/login"], async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-    const { username, password } = req.body;
-    if (!username) return res.status(400).json({ message: "Username/Email harus diisi" });
-
-    const normalized = String(username).toLowerCase().trim();
-    const user = users.find(u => 
-      u.username?.toLowerCase().trim() === normalized || 
-      u.email?.toLowerCase().trim() === normalized
-    );
-
-    if (!user) {
-      return res.status(404).json({ message: "Username atau email tidak ditemukan" });
-    }
-
-    const expectedPass = user.password || (user.role === 'admin' || user.id === 1 ? "admin123" : "user123");
-    if (password && password !== expectedPass) {
-      return res.status(401).json({ message: "Password salah!" });
-    }
-
-    res.json({ message: "Login berhasil", user });
-  } catch (err: any) {
-    res.status(500).json({ message: "Gagal login: " + (err?.message || err) });
-  }
 });
 
 // Get All Deposits
@@ -1602,8 +1494,6 @@ app.post("/api/user/activate", async (req, res) => {
   if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
   if (user.is_active) return res.status(400).json({ message: "User sudah aktif" });
 
-  // Simulate payment
-  user.balance -= 550000;
   const success = await activateUserMLM(userId);
 
   if (success) {
@@ -1632,7 +1522,7 @@ app.post("/api/payment/simulate-gateway", async (req, res) => {
     
     // Log transaction
     const newTx: Transaction = {
-      id: transactions.length + 1,
+      id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
       user_id: user.id,
       username: user.username,
       type: "deposit",
@@ -1644,7 +1534,7 @@ app.post("/api/payment/simulate-gateway", async (req, res) => {
     await syncTransactionToFirestore(newTx);
 
     const newNotif: MLMNotification = {
-      id: notifications.length + 1,
+      id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
       user_id: user.id,
       title: "Deposit Berhasil!",
       message: `Saldo Rp ${dep.amount.toLocaleString()} telah berhasil ditambahkan via payment gateway otomatis.`,
@@ -1693,7 +1583,7 @@ app.post("/api/payment/midtrans-webhook", async (req, res) => {
       
       // Log transaction
       const newTx: Transaction = {
-        id: transactions.length + 1,
+        id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
         user_id: user.id,
         username: user.username,
         type: "deposit",
@@ -1705,7 +1595,7 @@ app.post("/api/payment/midtrans-webhook", async (req, res) => {
       await syncTransactionToFirestore(newTx);
 
       const newNotif: MLMNotification = {
-        id: notifications.length + 1,
+        id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
         user_id: user.id,
         title: "Deposit Otomatis Berhasil!",
         message: `Saldo Rp ${dep.amount.toLocaleString()} telah berhasil ditambahkan via Midtrans QRIS/VA otomatis.`,
@@ -1723,7 +1613,7 @@ app.post("/api/payment/midtrans-webhook", async (req, res) => {
     const user = users.find(u => u.id === dep.user_id);
     if (user) {
       const newNotif: MLMNotification = {
-        id: notifications.length + 1,
+        id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
         user_id: user.id,
         title: "Pembayaran Deposit Gagal / Expired",
         message: `Pembayaran deposit Rp ${dep.amount.toLocaleString()} Anda dibatalkan atau telah kedaluwarsa oleh sistem Midtrans.`,
@@ -1752,7 +1642,7 @@ app.post("/api/user/deposit", async (req, res) => {
 
   const numUniqueCode = Number(uniqueCode) || Math.floor(100 + Math.random() * 900);
 
-  const newDepId = deposits.length + 1;
+  const newDepId = Math.max(...deposits.map(d => Number(d.id) || 0), 0) + 1;
   const midtransOrderId = `DEP-MID-${newDepId}-${Date.now()}`;
   let paymentCode = method === 'qris' 
     ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=HedtroJeansQRISDep${numAmount + numUniqueCode}`
@@ -1940,7 +1830,7 @@ app.post("/api/user/withdraw", async (req, res) => {
   user.balance -= numAmount;
 
   const newWD: WDRequest = {
-    id: withdrawals.length + 1,
+    id: Math.max(...withdrawals.map(w => Number(w.id) || 0), 0) + 1,
     user_id: user.id,
     username: user.username,
     amount: numAmount,
@@ -1957,7 +1847,7 @@ app.post("/api/user/withdraw", async (req, res) => {
 
   // Log transaction
   const newTx: Transaction = {
-    id: transactions.length + 1,
+    id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
     user_id: user.id,
     username: user.username,
     type: "withdrawal",
@@ -1970,7 +1860,7 @@ app.post("/api/user/withdraw", async (req, res) => {
 
   if (isAutoPayout) {
     const newNotif: MLMNotification = {
-      id: notifications.length + 1,
+      id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
       user_id: user.id,
       title: "Penarikan Sukses!",
       message: `Dana Rp ${numAmount.toLocaleString()} berhasil dikirim otomatis ke rekening ${bankName} Anda.`,
@@ -1981,7 +1871,7 @@ app.post("/api/user/withdraw", async (req, res) => {
     await syncNotificationToFirestore(newNotif);
   } else {
     const newNotif: MLMNotification = {
-      id: notifications.length + 1,
+      id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
       user_id: user.id,
       title: "Penarikan Diproses",
       message: `Permintaan penarikan Rp ${numAmount.toLocaleString()} sedang antre verifikasi admin.`,
@@ -2015,7 +1905,7 @@ app.post("/api/admin/withdraw/process", async (req, res) => {
     await syncWithdrawalToFirestore(wd);
     if (user) {
       const newNotif: MLMNotification = {
-        id: notifications.length + 1,
+        id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
         user_id: user.id,
         title: "Penarikan Disetujui!",
         message: `Penarikan dana Rp ${wd.amount.toLocaleString()} telah disetujui admin dan ditransfer ke rekening ${wd.bank_name}.`,
@@ -2034,7 +1924,7 @@ app.post("/api/admin/withdraw/process", async (req, res) => {
       await syncUserToFirestore(user);
       
       const newTx: Transaction = {
-        id: transactions.length + 1,
+        id: Math.max(...transactions.map(t => Number(t.id) || 0), 0) + 1,
         user_id: user.id,
         username: user.username,
         type: "deposit",
@@ -2046,7 +1936,7 @@ app.post("/api/admin/withdraw/process", async (req, res) => {
       await syncTransactionToFirestore(newTx);
 
       const newNotif: MLMNotification = {
-        id: notifications.length + 1,
+        id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
         user_id: user.id,
         title: "Penarikan Ditolak",
         message: `Penarikan Rp ${wd.amount.toLocaleString()} ditolak admin. Saldo Anda telah dikembalikan.`,
@@ -2432,14 +2322,6 @@ app.post("/api/user/purchase", async (req, res) => {
 // ==========================================
 // ORDERS & TRACKING API ENDPOINTS
 // ==========================================
-
-// GET All Orders
-app.get("/api/orders", async (req, res) => {
-  try {
-    await initFirestoreDataOnce();
-  } catch {}
-  res.json(orders);
-});
 
 // Track Order Endpoint
 app.post("/api/orders/track", async (req, res) => {

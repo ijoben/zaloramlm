@@ -4,7 +4,7 @@ import { DEFAULT_PRODUCTS } from "../data/defaultProducts";
 import { 
   ShoppingBag, Heart, Search, Truck, ChevronLeft, ChevronRight, ChevronDown, HelpCircle,
   X, Check, Menu, Filter, ArrowRight, User, ShieldCheck, Sparkles,
-  Tag, Clock, MapPin, Eye, RefreshCw, Star, Package, LayoutGrid, List, FileText, Workflow
+  Tag, Clock, MapPin, Eye, RefreshCw, Star, Package, LayoutGrid, List, FileText
 } from "lucide-react";
 import WorkflowModal from "./WorkflowModal";
 
