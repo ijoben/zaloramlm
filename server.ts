@@ -785,8 +785,12 @@ async function activateUserMLM(userId: number) {
 async function updateAncestorCounts(uplineId: number, position: 'L' | 'R') {
   let currUplineId: number | null = uplineId;
   let childPos: 'L' | 'R' = position;
+  const visited = new Set<number>();
 
-  while (currUplineId !== null && currUplineId !== undefined) {
+  while (currUplineId !== null && currUplineId !== undefined && currUplineId > 0) {
+    if (visited.has(currUplineId)) break;
+    visited.add(currUplineId);
+
     const upline = users.find(u => Number(u.id) === Number(currUplineId));
     if (!upline) break;
 
@@ -797,8 +801,12 @@ async function updateAncestorCounts(uplineId: number, position: 'L' | 'R') {
     }
     await syncUserToFirestore(upline);
 
+    if (!upline.upline_id || Number(upline.upline_id) === Number(upline.id)) {
+      break;
+    }
+
     childPos = upline.position === 'R' ? 'R' : 'L';
-    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+    currUplineId = Number(upline.upline_id);
   }
 }
 
@@ -828,7 +836,7 @@ function buildBinaryTreeResponse(userId: number, depth: number = 0, maxDepth: nu
 // Find a vacant spot in binary tree under parent (for automated registration fallback)
 function findVacantSpot(rootId: number, preferredPosition?: 'L' | 'R'): { upline_id: number, position: 'L' | 'R' } {
   const root = users.find(u => Number(u.id) === Number(rootId));
-  if (!root) throw new Error("Root upline not found");
+  if (!root) return { upline_id: Number(rootId) || 1, position: preferredPosition || 'L' };
 
   const pos = preferredPosition || "L";
 
@@ -840,13 +848,18 @@ function findVacantSpot(rootId: number, preferredPosition?: 'L' | 'R'): { upline
 
   // Recursive search downwards following that leg
   let currentId = Number(directChild.id);
+  const visited = new Set<number>([Number(rootId)]);
   while (true) {
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+
     const nextChild = users.find(u => Number(u.upline_id) === Number(currentId) && u.position === pos);
     if (!nextChild) {
       return { upline_id: currentId, position: pos };
     }
     currentId = Number(nextChild.id);
   }
+  return { upline_id: Number(rootId), position: pos };
 }
 
 // ==========================================

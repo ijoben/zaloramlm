@@ -92,20 +92,29 @@ function findVacantSpotClient(users: MLMUser[], rootId: number, preferredPositio
   }
 
   let currentId = Number(directChild.id);
+  const visited = new Set<number>([Number(rootId)]);
   while (true) {
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+
     const nextChild = users.find(u => Number(u.upline_id) === Number(currentId) && u.position === pos);
     if (!nextChild) {
       return { upline_id: currentId, position: pos };
     }
     currentId = Number(nextChild.id);
   }
+  return { upline_id: Number(rootId), position: pos };
 }
 
 async function updateAncestorCountsClient(users: MLMUser[], uplineId: number, position: 'L' | 'R') {
   let currUplineId: number | null = uplineId;
   let childPos: 'L' | 'R' = position;
+  const visited = new Set<number>();
 
-  while (currUplineId !== null && currUplineId !== undefined) {
+  while (currUplineId !== null && currUplineId !== undefined && currUplineId > 0) {
+    if (visited.has(currUplineId)) break;
+    visited.add(currUplineId);
+
     const upline = users.find(u => Number(u.id) === Number(currUplineId));
     if (!upline) break;
 
@@ -126,8 +135,12 @@ async function updateAncestorCountsClient(users: MLMUser[], uplineId: number, po
       }
     }
 
+    if (!upline.upline_id || Number(upline.upline_id) === Number(upline.id)) {
+      break;
+    }
+
     childPos = upline.position === 'R' ? 'R' : 'L';
-    currUplineId = upline.upline_id !== null && upline.upline_id !== undefined ? Number(upline.upline_id) : null;
+    currUplineId = Number(upline.upline_id);
   }
 }
 
@@ -1536,33 +1549,18 @@ export default function App() {
     const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "").trim();
 
     try {
-      // 1. Try Supabase Auth sign up (non-blocking)
-      if (supabase) {
-        try {
-          await supabase.auth.signUp({
-            email: regEmail,
-            password: regPassword,
-            options: {
-              data: {
-                fullname: regFullname,
-                username: createdUsername,
-                phone: regPhone
-              }
-            }
-          }).catch(err => console.warn("Supabase Auth SignUp notice:", err));
-        } catch (sbErr) {
-          console.warn("Supabase auth signUp catch notice:", sbErr);
-        }
-      }
-
-      // 2. Try API register endpoint first
       let apiSuccess = false;
       let regUserObj: MLMUser | null = null;
 
+      // 1. Try API register endpoint first
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
         const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             username: createdUsername,
             fullname: regFullname,
@@ -1584,6 +1582,7 @@ export default function App() {
             jeans_color: regJeansColor
           })
         });
+        clearTimeout(timeoutId);
 
         const data = await res.json().catch(() => ({}));
 
@@ -1595,15 +1594,16 @@ export default function App() {
         } else {
           if (data && data.message) {
             alert(data.message);
+            setIsSubmittingRegister(false);
             return;
           }
         }
       } catch (apiErr) {
-        console.warn("Backend API unavailable, saving directly to Supabase database...", apiErr);
+        console.warn("Backend API unavailable/timeout, saving directly to Supabase database...", apiErr);
       }
 
-      // 3. Fallback direct Supabase write if API backend was unavailable
-      if (!apiSuccess) {
+      // 2. Fallback direct Supabase write if API backend was unavailable
+      if (!apiSuccess || !regUserObj) {
         regUserObj = await registerUserToFirestoreDirect({
           username: createdUsername,
           fullname: regFullname,
@@ -1634,20 +1634,21 @@ export default function App() {
       // Direct login to member dashboard
       setCurrentUser(regUserObj);
 
-      // Refresh users list so new member appears in Admin Management & User list immediately
-      const updatedUsersList = await fetchFirestoreUsers();
-      setAdminDashboardData(prev => prev ? {
-        ...prev,
-        users: updatedUsersList,
-        metrics: {
-          ...prev.metrics,
-          totalMembers: updatedUsersList.length,
-          activeMembers: updatedUsersList.filter(u => u.is_active).length,
-          inactiveMembers: updatedUsersList.filter(u => !u.is_active).length
-        }
-      } : null);
+      // Refresh users list in background so new member appears in Admin Management
+      fetchFirestoreUsers().then(updatedUsersList => {
+        setAdminDashboardData(prev => prev ? {
+          ...prev,
+          users: updatedUsersList,
+          metrics: {
+            ...prev.metrics,
+            totalMembers: updatedUsersList.length,
+            activeMembers: updatedUsersList.filter(u => u.is_active).length,
+            inactiveMembers: updatedUsersList.filter(u => !u.is_active).length
+          }
+        } : null);
+      }).catch(err => console.warn("Background user list update notice:", err));
 
-      // 4. Create initial order record for new member
+      // 3. Create initial order record for new member
       const newOrdId = Date.now();
       const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
       const regOrder: Order = {
@@ -1677,7 +1678,8 @@ export default function App() {
           { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
         ]
       };
-      await saveFirestoreOrder(regOrder);
+      
+      saveFirestoreOrder(regOrder).catch(err => console.warn("Order save notice:", err));
       setOrders(prev => [regOrder, ...prev]);
 
       // Reset form states
