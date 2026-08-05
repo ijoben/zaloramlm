@@ -8,7 +8,7 @@ import { MLMUser, Product, Transaction, DepositRequest, WDRequest, BinaryTreeNod
 import { DEFAULT_PRODUCTS } from "./data/defaultProducts";
 import { DEFAULT_USERS } from "./data/defaultUsers";
 import { DEFAULT_ORDERS } from "./data/defaultOrders";
-import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send, User, CreditCard, ShoppingBag, Users } from "lucide-react";
+import { LogIn, Key, ShieldCheck, Download, Award, X, Copy, Check, Info, RefreshCw, CheckCircle, Mail, Lock, Send, User, CreditCard, ShoppingBag, Users, Loader2 } from "lucide-react";
 
 // Local Storage Registered Users Cache Helper
 function getLocalRegisteredUsers(): MLMUser[] {
@@ -893,6 +893,7 @@ export default function App() {
   const [regUpline, setRegUpline] = useState('');
   const [regPosition, setRegPosition] = useState<'L' | 'R'>('L');
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
+  const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
 
   // Dynamic branding & configuration settings
   const [systemSettings, setSystemSettings] = useState<any>({
@@ -1504,6 +1505,8 @@ export default function App() {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRegister) return;
+
     if (!regUsername) {
       alert("Mohon isi username akun Anda.");
       return;
@@ -1520,14 +1523,23 @@ export default function App() {
       alert("Mohon masukkan email Anda.");
       return;
     }
+    if (!regFullname) {
+      alert("Mohon masukkan nama lengkap Anda.");
+      return;
+    }
+    if (!regPhone) {
+      alert("Mohon masukkan nomor telepon Anda.");
+      return;
+    }
 
-    const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "");
+    setIsSubmittingRegister(true);
+    const createdUsername = regUsername.toLowerCase().replace(/\s+/g, "").trim();
 
     try {
-      // 1. Try Supabase Auth sign up
+      // 1. Try Supabase Auth sign up (non-blocking)
       if (supabase) {
         try {
-          const { data: sbAuthData, error: sbAuthErr } = await supabase.auth.signUp({
+          await supabase.auth.signUp({
             email: regEmail,
             password: regPassword,
             options: {
@@ -1537,12 +1549,7 @@ export default function App() {
                 phone: regPhone
               }
             }
-          });
-          if (sbAuthErr) {
-            console.warn("⚠️ Supabase Auth SignUp Notice:", sbAuthErr.message);
-          } else {
-            console.log("✅ Supabase Auth SignUp Success:", sbAuthData);
-          }
+          }).catch(err => console.warn("Supabase Auth SignUp notice:", err));
         } catch (sbErr) {
           console.warn("Supabase auth signUp catch notice:", sbErr);
         }
@@ -1550,6 +1557,8 @@ export default function App() {
 
       // 2. Try API register endpoint first
       let apiSuccess = false;
+      let regUserObj: MLMUser | null = null;
+
       try {
         const res = await fetch("/api/auth/register", {
           method: "POST",
@@ -1575,11 +1584,16 @@ export default function App() {
             jeans_color: regJeansColor
           })
         });
+
+        const data = await res.json().catch(() => ({}));
+
         if (res.ok) {
           apiSuccess = true;
+          if (data && data.user) {
+            regUserObj = data.user;
+          }
         } else {
-          const data = await res.json().catch(() => ({}));
-          if (data.message) {
+          if (data && data.message) {
             alert(data.message);
             return;
           }
@@ -1588,8 +1602,7 @@ export default function App() {
         console.warn("Backend API unavailable, saving directly to Supabase database...", apiErr);
       }
 
-      // 3. Direct Supabase write if API backend unavailable
-      let regUserObj: MLMUser | null = null;
+      // 3. Fallback direct Supabase write if API backend was unavailable
       if (!apiSuccess) {
         regUserObj = await registerUserToFirestoreDirect({
           username: createdUsername,
@@ -1611,47 +1624,15 @@ export default function App() {
           jeans_size: regJeansSize,
           jeans_color: regJeansColor
         });
-      } else {
-        regUserObj = {
-          id: Date.now(),
-          username: createdUsername,
-          fullname: regFullname,
-          email: regEmail,
-          phone: regPhone,
-          password: regPassword,
-          is_active: true,
-          upline_id: 1,
-          position: regPosition || 'L',
-          sponsor_id: 1,
-          balance: 0,
-          sponsor_bonus: 0,
-          pairing_bonus: 0,
-          level_bonus: 0,
-          ro_bonus: 0,
-          left_count: 0,
-          right_count: 0,
-          left_sales: 0,
-          right_sales: 0,
-          created_at: new Date().toISOString(),
-          role: "user",
-          ktp: regKtp || "",
-          whatsapp: regWhatsapp || regPhone,
-          bank_name: regBankName || "",
-          bank_account: regBankAccount || "",
-          bank_holder: regBankHolder || regFullname,
-          address: regAddress || "",
-          city: regCity || "",
-          serial_no: regSerialNo || "",
-          jeans_size: regJeansSize || "",
-          jeans_color: regJeansColor || ""
-        };
       }
 
-      if (regUserObj) {
-        saveLocalRegisteredUser(regUserObj);
-        // Direct login to member dashboard
-        setCurrentUser(regUserObj);
+      if (!regUserObj) {
+        throw new Error("Gagal memproses pendaftaran member baru.");
       }
+
+      saveLocalRegisteredUser(regUserObj);
+      // Direct login to member dashboard
+      setCurrentUser(regUserObj);
 
       // Refresh users list so new member appears in Admin Management & User list immediately
       const updatedUsersList = await fetchFirestoreUsers();
@@ -1672,7 +1653,7 @@ export default function App() {
       const regOrder: Order = {
         id: newOrdId,
         invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
-        user_id: regUserObj?.id || 0,
+        user_id: regUserObj.id,
         username: createdUsername,
         fullname: regFullname,
         phone: regPhone,
@@ -1720,10 +1701,12 @@ export default function App() {
       setShowRegisterModal(false);
       setActiveView('dashboard');
       fetchDashboardData();
-      alert(`Selamat, Pendaftaran Berhasil! Anda telah terdaftar dan langsung masuk sebagai member.`);
+      alert(`Selamat ${regFullname}! Pendaftaran Berhasil. Anda telah terdaftar dan langsung masuk ke Dashboard Member.`);
     } catch (err: any) {
       console.error("Error during registration:", err);
       alert(err.message || "Pendaftaran gagal, silakan periksa data Anda.");
+    } finally {
+      setIsSubmittingRegister(false);
     }
   };
 
@@ -3480,9 +3463,20 @@ export default function App() {
                 <button
                   type="submit"
                   id="btn-modal-register-submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-1.5 mt-2"
+                  disabled={isSubmittingRegister}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold py-3 rounded-xl transition text-xs shadow flex items-center justify-center gap-1.5 mt-2 cursor-pointer disabled:cursor-not-allowed"
                 >
-                  <Award className="w-4 h-4 text-white" /> Daftar Sekarang
+                  {isSubmittingRegister ? (
+                    <>
+                      <Loader2 className="w-4 h-4 text-white animate-spin" />
+                      <span>Memproses Pendaftaran...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Award className="w-4 h-4 text-white" />
+                      <span>Daftar Sekarang</span>
+                    </>
+                  )}
                 </button>
               </form>
             )}
