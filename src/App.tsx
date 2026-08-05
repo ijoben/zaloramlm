@@ -622,15 +622,58 @@ async function updateFirestoreUserProfile(userId: number, updateData: { fullname
   }
 }
 
+function getStoredUser(): MLMUser | null {
+  try {
+    const raw = localStorage.getItem('hedtro_current_user');
+    if (raw) return JSON.parse(raw);
+  } catch (err) {
+    console.warn("Failed reading stored user:", err);
+  }
+  return null;
+}
+
+function getStoredActiveView(): 'landing' | 'dashboard' | 'php-source' {
+  try {
+    const user = getStoredUser();
+    const storedView = localStorage.getItem('hedtro_active_view') as any;
+    if (user) {
+      if (storedView && ['landing', 'dashboard', 'php-source'].includes(storedView)) {
+        return storedView;
+      }
+      return 'dashboard';
+    }
+  } catch (err) {
+    console.warn("Failed reading stored view:", err);
+  }
+  return 'landing';
+}
+
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<MLMUser | null>(null);
-  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>('landing');
+  const [currentUser, setCurrentUser] = useState<MLMUser | null>(getStoredUser);
+  const [activeView, setActiveView] = useState<'landing' | 'dashboard' | 'php-source'>(getStoredActiveView);
 
   const currentUserRef = React.useRef<MLMUser | null>(currentUser);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
+    if (currentUser) {
+      try {
+        localStorage.setItem('hedtro_current_user', JSON.stringify(currentUser));
+      } catch (err) {
+        console.warn("Failed setting stored user:", err);
+      }
+    } else {
+      localStorage.removeItem('hedtro_current_user');
+    }
   }, [currentUser]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('hedtro_active_view', activeView);
+    } catch (err) {
+      console.warn("Failed setting stored view:", err);
+    }
+  }, [activeView]);
 
   // Listen for Supabase Auth state changes if logged in
   const [sbSession, setSbSession] = useState<any>(null);
@@ -2637,6 +2680,15 @@ export default function App() {
 
   const handleLogout = () => {
     currentUserRef.current = null;
+    try {
+      localStorage.removeItem('hedtro_current_user');
+      localStorage.removeItem('hedtro_active_view');
+      if (window.location.hash) {
+        window.history.pushState("", document.title, window.location.pathname + window.location.search);
+      }
+    } catch (e) {
+      console.warn("Error clearing localStorage on logout:", e);
+    }
     if (supabase) {
       supabase.auth.signOut().catch(() => {});
     }
