@@ -148,6 +148,9 @@ async function registerUserToFirestoreDirect(regData: {
   bank_holder?: string;
   address?: string;
   city?: string;
+  serial_no?: string;
+  jeans_size?: string;
+  jeans_color?: string;
 }): Promise<MLMUser> {
   const users = await fetchFirestoreUsers();
 
@@ -209,7 +212,10 @@ async function registerUserToFirestoreDirect(regData: {
     bank_account: regData.bank_account || "",
     bank_holder: regData.bank_holder || regData.fullname || "",
     address: regData.address || "",
-    city: regData.city || ""
+    city: regData.city || "",
+    serial_no: regData.serial_no || "",
+    jeans_size: regData.jeans_size || "",
+    jeans_color: regData.jeans_color || ""
   };
 
   const updatedUsers = [...users, newUser];
@@ -878,6 +884,9 @@ export default function App() {
   const [regBankHolder, setRegBankHolder] = useState('');
   const [regAddress, setRegAddress] = useState('');
   const [regCity, setRegCity] = useState('');
+  const [regSerialNo, setRegSerialNo] = useState('');
+  const [regJeansSize, setRegJeansSize] = useState('30');
+  const [regJeansColor, setRegJeansColor] = useState('Indigo Blue Raw');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regSponsor, setRegSponsor] = useState('');
@@ -1495,6 +1504,10 @@ export default function App() {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!regUsername) {
+      alert("Mohon isi username akun Anda.");
+      return;
+    }
     if (!regPassword) {
       alert("Mohon buat kata sandi untuk akun Anda.");
       return;
@@ -1556,7 +1569,10 @@ export default function App() {
             bank_account: regBankAccount,
             bank_holder: regBankHolder || regFullname,
             address: regAddress,
-            city: regCity
+            city: regCity,
+            serial_no: regSerialNo,
+            jeans_size: regJeansSize,
+            jeans_color: regJeansColor
           })
         });
         if (res.ok) {
@@ -1590,7 +1606,10 @@ export default function App() {
           bank_account: regBankAccount,
           bank_holder: regBankHolder || regFullname,
           address: regAddress,
-          city: regCity
+          city: regCity,
+          serial_no: regSerialNo,
+          jeans_size: regJeansSize,
+          jeans_color: regJeansColor
         });
       } else {
         regUserObj = {
@@ -1621,12 +1640,17 @@ export default function App() {
           bank_account: regBankAccount || "",
           bank_holder: regBankHolder || regFullname,
           address: regAddress || "",
-          city: regCity || ""
+          city: regCity || "",
+          serial_no: regSerialNo || "",
+          jeans_size: regJeansSize || "",
+          jeans_color: regJeansColor || ""
         };
       }
 
       if (regUserObj) {
         saveLocalRegisteredUser(regUserObj);
+        // Direct login to member dashboard
+        setCurrentUser(regUserObj);
       }
 
       // Refresh users list so new member appears in Admin Management & User list immediately
@@ -1648,18 +1672,20 @@ export default function App() {
       const regOrder: Order = {
         id: newOrdId,
         invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
-        user_id: 0,
+        user_id: regUserObj?.id || 0,
         username: createdUsername,
         fullname: regFullname,
         phone: regPhone,
         address: `${regAddress}${regCity ? ', ' + regCity : ''}`,
-        product_name: "Paket Perdana Member - Hedtro Jeans Raw Denim Premium",
+        product_name: `Paket Perdana Member - Hedtro Jeans Raw Denim Premium (No Seri: ${regSerialNo || 'HDT-REG-' + createdUsername.toUpperCase()})`,
+        selected_size: regJeansSize || '30',
+        selected_color: regJeansColor || 'Indigo Blue Raw',
         amount: 550000,
         payment_method: "Transfer Bank / QRIS",
         status: "DIPROSES",
         courier: "JNE REGULER",
         tracking_number: newResi,
-        notes: "Pesanan pendaftaran member baru. Celana Jeans Perdana sedang diproses di gudang.",
+        notes: `Pesanan pendaftaran member baru. Celana Jeans Perdana [No Seri: ${regSerialNo || 'HDT-REG-' + createdUsername.toUpperCase()}, Ukuran: ${regJeansSize}, Warna: ${regJeansColor}] sedang diproses di gudang.`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         steps: [
@@ -1673,9 +1699,7 @@ export default function App() {
       await saveFirestoreOrder(regOrder);
       setOrders(prev => [regOrder, ...prev]);
 
-      setRegSuccessMessage(`Pendaftaran Berhasil! Order ID Invoice: ${regOrder.invoice_no} (Resi: ${newResi}) telah dibuat & terhubung ke sistem lacak pesanan.`);
-      setLoginUsername(regEmail);
-      setLoginPassword(regPassword);
+      // Reset form states
       setRegUsername('');
       setRegFullname('');
       setRegKtp('');
@@ -1688,10 +1712,18 @@ export default function App() {
       setRegConfirmPassword('');
       setRegSponsor('');
       setRegUpline('');
+      setRegSerialNo('');
+      setRegJeansSize('30');
+      setRegJeansColor('Indigo Blue Raw');
+
+      // Close modal and navigate immediately to member dashboard
+      setShowRegisterModal(false);
+      setActiveView('dashboard');
       fetchDashboardData();
+      alert(`Selamat, Pendaftaran Berhasil! Anda telah terdaftar dan langsung masuk sebagai member.`);
     } catch (err: any) {
       console.error("Error during registration:", err);
-      alert(err.message || "Pendaftaran gagal");
+      alert(err.message || "Pendaftaran gagal, silakan periksa data Anda.");
     }
   };
 
@@ -2826,86 +2858,19 @@ export default function App() {
 
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-emerald-600" /> Supabase Auth Terhubung
+                <span className="bg-blue-100 text-blue-800 text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-blue-600" /> Member Portal
                 </span>
-                {sbSession && (
-                  <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-2 py-0.5 rounded-full">
-                    Sesi Aktif
-                  </span>
-                )}
               </div>
               <h3 className="text-xl font-black text-slate-900">Masuk Akun Member / Admin</h3>
-              <p className="text-xs text-slate-500">Gunakan otentikasi Supabase Auth, OAuth, Magic Link, atau akun member.</p>
-            </div>
-
-            {/* Supabase Social OAuth Login Buttons */}
-            <div className="space-y-2">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Otentikasi Supabase Instant:</p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  id="btn-supabase-google-oauth"
-                  onClick={() => handleSupabaseOAuthLogin('google')}
-                  disabled={isSubmittingLogin}
-                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-extrabold transition flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                  </svg>
-                  <span>Google OAuth</span>
-                </button>
-                <button
-                  type="button"
-                  id="btn-supabase-github-oauth"
-                  onClick={() => handleSupabaseOAuthLogin('github')}
-                  disabled={isSubmittingLogin}
-                  className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white rounded-xl px-3 py-2 text-xs font-extrabold transition flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-                  </svg>
-                  <span>GitHub OAuth</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Demo Accounts Fill */}
-            <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-3 space-y-2">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-blue-600" /> Uji Coba Demo Akun Sekali-Klik:
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  id="btn-quick-budi"
-                  onClick={() => handleQuickLogin('user')}
-                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-bold transition text-left flex flex-col justify-between shadow-sm hover:border-blue-500"
-                >
-                  <span className="text-blue-600 font-extrabold">👤 Demo Member</span>
-                  <strong className="block mt-0.5 font-extrabold text-slate-900">budi</strong>
-                </button>
-                <button
-                  type="button"
-                  id="btn-quick-admin"
-                  onClick={() => handleQuickLogin('admin')}
-                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-bold transition text-left flex flex-col justify-between shadow-sm hover:border-blue-500"
-                >
-                  <span className="text-red-600 font-extrabold">⚙️ Administrator</span>
-                  <strong className="block mt-0.5 font-extrabold text-slate-900">admin</strong>
-                </button>
-              </div>
+              <p className="text-xs text-slate-500">Silakan masukkan username/email dan kata sandi Anda.</p>
             </div>
 
             {loginError && <p className="bg-red-50 text-red-800 p-2.5 rounded-xl border border-red-200 text-xs font-bold">{loginError}</p>}
-            {magicLinkNotice && <p className="bg-emerald-50 text-emerald-800 p-2.5 rounded-xl border border-emerald-200 text-xs font-bold">{magicLinkNotice}</p>}
 
             <form onSubmit={handleLoginSubmit} className="space-y-3">
               <div className="space-y-1">
-                <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Username / Email Supabase</label>
+                <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Username / Email</label>
                 <input
                   type="text"
                   required
@@ -2929,14 +2894,7 @@ export default function App() {
                   />
                   <Key className="w-4 h-4 text-slate-400 absolute right-3.5 top-2.5" />
                 </div>
-                <div className="flex justify-between items-center pt-1">
-                  <button
-                    type="button"
-                    onClick={handleSupabaseMagicLink}
-                    className="text-[10px] font-extrabold text-emerald-600 hover:underline flex items-center gap-1"
-                  >
-                    <Mail className="w-3 h-3" /> Kirim Supabase Magic Link
-                  </button>
+                <div className="flex justify-end items-center pt-1">
                   <button
                     type="button"
                     id="btn-forgot-password-trigger"
@@ -3404,11 +3362,68 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Section 5: Structure Placement */}
+                {/* Section 5: Spesifikasi Produk Jeans Perdana */}
+                <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <ShoppingBag className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">5. Spesifikasi Celana Jeans Perdana</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Nomor Seri *</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: HDT-SERI-001"
+                        value={regSerialNo}
+                        onChange={(e) => setRegSerialNo(e.target.value)}
+                        className="w-full border border-slate-200 bg-white font-mono rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Ukuran Jeans *</label>
+                      <select
+                        value={regJeansSize}
+                        onChange={(e) => setRegJeansSize(e.target.value)}
+                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      >
+                        <option value="28">Size 28</option>
+                        <option value="29">Size 29</option>
+                        <option value="30">Size 30</option>
+                        <option value="31">Size 31</option>
+                        <option value="32">Size 32</option>
+                        <option value="33">Size 33</option>
+                        <option value="34">Size 34</option>
+                        <option value="35">Size 35</option>
+                        <option value="36">Size 36</option>
+                        <option value="38">Size 38</option>
+                        <option value="40">Size 40</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold uppercase text-slate-500 block">Warna Jeans *</label>
+                      <select
+                        value={regJeansColor}
+                        onChange={(e) => setRegJeansColor(e.target.value)}
+                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      >
+                        <option value="Indigo Blue Raw">Indigo Blue Raw Denim</option>
+                        <option value="Deep Navy Blue">Deep Navy Blue</option>
+                        <option value="Charcoal Black Raw">Charcoal Black Raw</option>
+                        <option value="Light Vintage Blue">Light Vintage Blue</option>
+                        <option value="Black Solid">Black Solid</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 6: Structure Placement */}
                 <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 space-y-3">
                   <div className="flex items-center gap-2 border-b border-blue-200/60 pb-2">
                     <Users className="w-4 h-4 text-blue-600" />
-                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">5. Penempatan Tim Afiliasi (Placement)</h4>
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">6. Penempatan Tim Afiliasi (Placement)</h4>
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -31,6 +31,9 @@ export interface MLMUser {
   bank_holder?: string;
   wishlist?: number[];
   profile_photo?: string;
+  serial_no?: string;
+  jeans_size?: string;
+  jeans_color?: string;
 }
 
 export interface Product {

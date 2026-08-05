@@ -1053,7 +1053,7 @@ app.post("/api/auth/reset-password", (req, res) => {
 app.post("/api/auth/register", async (req, res) => {
   try {
     await initFirestoreDataOnce();
-  const { username, fullname, email, phone, password, sponsor_username, upline_username, position, ktp, whatsapp, bank_name, bank_account, bank_holder } = req.body;
+  const { username, fullname, email, phone, password, sponsor_username, upline_username, position, ktp, whatsapp, bank_name, bank_account, bank_holder, address, city, serial_no, jeans_size, jeans_color } = req.body;
 
   if (!username || !fullname || !email || !phone) {
     return res.status(400).json({ message: "Mohon isi semua field wajib (Username, Nama Lengkap, Email, Telepon)" });
@@ -1126,7 +1126,12 @@ app.post("/api/auth/register", async (req, res) => {
     whatsapp: whatsapp || phone || "",
     bank_name: bank_name || "",
     bank_account: bank_account || "",
-    bank_holder: bank_holder || fullname || ""
+    bank_holder: bank_holder || fullname || "",
+    address: address || "",
+    city: city || "",
+    serial_no: serial_no || "",
+    jeans_size: jeans_size || "",
+    jeans_color: jeans_color || ""
   };
 
   users.push(newUser);
