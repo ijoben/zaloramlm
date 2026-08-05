@@ -213,7 +213,7 @@ export interface Order {
   amount: number;
   unique_code?: number;
   payment_method?: string;
-  status: 'PENDING' | 'DIPROSES' | 'DIKIRIM' | 'SELESAI' | 'DIBATALKAN' | 'TERIMA' | 'BATAL';
+  status: 'PENDING' | 'DIPROSES' | 'DIKIRIM' | 'SELESAI' | 'DIBATALKAN' | 'TERIMA' | 'BATAL' | 'MENUNGGU_PEMBAYARAN' | 'MENUNGGU_VERIFIKASI';
   courier: string;
   tracking_number: string;
   notes?: string;

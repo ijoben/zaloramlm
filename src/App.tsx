@@ -4,6 +4,7 @@ import LandingPage from "./components/LandingPage";
 import UserDashboard from "./components/UserDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import PHPSourceViewer from "./components/PHPSourceViewer";
+import RegistrationSuccessModal from "./components/RegistrationSuccessModal";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, BinaryTreeNode, Order } from "./types";
 import { DEFAULT_PRODUCTS } from "./data/defaultProducts";
 import { DEFAULT_USERS } from "./data/defaultUsers";
@@ -203,7 +204,7 @@ async function registerUserToFirestoreDirect(regData: {
     email: regData.email,
     phone: regData.phone,
     password: regData.password || "password123",
-    is_active: true, // Auto Active upon registration package
+    is_active: false, // Default Free Member (Inactive until payment approved)
     upline_id: uplineId,
     position: finalPos,
     sponsor_id: sponsorId,
@@ -907,6 +908,8 @@ export default function App() {
   const [regPosition, setRegPosition] = useState<'L' | 'R'>('L');
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
+  const [showRegSuccessModal, setShowRegSuccessModal] = useState(false);
+  const [regSuccessData, setRegSuccessData] = useState<{ user: MLMUser; order: Order } | null>(null);
 
   // Dynamic branding & configuration settings
   const [systemSettings, setSystemSettings] = useState<any>({
@@ -1650,7 +1653,6 @@ export default function App() {
 
       // 3. Create initial order record for new member
       const newOrdId = Date.now();
-      const newResi = `JNE-${Math.floor(100000000 + Math.random() * 900000000)}`;
       const regOrder: Order = {
         id: newOrdId,
         invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
@@ -1658,24 +1660,24 @@ export default function App() {
         username: createdUsername,
         fullname: regFullname,
         phone: regPhone,
-        address: `${regAddress}${regCity ? ', ' + regCity : ''}`,
-        product_name: `Paket Perdana Member - Hedtro Jeans Raw Denim Premium (No Seri: ${regSerialNo || 'HDT-REG-' + createdUsername.toUpperCase()})`,
+        address: `${regAddress || 'Alamat Member'}${regCity ? ', ' + regCity : ''}`,
+        product_name: `Paket Perdana Member - Hedtro Jeans Raw Denim Premium`,
         selected_size: regJeansSize || '30',
         selected_color: regJeansColor || 'Indigo Blue Raw',
         amount: 550000,
         payment_method: "Transfer Bank / QRIS",
-        status: "DIPROSES",
+        status: "MENUNGGU_PEMBAYARAN",
         courier: "JNE REGULER",
-        tracking_number: newResi,
-        notes: `Pesanan pendaftaran member baru. Celana Jeans Perdana [No Seri: ${regSerialNo || 'HDT-REG-' + createdUsername.toUpperCase()}, Ukuran: ${regJeansSize}, Warna: ${regJeansColor}] sedang diproses di gudang.`,
+        tracking_number: "-",
+        notes: `Pendaftaran Member Baru @${createdUsername}. Silakan lakukan pembayaran Rp 550.000 dan upload bukti transfer untuk diaktifkan Admin.`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         steps: [
-          { title: "Registrasi Akun & Invoice Dibuat", time: new Date().toLocaleString("id-ID"), done: true, description: "Pendaftaran member berhasil" },
-          { title: "Gudang Memproses & Quality Control", time: new Date().toLocaleString("id-ID"), done: true, description: "Menyiapkan celana jeans perdana" },
-          { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "Sedang Diproses", done: false, description: `Nomor Resi: ${newResi}` },
-          { title: "Dalam Pengiriman", time: "-", done: false, description: "-" },
-          { title: "Pesanan Diterima Pemesan", time: "-", done: false, description: "-" }
+          { title: "Registrasi Akun & Invoice Dibuat", time: new Date().toLocaleString("id-ID"), done: true, description: "Pendaftaran member berhasil (Status: Free Member)" },
+          { title: "Upload Bukti Transfer Pembayaran", time: "Menunggu Upload", done: false, description: "Silakan upload foto / screenshot bukti pembayaran" },
+          { title: "Verifikasi Admin & Aktivasi Member", time: "-", done: false, description: "Verifikasi oleh Tim Admin Hedtro Jeans" },
+          { title: "Gudang Memproses & Quality Control", time: "-", done: false, description: "Penyiapan celana jeans perdana" },
+          { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "-", done: false, description: "Nomor Resi Pengiriman" }
         ]
       };
       
@@ -1699,11 +1701,13 @@ export default function App() {
       setRegJeansSize('30');
       setRegJeansColor('Indigo Blue Raw');
 
-      // Close modal and navigate immediately to member dashboard
+      // Set logged in user & show beautiful success modal
+      setCurrentUser(regUserObj);
+      setRegSuccessData({ user: regUserObj, order: regOrder });
       setShowRegisterModal(false);
+      setShowRegSuccessModal(true);
       setActiveView('dashboard');
       fetchDashboardData();
-      alert(`Selamat ${regFullname}! Pendaftaran Berhasil. Anda telah terdaftar dan langsung masuk ke Dashboard Member.`);
     } catch (err: any) {
       console.error("Error during registration:", err);
       alert(err.message || "Pendaftaran gagal, silakan periksa data Anda.");
@@ -3498,6 +3502,24 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Registration Success Popup Modal */}
+      {showRegSuccessModal && regSuccessData && (
+        <RegistrationSuccessModal
+          user={regSuccessData.user}
+          order={regSuccessData.order}
+          settings={systemSettings}
+          onClose={() => {
+            setShowRegSuccessModal(false);
+            setRegSuccessData(null);
+          }}
+          onGoToUploadProof={() => {
+            setShowRegSuccessModal(false);
+            setRegSuccessData(null);
+            setActiveView('dashboard');
+          }}
+        />
       )}
 
     </div>

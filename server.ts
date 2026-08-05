@@ -1119,7 +1119,7 @@ app.post("/api/auth/register", async (req, res) => {
     fullname,
     email,
     phone,
-    is_active: true, // Auto active on registration
+    is_active: false, // Default Free Member (Inactive until payment approved)
     upline_id: uplineId,
     position: finalPos,
     sponsor_id: sponsorId,
@@ -1143,8 +1143,8 @@ app.post("/api/auth/register", async (req, res) => {
     address: address || "",
     city: city || "",
     serial_no: serial_no || "",
-    jeans_size: jeans_size || "",
-    jeans_color: jeans_color || ""
+    jeans_size: jeans_size || "30",
+    jeans_color: jeans_color || "Indigo Blue Raw"
   };
 
   users.push(newUser);
@@ -1153,12 +1153,44 @@ app.post("/api/auth/register", async (req, res) => {
   // Update left_count / right_count for all ancestor uplines up to root!
   await updateAncestorCounts(uplineId, finalPos);
 
+  // Create pending order for initial membership package
+  const newOrdId = Date.now();
+  const initOrder: Order = {
+    id: newOrdId,
+    invoice_no: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(100 + Math.random() * 900))}`,
+    user_id: newUser.id,
+    username: normalizedUsername,
+    fullname: fullname,
+    phone: phone,
+    address: `${address || 'Alamat Member'}${city ? ', ' + city : ''}`,
+    product_name: `Paket Perdana Member - Hedtro Jeans Raw Denim Premium`,
+    selected_size: jeans_size || "30",
+    selected_color: jeans_color || "Indigo Blue Raw",
+    amount: 550000,
+    payment_method: "Transfer Bank / QRIS",
+    status: "MENUNGGU_PEMBAYARAN",
+    courier: "JNE REGULER",
+    tracking_number: "-",
+    notes: `Pendaftaran Member Baru @${normalizedUsername}. Silakan lakukan pembayaran Rp 550.000 dan upload bukti transfer untuk diaktifkan Admin.`,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    steps: [
+      { title: "Registrasi Akun & Invoice Dibuat", time: new Date().toLocaleString("id-ID"), done: true, description: "Pendaftaran member berhasil (Status: Free Member)" },
+      { title: "Upload Bukti Transfer Pembayaran", time: "Menunggu Upload", done: false, description: "Upload foto / screenshot bukti pembayaran" },
+      { title: "Verifikasi Admin & Aktivasi Member", time: "-", done: false, description: "Verifikasi oleh Tim Admin Hedtro Jeans" },
+      { title: "Gudang Memproses & Quality Control", time: "-", done: false, description: "Penyiapan celana jeans perdana" },
+      { title: "Diserahkan ke Kurir Ekspedisi (JNE)", time: "-", done: false, description: "Nomor Resi Pengiriman" }
+    ]
+  };
+  orders.push(initOrder);
+  await syncOrderToFirestore(initOrder);
+
   // Notify parent & sponsor
   const notif: MLMNotification = {
     id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
     user_id: uplineId,
-    title: "Member Baru!",
-    message: `${fullname} (@${normalizedUsername}) terdaftar di kaki ${finalPos === 'L' ? 'Kiri' : 'Kanan'} Anda. Akun member baru telah aktif!`,
+    title: "Member Baru Terdaftar!",
+    message: `${fullname} (@${normalizedUsername}) terdaftar sebagai Free Member di kaki ${finalPos === 'L' ? 'Kiri' : 'Kanan'} Anda. Menunggu pembayaran & aktivasi.`,
     type: "info",
     created_at: new Date().toISOString()
   };
@@ -1166,8 +1198,9 @@ app.post("/api/auth/register", async (req, res) => {
   await syncNotificationToFirestore(notif);
 
   res.status(201).json({
-    message: "Pendaftaran berhasil! Akun Anda telah aktif dan tersimpan di database. Silakan login dengan Username/Email dan Kata Sandi Anda.",
-    user: newUser
+    message: "Pendaftaran berhasil! Akun Anda terdaftar sebagai Free Member.",
+    user: newUser,
+    order: initOrder
   });
   } catch (err: any) {
     console.error("Register route error:", err);
