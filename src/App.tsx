@@ -37,28 +37,38 @@ function saveLocalRegisteredUser(newUser: MLMUser) {
 
 // Supabase Direct Data Helpers
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
-  let combined: MLMUser[] = [...DEFAULT_USERS];
   const localCache = getLocalRegisteredUsers();
 
   if (supabase) {
     try {
       const { data, error } = await supabase.from('users').select('*');
-      if (!error && data && data.length > 0) {
-        for (const sbUser of data as MLMUser[]) {
-          const idx = combined.findIndex(u => Number(u.id) === Number(sbUser.id) || (u.username && sbUser.username && u.username.toLowerCase() === sbUser.username.toLowerCase()));
+      if (!error && data) {
+        let combined: MLMUser[] = [...(data as MLMUser[])];
+
+        // Ensure admin account is available if missing from Supabase
+        if (!combined.some(u => u.username === 'admin' || u.role === 'admin' || Number(u.id) === 1)) {
+          combined.unshift(DEFAULT_USERS[0]);
+        }
+
+        // Merge localCache if any local registered member isn't in Supabase yet
+        for (const lc of localCache) {
+          const idx = combined.findIndex(u => Number(u.id) === Number(lc.id) || (u.username && lc.username && u.username.toLowerCase() === lc.username.toLowerCase()));
           if (idx !== -1) {
-            combined[idx] = { ...combined[idx], ...sbUser };
+            combined[idx] = { ...combined[idx], ...lc };
           } else {
-            combined.push(sbUser);
+            combined.push(lc);
           }
         }
+
+        return combined;
       }
     } catch (err) {
       console.warn("Supabase fetch users error:", err);
     }
   }
 
-  // Merge local cache
+  // Offline fallback if Supabase is unavailable
+  let combined: MLMUser[] = [...DEFAULT_USERS];
   for (const lc of localCache) {
     const idx = combined.findIndex(u => Number(u.id) === Number(lc.id) || (u.username && lc.username && u.username.toLowerCase() === lc.username.toLowerCase()));
     if (idx !== -1) {

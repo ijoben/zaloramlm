@@ -4,6 +4,7 @@ import fs from "fs";
 import { createClient } from "@supabase/supabase-js";
 import { MLMUser, Product, Transaction, DepositRequest, WDRequest, MLMNotification, BinaryTreeNode, Order } from "./src/types";
 import { DEFAULT_ORDERS } from "./src/data/defaultOrders";
+import { DEFAULT_USERS } from "./src/data/defaultUsers";
 
 const app = express();
 const PORT = 3000;
@@ -3413,18 +3414,13 @@ async function initSupabaseData() {
     // 1. Users
     try {
       const { data: loadedUsers, error } = await supabase.from('users').select('*');
-      if (loadedUsers && loadedUsers.length > 0) {
-        const mergedUsers = [...users];
-        for (const lu of loadedUsers as MLMUser[]) {
-          const idx = mergedUsers.findIndex(u => Number(u.id) === Number(lu.id) || (u.username && lu.username && u.username.toLowerCase() === lu.username.toLowerCase()));
-          if (idx !== -1) {
-            mergedUsers[idx] = { ...mergedUsers[idx], ...lu };
-          } else {
-            mergedUsers.push(lu as MLMUser);
-          }
+      if (loadedUsers && !error) {
+        users = loadedUsers as MLMUser[];
+        // Ensure admin user exists if missing in Supabase
+        if (!users.some(u => u.username === 'admin' || u.role === 'admin' || Number(u.id) === 1)) {
+          users.unshift(DEFAULT_USERS[0]);
         }
-        users = mergedUsers;
-        console.log(`⚡ Merged ${loadedUsers.length} users from Supabase into memory (Total: ${users.length})`);
+        console.log(`⚡ Loaded ${users.length} users directly from Supabase into memory`);
       }
     } catch (e) {
       console.warn("Supabase users load notice:", e);
