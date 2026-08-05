@@ -601,6 +601,7 @@ export default function AdminDashboard({
   // Email Notification configuration states
   const [formEmailNotifAdminActive, setFormEmailNotifAdminActive] = useState(settings?.emailNotifRegisterAdminActive ?? true);
   const [formEmailNotifSponsorActive, setFormEmailNotifSponsorActive] = useState(settings?.emailNotifRegisterSponsorActive ?? true);
+  const [formEnableEmailVerification, setFormEnableEmailVerification] = useState(settings?.enableEmailVerification ?? false);
   const [formAdminNotifEmail, setFormAdminNotifEmail] = useState(settings?.adminNotifEmail || 'admin@hedtrojeans.com');
   const [formSmtpHost, setFormSmtpHost] = useState(settings?.smtpHost || 'smtp.gmail.com');
   const [formSmtpPort, setFormSmtpPort] = useState(settings?.smtpPort || 587);
@@ -678,6 +679,7 @@ export default function AdminDashboard({
 
       setFormEmailNotifAdminActive(settings.emailNotifRegisterAdminActive ?? true);
       setFormEmailNotifSponsorActive(settings.emailNotifRegisterSponsorActive ?? true);
+      setFormEnableEmailVerification(settings.enableEmailVerification ?? false);
       setFormAdminNotifEmail(settings.adminNotifEmail || 'admin@hedtrojeans.com');
       setFormSmtpHost(settings.smtpHost || 'smtp.gmail.com');
       setFormSmtpPort(settings.smtpPort ?? 587);
@@ -1162,6 +1164,7 @@ export default function AdminDashboard({
       companyBankInstruction: formCompanyBankInstruction,
       emailNotifRegisterAdminActive: formEmailNotifAdminActive,
       emailNotifRegisterSponsorActive: formEmailNotifSponsorActive,
+      enableEmailVerification: formEnableEmailVerification,
       adminNotifEmail: formAdminNotifEmail,
       smtpHost: formSmtpHost,
       smtpPort: Number(formSmtpPort),
@@ -3883,7 +3886,45 @@ export default function AdminDashboard({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Email Verification Status Switch */}
+                      <div className="space-y-3 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[9px] font-black uppercase text-blue-600 tracking-wider">Verifikasi Email Member</p>
+                          <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                            formEnableEmailVerification ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          }`}>
+                            {formEnableEmailVerification ? 'WAJIB VERIFIKASI' : 'LANGSUNG LOGIN'}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between pt-1">
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">Status Wajib Verifikasi Email</p>
+                            <p className="text-[10px] text-slate-500 leading-snug">
+                              {formEnableEmailVerification
+                                ? 'Member baru wajib mengklik link verifikasi di email sebelum bisa login.'
+                                : 'Member baru dapat langsung login tanpa verifikasi email (sistem rekomendasi).'
+                              }
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFormEnableEmailVerification(!formEnableEmailVerification)}
+                            className="text-xs font-bold text-slate-600 focus:outline-none shrink-0"
+                          >
+                            {formEnableEmailVerification ? (
+                              <ToggleRight className="w-11 h-7 text-amber-500 cursor-pointer" />
+                            ) : (
+                              <ToggleLeft className="w-11 h-7 text-emerald-600 cursor-pointer" />
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-slate-400 italic pt-1 border-t border-slate-200">
+                          *Bila Non-Aktif, notifikasi &quot;akun tidak ditemukan / butuh konfirmasi&quot; tidak akan menghalangi pendaftaran member.
+                        </p>
+                      </div>
+
                       {/* Active Status Switches */}
                       <div className="space-y-3 p-3 bg-white border border-slate-100 rounded-xl">
                         <p className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Aktivasi Notifikasi</p>

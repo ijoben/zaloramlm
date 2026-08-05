@@ -552,6 +552,7 @@ let systemSettings: any = {
   midtransIsProduction: false,
   emailNotifRegisterAdminActive: true,
   emailNotifRegisterSponsorActive: true,
+  enableEmailVerification: false,
   adminNotifEmail: "admin@hedtrojeans.com",
   smtpHost: "smtp.gmail.com",
   smtpPort: 587,
@@ -1096,7 +1097,7 @@ app.post("/api/auth/register", async (req, res) => {
     finalPos = vacancy.position;
   }
 
-  // 3. Create new user (inactive)
+  // 3. Create new user (active)
   const newUserId = Math.max(...users.map(u => Number(u.id) || 0), 0) + 1;
   const newUser: MLMUser = {
     id: newUserId,
@@ -1104,7 +1105,7 @@ app.post("/api/auth/register", async (req, res) => {
     fullname,
     email,
     phone,
-    is_active: false,
+    is_active: true, // Auto active on registration
     upline_id: uplineId,
     position: finalPos,
     sponsor_id: sponsorId,
@@ -1138,7 +1139,7 @@ app.post("/api/auth/register", async (req, res) => {
     id: Math.max(...notifications.map(n => Number(n.id) || 0), 0) + 1,
     user_id: uplineId,
     title: "Member Baru!",
-    message: `${fullname} (@${normalizedUsername}) bergabung di kaki ${finalPos === 'L' ? 'Kiri' : 'Kanan'} Anda. Silakan bantu untuk aktifasi Rp 550,000 agar bonus Anda mengalir!`,
+    message: `${fullname} (@${normalizedUsername}) terdaftar di kaki ${finalPos === 'L' ? 'Kiri' : 'Kanan'} Anda. Akun member baru telah aktif!`,
     type: "info",
     created_at: new Date().toISOString()
   };
@@ -1146,7 +1147,7 @@ app.post("/api/auth/register", async (req, res) => {
   await syncNotificationToFirestore(notif);
 
   res.status(201).json({
-    message: "Pendaftaran berhasil! Akun Anda berstatus TIDAK AKTIF. Lakukan pembayaran aktifasi Rp 550,000 untuk menikmati seluruh fitur dan berbelanja produk Hedtro Jeans.",
+    message: "Pendaftaran berhasil! Akun Anda telah aktif dan tersimpan di database. Silakan login dengan Username/Email dan Kata Sandi Anda.",
     user: newUser
   });
   } catch (err: any) {
@@ -3413,8 +3414,17 @@ async function initSupabaseData() {
     try {
       const { data: loadedUsers, error } = await supabase.from('users').select('*');
       if (loadedUsers && loadedUsers.length > 0) {
-        users = loadedUsers as MLMUser[];
-        console.log(`⚡ Loaded ${loadedUsers.length} users from Supabase into memory`);
+        const mergedUsers = [...users];
+        for (const lu of loadedUsers as MLMUser[]) {
+          const idx = mergedUsers.findIndex(u => Number(u.id) === Number(lu.id) || (u.username && lu.username && u.username.toLowerCase() === lu.username.toLowerCase()));
+          if (idx !== -1) {
+            mergedUsers[idx] = { ...mergedUsers[idx], ...lu };
+          } else {
+            mergedUsers.push(lu as MLMUser);
+          }
+        }
+        users = mergedUsers;
+        console.log(`⚡ Merged ${loadedUsers.length} users from Supabase into memory (Total: ${users.length})`);
       }
     } catch (e) {
       console.warn("Supabase users load notice:", e);
