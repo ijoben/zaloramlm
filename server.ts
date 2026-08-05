@@ -16,6 +16,11 @@ app.get(["/api", "/api/"], (req, res) => {
   res.json({ status: "ok", message: "Hedtro Jeans Official Backend API is active" });
 });
 
+// Get All Users (Master Live List)
+app.get(["/api/users", "/users"], (req, res) => {
+  res.json(users);
+});
+
 // ==========================================
 // SUPABASE DATABASE INTEGRATION
 // ==========================================
@@ -35,10 +40,44 @@ export async function syncUserToFirestore(user: MLMUser) {
   try {
     const cleaned = cleanForSupabase(user);
     const { error } = await supabase.from('users').upsert([cleaned], { onConflict: 'id' });
-    if (error) console.warn("Supabase sync user notice:", error.message);
-    else console.log(`⚡ [SUPABASE] User @${user.username} synced to Supabase`);
+    if (error) {
+      console.warn("⚠️ Supabase sync user notice:", error.message);
+      // Fallback sync with essential fields if custom columns are missing in remote DB
+      const essential = {
+        id: Number(user.id),
+        username: user.username,
+        fullname: user.fullname,
+        email: user.email,
+        phone: user.phone || '',
+        password: user.password || 'user123',
+        is_active: Boolean(user.is_active),
+        role: user.role || 'user',
+        upline_id: user.upline_id ? Number(user.upline_id) : null,
+        position: user.position || 'L',
+        sponsor_id: user.sponsor_id ? Number(user.sponsor_id) : null,
+        sponsor_username: user.sponsor_username || '',
+        balance: Number(user.balance) || 0,
+        sponsor_bonus: Number(user.sponsor_bonus) || 0,
+        pairing_bonus: Number(user.pairing_bonus) || 0,
+        level_bonus: Number(user.level_bonus) || 0,
+        ro_bonus: Number(user.ro_bonus) || 0,
+        left_count: Number(user.left_count) || 0,
+        right_count: Number(user.right_count) || 0,
+        left_sales: Number(user.left_sales) || 0,
+        right_sales: Number(user.right_sales) || 0,
+        created_at: user.created_at || new Date().toISOString()
+      };
+      const { error: err2 } = await supabase.from('users').upsert([essential], { onConflict: 'id' });
+      if (err2) {
+        console.warn("⚠️ Supabase essential sync error:", err2.message);
+      } else {
+        console.log(`⚡ [SUPABASE] User @${user.username} synced via essential fields`);
+      }
+    } else {
+      console.log(`⚡ [SUPABASE] User @${user.username} synced to Supabase`);
+    }
   } catch (err) {
-    console.warn("Supabase sync user error:", err);
+    console.warn("Supabase sync user catch error:", err);
   }
 }
 

@@ -40,6 +40,39 @@ function saveLocalRegisteredUser(newUser: MLMUser) {
 async function fetchFirestoreUsers(): Promise<MLMUser[]> {
   const localCache = getLocalRegisteredUsers();
 
+  // 1. Primary: Fetch live master users from Express server API
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const apiRes = await fetch("/api/users", { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
+    if (apiRes.ok) {
+      const apiUsers = await apiRes.json();
+      if (Array.isArray(apiUsers) && apiUsers.length > 0) {
+        let combined: MLMUser[] = [...apiUsers];
+
+        // Ensure admin account is available
+        if (!combined.some(u => u.username === 'admin' || u.role === 'admin' || Number(u.id) === 1)) {
+          combined.unshift(DEFAULT_USERS[0]);
+        }
+
+        // Merge localCache if any local registered member isn't in API yet
+        for (const lc of localCache) {
+          const idx = combined.findIndex(u => Number(u.id) === Number(lc.id) || (u.username && lc.username && u.username.toLowerCase() === lc.username.toLowerCase()));
+          if (idx !== -1) {
+            combined[idx] = { ...combined[idx], ...lc };
+          } else {
+            combined.push(lc);
+          }
+        }
+
+        return combined;
+      }
+    }
+  } catch (apiErr) {
+    console.warn("API /api/users fetch notice:", apiErr);
+  }
+
+  // 2. Secondary: Fallback to direct Supabase database
   if (supabase) {
     try {
       const { data, error } = await supabase.from('users').select('*');

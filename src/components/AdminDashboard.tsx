@@ -326,9 +326,11 @@ export default function AdminDashboard({
   const [newStepTitle, setNewStepTitle] = useState('');
   const [newStepDesc, setNewStepDesc] = useState('');
 
-  // User search query
+  // User search query & Member view mode
   const [searchQuery, setSearchQuery] = useState('');
   const [searchDepositQuery, setSearchDepositQuery] = useState('');
+  const [memberSubTab, setMemberSubTab] = useState<'table' | 'tree'>('table');
+  const [selectedTreeRootId, setSelectedTreeRootId] = useState<number>(1);
 
   // Pagination states (10 items per page)
   const [pageTransactions, setPageTransactions] = useState(1);
@@ -2258,6 +2260,223 @@ export default function AdminDashboard({
                 </div>
               </div>
 
+              {/* Subtab View Switcher */}
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <button
+                  type="button"
+                  onClick={() => setMemberSubTab('table')}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer ${
+                    memberSubTab === 'table'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <Users className="w-4 h-4" /> 📋 Tabel Database ({filteredUsers.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMemberSubTab('tree')}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer ${
+                    memberSubTab === 'tree'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <TreePine className="w-4 h-4 text-emerald-300" /> 🌲 Pohon Jaringan (Genealogy Tree)
+                </button>
+              </div>
+
+              {/* VIEW 2: VISUAL GENEALOGY TREE VIEW */}
+              {memberSubTab === 'tree' && (
+                <div className="space-y-6 pt-2">
+                  {/* Selector Bar */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-xs font-black uppercase text-slate-800 tracking-wide flex items-center gap-2">
+                        <TreePine className="w-4 h-4 text-emerald-600" /> Pohon Jaringan Binary (Visual Inspector)
+                      </h4>
+                      <p className="text-[11px] text-slate-500">Pilih akun member utama untuk memeriksa seluruh struktur cabang Kiri & Kanan downline.</p>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <span className="text-xs font-bold text-slate-600 shrink-0">Root Node:</span>
+                      <select
+                        value={selectedTreeRootId}
+                        onChange={(e) => setSelectedTreeRootId(Number(e.target.value))}
+                        className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-extrabold focus:outline-none focus:border-blue-500 w-full sm:w-64"
+                      >
+                        {(users || []).map(u => (
+                          <option key={u.id} value={u.id}>
+                            @{u.username.replace(/^@/, '')} - {u.fullname || u.username} ({u.is_active ? 'Aktif' : 'Free'})
+                          </option>
+                        ))}
+                      </select>
+                      {selectedTreeRootId !== 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTreeRootId(1)}
+                          className="bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-2 rounded-xl text-xs font-extrabold shrink-0 cursor-pointer"
+                        >
+                          Reset ke Admin
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Render Visual Tree */}
+                  {(() => {
+                    const currentRootUser = (users || []).find(u => Number(u.id) === Number(selectedTreeRootId)) || users[0];
+                    if (!currentRootUser) return null;
+
+                    const leftDownlines = (users || []).filter(u => Number(u.upline_id) === Number(currentRootUser.id) && (u.position === 'L' || String(u.position).toUpperCase() === 'L'));
+                    const rightDownlines = (users || []).filter(u => Number(u.upline_id) === Number(currentRootUser.id) && (u.position === 'R' || String(u.position).toUpperCase() === 'R'));
+
+                    return (
+                      <div className="space-y-6">
+                        {/* Root Member Card */}
+                        <div className="max-w-md mx-auto bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-2xl p-5 shadow-lg border border-slate-800 text-center space-y-3 relative overflow-hidden">
+                          <div className="absolute top-2 right-3">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                              currentRootUser.is_active ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                            }`}>
+                              {currentRootUser.is_active ? '● LISENSI AKTIF' : '○ NON-AKTIF'}
+                            </span>
+                          </div>
+
+                          <div className="w-12 h-12 mx-auto rounded-full bg-blue-600 text-white font-black text-lg flex items-center justify-center border-2 border-blue-400 shadow-md">
+                            {(currentRootUser.fullname || currentRootUser.username).charAt(0).toUpperCase()}
+                          </div>
+
+                          <div>
+                            <h3 className="font-extrabold text-base text-white">{currentRootUser.fullname || currentRootUser.username}</h3>
+                            <p className="text-xs font-mono text-blue-400">@{currentRootUser.username.replace(/^@/, '')}</p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-xs">
+                            <div className="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                              <span className="text-[9px] text-slate-400 font-bold uppercase block">Tim Kiri (L)</span>
+                              <p className="font-black text-blue-400">{currentRootUser.left_count || 0} Member ({currentRootUser.left_sales || 0} pt)</p>
+                            </div>
+                            <div className="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                              <span className="text-[9px] text-slate-400 font-bold uppercase block">Tim Kanan (R)</span>
+                              <p className="font-black text-indigo-400">{currentRootUser.right_count || 0} Member ({currentRootUser.right_sales || 0} pt)</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Connector Line */}
+                        <div className="w-0.5 h-6 bg-slate-300 mx-auto"></div>
+
+                        {/* Two Columns: Left vs Right Leg */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* LEFT LEG */}
+                          <div className="bg-blue-50/50 border border-blue-200/80 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-blue-200">
+                              <span className="text-xs font-black text-blue-800 uppercase tracking-wider">
+                                👈 CABANG KIRI (LEFT LEG)
+                              </span>
+                              <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">
+                                {leftDownlines.length} Direct Downline
+                              </span>
+                            </div>
+
+                            {leftDownlines.length === 0 ? (
+                              <div className="py-8 text-center text-slate-400 text-xs italic">
+                                Belum ada member terpasang di kaki kiri.
+                              </div>
+                            ) : (
+                              leftDownlines.map(ld => (
+                                <div key={ld.id} className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs space-y-2">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <p className="font-extrabold text-slate-900 text-sm">{ld.fullname || ld.username}</p>
+                                      <p className="text-xs font-mono text-blue-600">@{ld.username.replace(/^@/, '')}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedTreeRootId(ld.id)}
+                                      className="text-[10px] font-extrabold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 cursor-pointer"
+                                    >
+                                      🔎 Drill Down (Fokus)
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-2 text-[10px] pt-2 border-t border-slate-100">
+                                    <div>
+                                      <span className="text-slate-400 font-bold block">Status:</span>
+                                      <span className={`font-bold ${ld.is_active ? 'text-green-600' : 'text-red-500'}`}>
+                                        {ld.is_active ? '✓ Premium' : '○ Inaktif'}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-400 font-bold block">Tim L/R:</span>
+                                      <span className="font-bold text-slate-800">{ld.left_count || 0} L / {ld.right_count || 0} R</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          {/* RIGHT LEG */}
+                          <div className="bg-indigo-50/50 border border-indigo-200/80 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-indigo-200">
+                              <span className="text-xs font-black text-indigo-800 uppercase tracking-wider">
+                                CABANG KANAN (RIGHT LEG) 👉
+                              </span>
+                              <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md">
+                                {rightDownlines.length} Direct Downline
+                              </span>
+                            </div>
+
+                            {rightDownlines.length === 0 ? (
+                              <div className="py-8 text-center text-slate-400 text-xs italic">
+                                Belum ada member terpasang di kaki kanan.
+                              </div>
+                            ) : (
+                              rightDownlines.map(rd => (
+                                <div key={rd.id} className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs space-y-2">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <p className="font-extrabold text-slate-900 text-sm">{rd.fullname || rd.username}</p>
+                                      <p className="text-xs font-mono text-indigo-600">@{rd.username.replace(/^@/, '')}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedTreeRootId(rd.id)}
+                                      className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 cursor-pointer"
+                                    >
+                                      🔎 Drill Down (Fokus)
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-2 text-[10px] pt-2 border-t border-slate-100">
+                                    <div>
+                                      <span className="text-slate-400 font-bold block">Status:</span>
+                                      <span className={`font-bold ${rd.is_active ? 'text-green-600' : 'text-red-500'}`}>
+                                        {rd.is_active ? '✓ Premium' : '○ Inaktif'}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-400 font-bold block">Tim L/R:</span>
+                                      <span className="font-bold text-slate-800">{rd.left_count || 0} L / {rd.right_count || 0} R</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* VIEW 1: TABLE VIEW */}
+              {memberSubTab === 'table' && (
+                <>
+
               {/* Mobile View: 1 Column per Row */}
               <div className="grid grid-cols-1 gap-2.5 sm:hidden">
                 {filteredUsers.length === 0 ? (
@@ -2547,6 +2766,8 @@ export default function AdminDashboard({
                 itemsPerPage={10}
                 onPageChange={setPageMembers}
               />
+                </>
+              )}
             </div>
           )}
 
