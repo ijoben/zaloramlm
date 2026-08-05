@@ -4,7 +4,7 @@ import {
   Shield, Users, DollarSign, Package, TrendingUp, HelpCircle, 
   CheckCircle, XCircle, Settings, ToggleLeft, ToggleRight, Edit, Edit3,
   ArrowUpRight, ArrowDownLeft, RefreshCw, BarChart2, Search, Percent,
-  Globe, PlusCircle, Plus, Check, X, ArrowDown, CreditCard, Menu, User, UserPlus, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck, FileText, ChevronLeft, ChevronRight, AlertTriangle, Ban, Download, Camera
+  Globe, PlusCircle, Plus, Check, X, ArrowDown, CreditCard, Menu, User, UserPlus, Lock, LogOut, Upload, Trash2, Eye, Sparkles, Truck, FileText, ChevronLeft, ChevronRight, AlertTriangle, Ban, Download, Camera, TreePine, Network, FolderTree, GitFork
 } from "lucide-react";
 import WorkflowModal from "./WorkflowModal";
 
